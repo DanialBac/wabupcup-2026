@@ -1,0 +1,168 @@
+export type TournamentCategory = 'SD' | 'SMP' | 'SMA' | 'INSTANSI' | 'UMUM' | 'DESA';
+
+export type RegistrationStatus = 'PENDING_PAYMENT' | 'APPROVED' | 'REJECTED';
+
+export type PaymentStatus = 'UNPAID' | 'VERIFYING' | 'PAID';
+
+export interface UploadedDoc {
+  name: string;
+  size: string; // e.g. "1.2 MB"
+  uploadDate: string;
+  type: string; // "application/pdf"
+  previewUrl?: string;
+  fileData?: string; // base64 or mock blob url
+}
+
+export interface RegistrationDocuments {
+  suratKeterangan?: UploadedDoc; // Sekolah / Instansi / Desa
+  suratPernyataan?: UploadedDoc; // Bermaterai
+  formulirPemain?: UploadedDoc; // Daftar Pemain
+  aktaKelahiran?: UploadedDoc; // Max 2014 (Khusus SD)
+  raportKartuPelajar?: UploadedDoc; // Raport / Kartu Pelajar
+  buktiPembayaran?: UploadedDoc; // Bukti Transfer
+}
+
+export interface RegistrationItem {
+  id: string;
+  regCode: string; // e.g. WABUP-SD-001
+  category: TournamentCategory;
+  teamName: string;
+  institutionName: string; // Nama Sekolah / Instansi / Desa
+  coachName: string;
+  coachPhone: string; // WhatsApp Aktif
+  coachEmail: string;
+  playerCount: number;
+  officialCount: number;
+  registrationDate: string;
+  status: RegistrationStatus;
+  paymentStatus: PaymentStatus;
+  paymentAmount: number;
+  rejectionReason?: string;
+  adminNotes?: string;
+  documents: RegistrationDocuments;
+  lastUpdated: string;
+}
+
+export interface CategoryPrizeItem {
+  rank: string; // Juara 1, Juara 2, Juara 3 Bersama / Juara 3, Top Scorer, Pemain Terbaik, Kiper Terbaik, Best Supporter
+  prizeMoney: number;
+  trophyText: string;
+}
+
+export interface CategoryDetail {
+  id: TournamentCategory;
+  name: string;
+  badgeTitle: string;
+  ageRestriction: string;
+  maxTeams: number;
+  registeredTeamsCount: number;
+  registrationFee: number;
+  totalPrize: number;
+  description: string;
+  prizes: CategoryPrizeItem[];
+  rules: string[];
+}
+
+export type MatchStatus = 'UPCOMING' | 'LIVE' | 'FINISHED';
+
+export interface MatchEvent {
+  id: string;
+  minute: string;
+  team: 'A' | 'B';
+  type: 'GOAL' | 'YELLOW' | 'RED' | 'OWN_GOAL';
+  playerName: string;
+}
+
+export interface MatchItem {
+  id: string;
+  matchNumber: number;
+  category: TournamentCategory;
+  round: string; // "Babak Penyisihan", "Babak 16 Besar", "Perempat Final", "Semifinal", "Perebutan Juara 3", "Final"
+  roundIndex: number; // 1 to 5
+  group?: string; // Group A, B, C, D if applicable
+  teamA: {
+    id?: string;
+    name: string;
+    score?: number;
+    penalties?: number;
+    logo?: string;
+    institution?: string;
+  };
+  teamB: {
+    id?: string;
+    name: string;
+    score?: number;
+    penalties?: number;
+    logo?: string;
+    institution?: string;
+  };
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  pitch: string; // "Lapangan 1 - Utama", "Lapangan 2 - Futsal A", "Lapangan 3 - Futsal B"
+  status: MatchStatus;
+  liveMinute?: string; // e.g. "34'" or "HT" or "FT"
+  events?: MatchEvent[];
+  winnerId?: 'A' | 'B' | 'DRAW';
+}
+
+export interface BracketMatch {
+  id: string;
+  roundName: string;
+  matchNumber: number;
+  teamA: { name: string; score?: number; isWinner?: boolean };
+  teamB: { name: string; score?: number; isWinner?: boolean };
+  date: string;
+  time: string;
+  pitch: string;
+  status: MatchStatus;
+  nextMatchId?: string;
+}
+
+export type SponsorTier = 'PLATINUM' | 'GOLD' | 'SILVER' | 'OFFICIAL_PARTNER';
+
+export interface SponsorItem {
+  id: string;
+  name: string;
+  tier: SponsorTier;
+  logoText: string;
+  logoUrl?: string;
+  websiteUrl?: string;
+  description?: string;
+}
+
+export type AdminRole = 'SUPERADMIN' | 'PANITIA' | 'WASIT';
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  fullName: string;
+  role: AdminRole;
+  email: string;
+  phone: string;
+  createdAt: string;
+  avatarColor: string;
+}
+
+export interface TournamentConfig {
+  name: string;
+  edition: string;
+  tagline: string;
+  registrationDeadline: string;
+  tournamentStartDate: string;
+  tournamentEndDate: string;
+  venueName: string;
+  venueAddress: string;
+  venueCity: string;
+  googleMapsEmbedUrl: string;
+  totalPrizePool: number;
+  adminContactPhone: string;
+  adminContactEmail: string;
+  bankAccount: {
+    bankName: string;
+    accountNumber: string;
+    accountHolder: string;
+  };
+  formulirTemplateUrl: string;
+  suratPernyataanTemplateUrl: string;
+  regulasiPdfUrl: string;
+}

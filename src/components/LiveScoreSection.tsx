@@ -1,0 +1,318 @@
+import React, { useState } from 'react';
+import { useTournament } from '../context/TournamentContext';
+import { MatchItem, TournamentCategory } from '../types';
+import {
+  Flame,
+  Clock,
+  MapPin,
+  Calendar,
+  ChevronRight,
+  Shield,
+  Activity,
+  CheckCircle2
+} from 'lucide-react';
+
+export const LiveScoreSection: React.FC = () => {
+  const { matches } = useTournament();
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>('ALL');
+
+  const categories: { id: string; label: string }[] = [
+    { id: 'ALL', label: 'Semua Kategori' },
+    { id: 'SD', label: 'SD (U-12)' },
+    { id: 'SMP', label: 'SMP' },
+    { id: 'SMA', label: 'SMA / SMK' },
+    { id: 'INSTANSI', label: 'Instansi' },
+    { id: 'UMUM', label: 'Umum' },
+    { id: 'DESA', label: 'Desa / Kel' },
+  ];
+
+  // Find currently live matches
+  const liveMatches = matches.filter(m => m.status === 'LIVE');
+  const activeLiveMatch = liveMatches[0] || null;
+
+  // Filtered matches list
+  const filteredMatches = matches.filter(m => {
+    const matchCat = selectedCategory === 'ALL' || m.category === selectedCategory;
+    const matchStatus = statusFilter === 'ALL' || m.status === statusFilter;
+    return matchCat && matchStatus;
+  });
+
+  return (
+    <section id="live-jadwal" className="py-16 bg-slate-900/60 dark:bg-slate-900/60 bg-slate-50 border-b border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* SECTION HEADER */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+          <div>
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-red-600/10 dark:bg-red-950/60 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-wider mb-2">
+              <Flame className="w-3.5 h-3.5 animate-bounce" />
+              <span>Pusat Informasi & Skor Pertandingan</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-heading font-bold uppercase tracking-tight text-slate-900 dark:text-white">
+              LIVE SCORE & JADWAL MATCH
+            </h2>
+          </div>
+
+          {/* STATUS TABS */}
+          <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-800 self-start md:self-auto overflow-x-auto max-w-full">
+            {(['ALL', 'LIVE', 'UPCOMING', 'FINISHED'] as const).map(st => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                  statusFilter === st
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {st === 'ALL' && 'Semua'}
+                {st === 'LIVE' && `🔴 Sedang Tanding (${liveMatches.length})`}
+                {st === 'UPCOMING' && 'Akan Datang'}
+                {st === 'FINISHED' && 'Selesai'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ACTIVE LIVE MATCH BANNER (FEATURED) */}
+        {activeLiveMatch && (
+          <div className="mb-10 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 border-2 border-red-600/50 shadow-2xl p-6 sm:p-8 text-white">
+            <div className="absolute top-0 right-0 px-6 py-1.5 bg-red-600 text-white text-xs font-extrabold uppercase tracking-widest rounded-bl-xl shadow-lg flex items-center space-x-1.5 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-white"></span>
+              <span>LIVE MATCH IN PROGRESS</span>
+            </div>
+
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+              
+              {/* MATCH INFO HEADER */}
+              <div className="w-full lg:w-auto text-center lg:text-left">
+                <span className="px-2.5 py-1 rounded-md bg-slate-800 text-xs font-bold text-red-400 border border-slate-700">
+                  {activeLiveMatch.category} • {activeLiveMatch.round}
+                </span>
+                <p className="text-xs text-slate-400 mt-2 flex items-center justify-center lg:justify-start space-x-1">
+                  <MapPin className="w-3.5 h-3.5 text-red-400" />
+                  <span>{activeLiveMatch.pitch}</span>
+                </p>
+              </div>
+
+              {/* TEAMS & SCORE BOARD */}
+              <div className="flex items-center justify-center space-x-4 sm:space-x-8 w-full max-w-2xl">
+                
+                {/* TEAM A */}
+                <div className="flex-1 text-center sm:text-right">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:ml-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-bold shadow-inner mb-2">
+                    🛡️
+                  </div>
+                  <h4 className="text-base sm:text-xl font-bold text-white leading-tight">
+                    {activeLiveMatch.teamA.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {activeLiveMatch.teamA.institution || 'Official Team'}
+                  </p>
+                </div>
+
+                {/* LIVE SCORE BOX */}
+                <div className="shrink-0 text-center px-4 py-3 rounded-2xl bg-slate-950/80 border border-red-500/40 shadow-xl">
+                  <div className="text-3xl sm:text-5xl font-heading font-extrabold text-white tracking-widest">
+                    <span className="text-red-400">{activeLiveMatch.teamA.score ?? 0}</span>
+                    <span className="mx-2 text-slate-500">-</span>
+                    <span className="text-blue-400">{activeLiveMatch.teamB.score ?? 0}</span>
+                  </div>
+                  <div className="mt-1 px-2.5 py-0.5 rounded-full bg-red-950 border border-red-700/60 inline-flex items-center space-x-1">
+                    <Activity className="w-3 h-3 text-red-400 animate-spin" />
+                    <span className="text-[11px] font-bold text-red-300">
+                      Menit {activeLiveMatch.liveMinute || "35'"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* TEAM B */}
+                <div className="flex-1 text-center sm:text-left">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:mr-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-bold shadow-inner mb-2">
+                    ⚽
+                  </div>
+                  <h4 className="text-base sm:text-xl font-bold text-white leading-tight">
+                    {activeLiveMatch.teamB.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {activeLiveMatch.teamB.institution || 'Official Team'}
+                  </p>
+                </div>
+
+              </div>
+
+              {/* TIMELINE OF GOALS / EVENTS */}
+              {activeLiveMatch.events && activeLiveMatch.events.length > 0 && (
+                <div className="w-full lg:w-72 bg-slate-950/90 border border-slate-800 rounded-xl p-3 text-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase block mb-1.5 border-b border-slate-800 pb-1">
+                    Timeline Gol & Kejadian
+                  </span>
+                  <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+                    {activeLiveMatch.events.map(ev => (
+                      <div key={ev.id} className="flex items-center justify-between text-[11px]">
+                        <span className="font-mono text-red-400 font-bold">{ev.minute}</span>
+                        <span className="text-slate-200 font-medium truncate max-w-[140px]">
+                          {ev.playerName}
+                        </span>
+                        <span className="text-xs">
+                          {ev.type === 'GOAL' ? '⚽' : ev.type === 'YELLOW' ? '🟨' : '🟥'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
+
+        {/* CATEGORY SELECTOR PILLS */}
+        <div className="flex items-center space-x-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shrink-0 ${
+                selectedCategory === cat.id
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-md'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* MATCHES GRID */}
+        {filteredMatches.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-8">
+            <p className="text-slate-500 dark:text-slate-400 text-sm">
+              Tidak ada pertandingan pada filter kategori atau status yang dipilih.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredMatches.map(match => {
+              const isLive = match.status === 'LIVE';
+              const isFinished = match.status === 'FINISHED';
+
+              return (
+                <div
+                  key={match.id}
+                  id={`match-card-${match.id}`}
+                  className={`relative rounded-2xl transition border ${
+                    isLive
+                      ? 'bg-gradient-to-b from-slate-950 to-red-950/40 border-red-500 shadow-lg shadow-red-950/40 text-white'
+                      : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm text-slate-900 dark:text-white'
+                  } p-5 flex flex-col justify-between`}
+                >
+                  {/* CARD TOP INFO */}
+                  <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
+                        {match.category}
+                      </span>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 text-[11px]">
+                        {match.round}
+                      </span>
+                    </div>
+
+                    <div>
+                      {isLive && (
+                        <span className="inline-flex items-center space-x-1 text-red-500 dark:text-red-400 font-extrabold text-[11px] animate-pulse">
+                          <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                          <span>LIVE {match.liveMinute || "35'"}</span>
+                        </span>
+                      )}
+                      {isFinished && (
+                        <span className="inline-flex items-center space-x-1 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>FT (Selesai)</span>
+                        </span>
+                      )}
+                      {match.status === 'UPCOMING' && (
+                        <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center space-x-1">
+                          <Clock className="w-3 h-3 text-blue-500" />
+                          <span>{match.time} WIB</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* TEAMS VERSUS DISPLAY */}
+                  <div className="py-4 space-y-3">
+                    
+                    {/* TEAM A */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-sm shrink-0">
+                          🛡️
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate leading-tight">
+                            {match.teamA.name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {match.teamA.institution || '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {(isLive || isFinished) && (
+                          <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            {match.teamA.score ?? 0}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TEAM B */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-sm shrink-0">
+                          ⚽
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate leading-tight">
+                            {match.teamB.name}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {match.teamB.institution || '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {(isLive || isFinished) && (
+                          <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            {match.teamB.score ?? 0}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* CARD BOTTOM META */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>{match.date}</span>
+                    </div>
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span className="truncate">{match.pitch}</span>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      </div>
+    </section>
+  );
+};
