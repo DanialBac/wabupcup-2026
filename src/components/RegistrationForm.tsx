@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { useTournament } from '../context/TournamentContext';
 import {
@@ -20,7 +20,10 @@ import {
   FileCheck,
   Building,
   UserCheck,
-  Mail
+  Mail,
+  Lock,
+  MessageCircle,
+  Info
 } from 'lucide-react';
 
 interface RegistrationFormProps {
@@ -34,9 +37,53 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onClose,
   preselectedCategory = 'SMA',
 }) => {
-  const { config, categories, submitNewRegistration, getWhatsAppNotificationUrl } = useTournament();
+  const { config, categories, registrations, submitNewRegistration, getWhatsAppNotificationUrl, committeeContacts } = useTournament();
 
-  const [category, setCategory] = useState<TournamentCategory>(preselectedCategory);
+  // Helper to calculate real-time registered count for a category
+  const getCategoryCount = (catId: TournamentCategory) => {
+    const activeRegs = registrations.filter(r => r.category === catId && r.status !== 'REJECTED');
+    const catObj = categories.find(c => c.id === catId);
+    return Math.max(activeRegs.length, catObj?.registeredTeamsCount || 0);
+  };
+
+  // Helper to determine if a category's quota is full
+  const isCategoryFull = (catId: TournamentCategory) => {
+    const catObj = categories.find(c => c.id === catId);
+    if (!catObj) return false;
+    const count = getCategoryCount(catId);
+    return count >= catObj.maxTeams;
+  };
+
+  // Filter available categories (strictly excluding categories whose quota is full)
+  const availableCategories = categories.filter(c => !isCategoryFull(c.id));
+  const fullCategories = categories.filter(c => isCategoryFull(c.id));
+
+  // Determine primary committee contact for WhatsApp fallback
+  const primaryContact = committeeContacts?.find(c => c.isPrimary) || committeeContacts?.[0] || {
+    name: 'Sekretariat Panitia WABUPCUP',
+    phone: config.adminContactPhone || '081234567890',
+  };
+  const cleanPhone = primaryContact.phone.replace(/\D/g, '');
+  const formattedWa = cleanPhone.startsWith('0') ? `62${cleanPhone.slice(1)}` : cleanPhone;
+
+  const [category, setCategory] = useState<TournamentCategory>(() => {
+    if (categories.some(c => c.id === preselectedCategory && !isCategoryFull(c.id))) {
+      return preselectedCategory;
+    }
+    return availableCategories[0]?.id || 'SMA';
+  });
+
+  // Sync category selection whenever modal opens or category availability changes
+  useEffect(() => {
+    if (isOpen) {
+      if (preselectedCategory && availableCategories.some(c => c.id === preselectedCategory)) {
+        setCategory(preselectedCategory);
+      } else if (availableCategories.length > 0 && !availableCategories.some(c => c.id === category)) {
+        setCategory(availableCategories[0].id);
+      }
+    }
+  }, [isOpen, preselectedCategory, categories, registrations]);
+
   const [teamName, setTeamName] = useState('');
   const [institutionName, setInstitutionName] = useState('');
   const [coachName, setCoachName] = useState('');
@@ -44,6 +91,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [coachEmail, setCoachEmail] = useState('');
   const [playerCount, setPlayerCount] = useState<number>(12);
   const [officialCount, setOfficialCount] = useState<number>(2);
+  const [teamLogo, setTeamLogo] = useState<string>('');
 
   // Uploaded documents state
   const [docs, setDocs] = useState<RegistrationDocuments>({});
@@ -106,9 +154,41 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }));
   };
 
+  // Logo uploader (PNG, JPG, SVG, WebP)
+  const handleLogoUpload = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Format logo tim harus berupa gambar (PNG, JPG, SVG, atau WEBP)!');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setTeamLogo(base64);
+      setDocs(prev => ({
+        ...prev,
+        logoTim: {
+          name: file.name,
+          size: `${(file.size / 1024).toFixed(1)} KB`,
+          uploadDate: new Date().toISOString().split('T')[0],
+          type: file.type,
+          previewUrl: base64,
+        },
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    // Check if category has reached its maximum quota
+    if (isCategoryFull(category)) {
+      alert(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh! Silakan pilih kategori lain yang masih tersedia atau hubungi panitia.`);
+      setIsSubmitting(false);
+      return;
+    }
 
     // Validate required documents
     const isSchool = category === 'SD' || category === 'SMP' || category === 'SMA';
@@ -141,6 +221,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     const newRegistration = submitNewRegistration({
       category,
       teamName: teamName.trim(),
+      teamLogo: teamLogo || undefined,
       institutionName: institutionName.trim() || teamName.trim(),
       coachName: coachName.trim(),
       coachPhone: coachPhone.trim(),
@@ -262,12 +343,39 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   <Shield className="w-3.5 h-3.5" />
                   <span>Rekening Resmi Pembayaran Panitia:</span>
                 </span>
-                <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">
-                  {config.bankAccount.bankName} - {config.bankAccount.accountNumber}
-                </p>
-                <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                  Atas Nama: <strong>{config.bankAccount.accountHolder}</strong>
-                </p>
+                {config.bankAccounts && config.bankAccounts.length > 0 ? (
+                  <div className="space-y-1 pt-1">
+                    {config.bankAccounts.map(b => (
+                      <div key={b.id} className="p-2 rounded-lg bg-white/60 dark:bg-slate-950/60 border border-amber-200/60 dark:border-amber-900/40">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-900 dark:text-white font-mono text-sm">
+                            {b.bankName} - {b.accountNumber}
+                          </span>
+                          {b.isPrimary && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
+                              Utama
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                          a/n <strong>{b.accountHolder}</strong> {b.branchName ? `(${b.branchName})` : ''}
+                        </p>
+                        {b.instructions && (
+                          <p className="text-[10px] text-slate-500 italic mt-0.5">{b.instructions}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">
+                      {config.bankAccount.bankName} - {config.bankAccount.accountNumber}
+                    </p>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                      Atas Nama: <strong>{config.bankAccount.accountHolder}</strong>
+                    </p>
+                  </>
+                )}
               </div>
 
             </div>
@@ -294,6 +402,67 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </button>
             </div>
           </div>
+        ) : availableCategories.length === 0 ? (
+          
+          /* ALL CATEGORIES ARE FULL VIEW */
+          <div className="p-8 sm:p-10 space-y-6 text-center animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center text-2xl shadow-lg shadow-amber-500/20">
+              <Lock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400">
+                Pemberitahuan Pendaftaran
+              </span>
+              <h4 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Kuota Seluruh Kategori Telah Penuh!
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto">
+                Terima kasih atas antusiasme luar biasa Anda. Seluruh slot kuota pendaftaran tim untuk semua kategori turnamen WABUPCUP 2026 telah terisi 100%.
+              </p>
+            </div>
+
+            {/* FULL CATEGORIES STATUS LIST */}
+            <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 text-left max-w-lg mx-auto space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Status Kuota Kategori:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {categories.map(c => {
+                  const regCount = getCategoryCount(c.id);
+                  return (
+                    <div key={c.id} className="p-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{c.name}</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-600 dark:text-red-400">
+                        {regCount}/{c.maxTeams} Penuh
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <a
+                href={`https://wa.me/${formattedWa}?text=${encodeURIComponent(`Halo Panitia WABUPCUP 2026, saya ingin menanyakan perihal waiting list / kuota tambahan untuk pendaftaran turnamen.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition flex items-center justify-center space-x-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Hubungi Panitia (Waiting List)</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+
+              <button
+                onClick={onClose}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs transition"
+              >
+                Tutup Jendela
+              </button>
+            </div>
+          </div>
         ) : (
           
           /* MAIN FORM */
@@ -308,21 +477,40 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Kategori Turnamen <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Kategori Turnamen <span className="text-red-500">*</span>
+                    </label>
+                    {currentCatDetail && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        Sisa {Math.max(0, currentCatDetail.maxTeams - getCategoryCount(currentCatDetail.id))} Slot ({currentCatDetail.maxTeams} Tim)
+                      </span>
+                    )}
+                  </div>
                   <select
                     id="reg-input-category"
                     value={category}
                     onChange={e => setCategory(e.target.value as TournamentCategory)}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
                   >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} — Biaya: Rp {c.registrationFee.toLocaleString('id-ID')}
-                      </option>
-                    ))}
+                    {availableCategories.map(c => {
+                      const count = getCategoryCount(c.id);
+                      const sisa = Math.max(0, c.maxTeams - count);
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name} — Biaya: Rp {c.registrationFee.toLocaleString('id-ID')} (Sisa {sisa} Slot)
+                        </option>
+                      );
+                    })}
                   </select>
+                  {fullCategories.length > 0 && (
+                    <p className="text-[10px] text-slate-400 mt-1 flex items-center space-x-1">
+                      <Info className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span>
+                        Kategori penuh ({fullCategories.map(f => f.id).join(', ')}) otomatis tidak ditampilkan.
+                      </span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -367,6 +555,60 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                     onChange={e => setPlayerCount(Number(e.target.value))}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* UPLOAD LOGO TIM (BARU) */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                    {teamLogo ? (
+                      <img
+                        src={teamLogo}
+                        alt="Preview Logo Tim"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-lg">🛡️</span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Upload Logo Tim / Klub (Opsional / Dianjurkan)
+                    </label>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Format PNG / JPG / SVG transparan. Logo akan tampil di live score & bagan turnamen.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0">
+                  <label className="cursor-pointer px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-1.5">
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>{teamLogo ? 'Ganti Logo' : 'Pilih Logo'}</span>
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                      className="hidden"
+                      onChange={e => handleLogoUpload(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                  {teamLogo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTeamLogo('');
+                        setDocs(prev => {
+                          const c = { ...prev };
+                          delete c.logoTim;
+                          return c;
+                        });
+                      }}
+                      className="px-2 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-red-500 text-xs font-semibold transition"
+                    >
+                      Hapus
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -425,20 +667,39 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
             {/* SECTION 3: UPLOAD PERSYARATAN DOKUMEN PDF */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
                 <div className="flex items-center space-x-2 text-sm font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
                   <FileText className="w-4 h-4" />
                   <span>3. Unggah Berkas Persyaratan PDF (Maks. 3 MB)</span>
                 </div>
-                <a
-                  href={config.formulirTemplateUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1 font-semibold"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Formulir Pemain</span>
-                </a>
+                {config.downloadableDocs && config.downloadableDocs.length > 0 ? (
+                  <div className="flex items-center flex-wrap gap-2 text-xs">
+                    <span className="text-slate-500 text-[11px]">Download Template:</span>
+                    {config.downloadableDocs.map(doc => (
+                      <a
+                        key={doc.id}
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={doc.fileName}
+                        className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 flex items-center space-x-1 font-semibold text-[11px] transition"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>{doc.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <a
+                    href={config.formulirTemplateUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-1 font-semibold"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Formulir Pemain</span>
+                  </a>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

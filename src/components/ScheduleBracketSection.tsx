@@ -11,15 +11,39 @@ import {
   CheckCircle,
   Activity,
   ArrowRight,
-  Shield
+  Shield,
+  Users,
+  Search,
+  UserCheck,
+  Building,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
-export const ScheduleBracketSection: React.FC = () => {
-  const { matches, categories } = useTournament();
+interface ScheduleBracketSectionProps {
+  onOpenRegister?: (category: TournamentCategory) => void;
+}
+
+export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
+  onOpenRegister,
+}) => {
+  const { matches, categories, registrations } = useTournament();
   const [selectedCat, setSelectedCat] = useState<TournamentCategory>('SMA');
-  const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE'>('BRACKET');
+  const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
+  const [teamSearchQuery, setTeamSearchQuery] = useState('');
 
   const catMatches = matches.filter(m => m.category === selectedCat);
+  const catRegistrations = registrations.filter(r => r.category === selectedCat);
+
+  const filteredTeams = catRegistrations.filter(t => {
+    const q = teamSearchQuery.toLowerCase();
+    return (
+      t.teamName.toLowerCase().includes(q) ||
+      t.institutionName.toLowerCase().includes(q) ||
+      t.coachName.toLowerCase().includes(q) ||
+      t.regCode.toLowerCase().includes(q)
+    );
+  });
 
   // Group matches by round for bracket representation
   const round16Matches = catMatches.filter(m => m.round.includes('16 Besar'));
@@ -133,8 +157,13 @@ export const ScheduleBracketSection: React.FC = () => {
     },
   ];
 
+  const currentCatDetail = categories.find(c => c.id === selectedCat);
+
   return (
-    <section id="bagan" className="py-16 bg-slate-900/40 dark:bg-slate-900/40 bg-white border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <section id="bagan" className="py-16 bg-slate-100/60 dark:bg-slate-900/40 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 transition-colors">
+      {/* Hidden Anchor for #tim */}
+      <div id="tim" className="relative -top-24"></div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* HEADER & CONTROLS */}
@@ -142,40 +171,51 @@ export const ScheduleBracketSection: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">
               <Layers className="w-3.5 h-3.5" />
-              <span>Sistem Bagan Knockout & Jadwal Resmi</span>
+              <span>Sistem Bagan Knockout, Jadwal & Daftar Tim</span>
             </div>
             <h2 className="text-3xl sm:text-5xl font-heading font-bold uppercase tracking-tight text-slate-900 dark:text-white">
-              BAGAN BRACKET & JADWAL PERTANDINGAN
+              BAGAN BRACKET & DAFTAR TIM
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Bagan gugur otomatis diperbarui secara real-time dari hasil pertandingan resmi.
+              Bagan gugur otomatis diperbarui secara real-time dari hasil pertandingan dan data tim terverifikasi.
             </p>
           </div>
 
-          {/* VIEW SWITCHER */}
-          <div className="flex items-center space-x-2">
-            <div className="p-1 bg-slate-200 dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-800 flex">
+          {/* VIEW SWITCHER TABS */}
+          <div className="flex items-center space-x-2 overflow-x-auto">
+            <div className="p-1 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex shadow-sm">
               <button
                 onClick={() => setViewMode('BRACKET')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
                   viewMode === 'BRACKET'
                     ? 'bg-red-600 text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span>Bagan Bracket Visual</span>
+                <span>Bagan Visual</span>
               </button>
               <button
                 onClick={() => setViewMode('TABLE')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 ${
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
                   viewMode === 'TABLE'
                     ? 'bg-red-600 text-white shadow-md'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Tabel Jadwal Lengkap</span>
+                <span>Tabel Jadwal</span>
+              </button>
+              <button
+                onClick={() => setViewMode('TEAMS')}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                  viewMode === 'TEAMS'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Daftar Tim Peserta ({catRegistrations.length})</span>
               </button>
             </div>
           </div>
@@ -189,10 +229,10 @@ export const ScheduleBracketSection: React.FC = () => {
               <button
                 key={catKey}
                 onClick={() => setSelectedCat(catKey)}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition shrink-0 flex items-center space-x-2 ${
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition shrink-0 flex items-center space-x-2 cursor-pointer ${
                   isSel
                     ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                    : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
                 }`}
               >
                 <span>⚽ {catKey}</span>
@@ -203,7 +243,7 @@ export const ScheduleBracketSection: React.FC = () => {
 
         {/* VIEW 1: INTERACTIVE TOURNAMENT BRACKET */}
         {viewMode === 'BRACKET' && (
-          <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 lg:p-8 overflow-x-auto shadow-2xl">
+          <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 lg:p-8 overflow-x-auto shadow-2xl text-white">
             <div className="min-w-[900px]">
               
               {/* ROUND HEADERS */}
@@ -417,6 +457,144 @@ export const ScheduleBracketSection: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* VIEW 3: DAFTAR TIM PESERTA DIRECTORY */}
+        {viewMode === 'TEAMS' && (
+          <div className="space-y-6">
+            {/* SEARCH & SUMMARY BAR */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={teamSearchQuery}
+                  onChange={e => setTeamSearchQuery(e.target.value)}
+                  placeholder={`Cari tim ${selectedCat}, sekolah, atau pelatih...`}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-red-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 text-xs w-full sm:w-auto justify-between sm:justify-end">
+                <span className="text-slate-500 dark:text-slate-400">
+                  Total Terdaftar: <strong className="text-slate-900 dark:text-white">{catRegistrations.length} Tim</strong> ({currentCatDetail?.maxTeams || 16} Maksimal)
+                </span>
+                {onOpenRegister && (
+                  <button
+                    onClick={() => onOpenRegister(selectedCat)}
+                    className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider transition flex items-center space-x-1.5 shadow-sm cursor-pointer shrink-0"
+                  >
+                    <span>+ Daftarkan Tim {selectedCat}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* TEAMS GRID */}
+            {filteredTeams.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-8">
+                <Users className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-60" />
+                <h4 className="text-base font-bold text-slate-900 dark:text-white mb-1">
+                  Belum Ada Tim Ditemukan
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-4">
+                  {teamSearchQuery
+                    ? `Tidak ada tim yang cocok dengan pencarian "${teamSearchQuery}".`
+                    : `Belum ada tim yang mendaftar pada kategori ${selectedCat}.`}
+                </p>
+                {onOpenRegister && (
+                  <button
+                    onClick={() => onOpenRegister(selectedCat)}
+                    className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition"
+                  >
+                    Jadilah Tim Pertama yang Mendaftar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredTeams.map(team => {
+                  const isApproved = team.status === 'APPROVED';
+                  const isPending = team.status === 'PENDING_PAYMENT';
+                  const isRejected = team.status === 'REJECTED';
+
+                  return (
+                    <div
+                      key={team.id}
+                      className="p-5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition shadow-sm flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* TOP BADGE */}
+                        <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+                          <span className="font-mono font-bold text-[10px] text-slate-500 dark:text-slate-400">
+                            {team.regCode}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                              isApproved
+                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                                : isPending
+                                ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                : 'bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800'
+                            }`}
+                          >
+                            {isApproved ? '✓ Disetujui (Approved)' : isPending ? 'Menunggu Pembayaran' : 'Perlu Revisi / Ditolak'}
+                          </span>
+                        </div>
+
+                        {/* TEAM DETAILS */}
+                        <div className="flex items-start space-x-3 mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-lg shrink-0">
+                            🛡️
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-base text-slate-900 dark:text-white leading-tight truncate">
+                              {team.teamName}
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1 mt-0.5 truncate">
+                              <Building className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{team.institutionName}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Official / Pelatih:</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{team.coachName}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Jumlah Skuad:</span>
+                            <span className="font-semibold text-slate-900 dark:text-white">{team.playerCount} Pemain ({team.officialCount} Official)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Tgl Registrasi:</span>
+                            <span className="font-mono text-[11px]">{team.registrationDate}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* BOTTOM STATUS INDICATOR */}
+                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500">Status Pembayaran:</span>
+                        <span
+                          className={`font-bold ${
+                            team.paymentStatus === 'PAID'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {team.paymentStatus === 'PAID' ? 'LUNAS (Verified)' : 'BELUM BAYAR'}
+                        </span>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
           </div>
         )}
 

@@ -20,6 +20,7 @@ export interface RegistrationDocuments {
   aktaKelahiran?: UploadedDoc; // Max 2014 (Khusus SD)
   raportKartuPelajar?: UploadedDoc; // Raport / Kartu Pelajar
   buktiPembayaran?: UploadedDoc; // Bukti Transfer
+  logoTim?: UploadedDoc; // Logo Tim / Klub
 }
 
 export interface RegistrationItem {
@@ -27,6 +28,7 @@ export interface RegistrationItem {
   regCode: string; // e.g. WABUP-SD-001
   category: TournamentCategory;
   teamName: string;
+  teamLogo?: string; // Base64 data or Image URL
   institutionName: string; // Nama Sekolah / Instansi / Desa
   coachName: string;
   coachPhone: string; // WhatsApp Aktif
@@ -103,6 +105,8 @@ export interface MatchItem {
   liveMinute?: string; // e.g. "34'" or "HT" or "FT"
   events?: MatchEvent[];
   winnerId?: 'A' | 'B' | 'DRAW';
+  nextMatchId?: string;
+  nextMatchSlot?: 'A' | 'B';
 }
 
 export interface BracketMatch {
@@ -143,10 +147,51 @@ export interface AdminUser {
   avatarColor: string;
 }
 
+export interface DownloadableDoc {
+  id: string;
+  title: string;
+  category: string; // e.g. "Formulir Pendaftaran", "Template Surat", "Regulasi & Juknis", "Jadwal & Bagan", "Lainnya"
+  description?: string;
+  fileName: string;
+  fileSize?: string;
+  fileUrl: string;
+  fileType: 'PDF' | 'DOCX' | 'XLSX' | 'ZIP' | 'IMAGE' | 'OTHER';
+  isPrimary?: boolean;
+  updatedAt: string;
+}
+
+export interface CommitteeContact {
+  id: string;
+  name: string;
+  phone: string; // e.g. "6281234567890" or "081234567890"
+  role: string; // e.g. "Sekretariat & Pendaftaran", "Technical Delegate", "Sponsorship & Media"
+  isPrimary: boolean;
+}
+
+export interface CommitteeEmail {
+  id: string;
+  title: string; // e.g. "Email Resmi Panitia", "Sekretariat Pendaftaran"
+  email: string;
+  isPrimary: boolean;
+}
+
+export interface CommitteeBankAccount {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  isPrimary: boolean;
+  branchName?: string;
+  instructions?: string;
+  qrisImageUrl?: string;
+}
+
 export interface TournamentConfig {
   name: string;
   edition: string;
   tagline: string;
+  wabupLogoUrl?: string;
+  panitiaLogoUrl?: string;
   registrationDeadline: string;
   tournamentStartDate: string;
   tournamentEndDate: string;
@@ -165,4 +210,8 @@ export interface TournamentConfig {
   formulirTemplateUrl: string;
   suratPernyataanTemplateUrl: string;
   regulasiPdfUrl: string;
+  downloadableDocs?: DownloadableDoc[];
+  committeeContacts?: CommitteeContact[];
+  committeeEmails?: CommitteeEmail[];
+  bankAccounts?: CommitteeBankAccount[];
 }

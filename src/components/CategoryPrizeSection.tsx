@@ -10,7 +10,9 @@ import {
   ShieldAlert,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  Lock,
+  CheckCircle2
 } from 'lucide-react';
 
 interface CategoryPrizeSectionProps {
@@ -20,7 +22,7 @@ interface CategoryPrizeSectionProps {
 export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
   onSelectCategoryToRegister,
 }) => {
-  const { categories, config } = useTournament();
+  const { categories, config, registrations } = useTournament();
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
 
   const toggleExpand = (catId: string) => {
@@ -68,9 +70,13 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {categories.map(cat => {
             const isExpanded = expandedCat === cat.id;
+            const activeRegs = registrations.filter(r => r.category === cat.id && r.status !== 'REJECTED');
+            const registeredCount = Math.max(activeRegs.length, cat.registeredTeamsCount || 0);
+            const isFull = registeredCount >= cat.maxTeams;
+            const remainingSlots = Math.max(0, cat.maxTeams - registeredCount);
             const quotaPercent = Math.min(
               100,
-              Math.round((cat.registeredTeamsCount / cat.maxTeams) * 100)
+              Math.round((registeredCount / cat.maxTeams) * 100)
             );
 
             return (
@@ -85,9 +91,16 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
                     <span className="px-2.5 py-1 rounded-lg bg-black/30 backdrop-blur-md text-[11px] font-bold tracking-wider uppercase border border-white/20">
                       {cat.id} TURNAMEN
                     </span>
-                    <span className="text-xs font-bold text-white/90">
-                      Slot: {cat.registeredTeamsCount} / {cat.maxTeams} Tim
-                    </span>
+                    {isFull ? (
+                      <span className="px-2.5 py-0.5 rounded-md bg-red-950/80 text-red-200 border border-red-400/40 text-[11px] font-bold tracking-wider uppercase flex items-center space-x-1">
+                        <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                        <span>KUOTA PENUH</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold text-white/90">
+                        Slot: {registeredCount} / {cat.maxTeams} Tim ({remainingSlots} Tersisa)
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="text-2xl font-heading font-bold uppercase tracking-wide mt-2 text-white leading-tight">
@@ -122,11 +135,19 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
                   <div>
                     <div className="flex justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                       <span>Kuota Terisi</span>
-                      <span>{quotaPercent}% ({cat.registeredTeamsCount} Tim)</span>
+                      <span className={isFull ? 'text-red-500 font-bold' : ''}>
+                        {isFull ? '100% (Kuota Penuh)' : `${quotaPercent}% (${registeredCount} / ${cat.maxTeams} Tim)`}
+                      </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                    <div className="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-red-600 to-amber-500 rounded-full transition-all duration-500"
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isFull
+                            ? 'bg-red-600'
+                            : quotaPercent > 75
+                            ? 'bg-gradient-to-r from-amber-500 to-red-600'
+                            : 'bg-gradient-to-r from-emerald-500 to-blue-600'
+                        }`}
                         style={{ width: `${quotaPercent}%` }}
                       ></div>
                     </div>
@@ -197,21 +218,32 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
                   {/* TOGGLE DETAILS BUTTON */}
                   <button
                     onClick={() => toggleExpand(cat.id)}
-                    className="w-full text-center text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 py-1 flex items-center justify-center space-x-1"
+                    className="w-full text-center text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 py-1 flex items-center justify-center space-x-1 cursor-pointer"
                   >
                     <span>{isExpanded ? 'Sembunyikan Rincian' : 'Lihat Syarat & Hadiah Lengkap'}</span>
                     {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
 
                   {/* ACTION REGISTER BUTTON */}
-                  <button
-                    id={`btn-register-category-${cat.id}`}
-                    onClick={() => onSelectCategoryToRegister(cat.id)}
-                    className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-red-600/30 transition flex items-center justify-center space-x-2"
-                  >
-                    <span>Daftarkan Tim {cat.id}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
+                  {isFull ? (
+                    <button
+                      id={`btn-register-category-${cat.id}`}
+                      disabled
+                      className="w-full py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-wider cursor-not-allowed flex items-center justify-center space-x-2 border border-slate-300 dark:border-slate-700"
+                    >
+                      <Lock className="w-4 h-4 text-amber-500" />
+                      <span>Kuota Tim {cat.id} Penuh (Ditutup)</span>
+                    </button>
+                  ) : (
+                    <button
+                      id={`btn-register-category-${cat.id}`}
+                      onClick={() => onSelectCategoryToRegister(cat.id)}
+                      className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-red-600/30 transition flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      <span>Daftarkan Tim {cat.id}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
 
                 </div>
               </div>

@@ -38,27 +38,66 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div className="leading-tight">
                 <span className="font-heading text-xl font-bold tracking-wider text-white uppercase block">
-                  WABUP CUP 2026
+                  {config.name || 'WABUP CUP 2026'}
                 </span>
                 <span className="text-[10px] font-bold text-red-500 tracking-widest uppercase block">
-                  Turnamen Akbar Sepakbola & Futsal
+                  {config.tagline || 'Turnamen Akbar Sepakbola & Futsal'}
                 </span>
               </div>
             </div>
 
             <p className="text-xs leading-relaxed text-slate-400 max-w-sm">
-              Ajang bergengsi kejuaraan sepakbola & futsal memperebutkan Piala Bergilir Wakil Bupati 2026 dengan total hadiah pembinaan ratusan juta rupiah untuk 6 kategori kompetisi.
+              Ajang bergengsi kejuaraan sepakbola & futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'} dengan total hadiah ratusan juta rupiah untuk 6 kategori kompetisi.
             </p>
 
-            <div className="pt-2 text-xs space-y-1.5 text-slate-400">
-              <div className="flex items-center space-x-2">
-                <MapPin className="w-4 h-4 text-red-500 shrink-0" />
-                <span>{config.venueName}, {config.venueAddress}</span>
+            <div className="pt-2 text-xs space-y-2 text-slate-400">
+              <div className="flex items-start space-x-2">
+                <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <span>{config.venueName}, {config.venueAddress}, {config.venueCity}</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>WA Panitia: +{config.adminContactPhone}</span>
-              </div>
+              
+              {/* DYNAMIC COMMITTEE WHATSAPP */}
+              {config.committeeContacts && config.committeeContacts.length > 0 ? (
+                <div className="space-y-1">
+                  {config.committeeContacts.map(c => {
+                    const clean = c.phone.replace(/\D/g, '');
+                    const formattedWa = clean.startsWith('0') ? `62${clean.slice(1)}` : clean;
+                    return (
+                      <a
+                        key={c.id}
+                        href={`https://wa.me/${formattedWa}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center space-x-2 hover:text-emerald-400 transition"
+                      >
+                        <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span>WA {c.name} ({c.role}): <strong className="text-emerald-400 font-mono">+{formattedWa}</strong></span>
+                      </a>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>WA Panitia: +{config.adminContactPhone}</span>
+                </div>
+              )}
+
+              {/* DYNAMIC COMMITTEE EMAILS */}
+              {config.committeeEmails && config.committeeEmails.length > 0 && (
+                <div className="space-y-1 pt-0.5">
+                  {config.committeeEmails.map(em => (
+                    <a
+                      key={em.id}
+                      href={`mailto:${em.email}`}
+                      className="flex items-center space-x-2 hover:text-blue-400 transition"
+                    >
+                      <Mail className="w-4 h-4 text-blue-400 shrink-0" />
+                      <span>{em.title}: <strong className="text-blue-400 font-mono">{em.email}</strong></span>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -113,45 +152,69 @@ export const Footer: React.FC<FooterProps> = ({
               Unduhan Berkas Resmi
             </h4>
             <ul className="space-y-2 text-xs">
-              <li>
-                <a
-                  href={config.formulirTemplateUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Formulir Pemain (PDF)</span>
-                </a>
-              </li>
-              <li>
-                <a
-                  href={config.regulasiPdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Buku Regulasi Kompetisi</span>
-                </a>
-              </li>
-              <li>
-                <a
-                  href={config.suratPernyataanTemplateUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Format Surat Pernyataan</span>
-                </a>
-              </li>
+              {config.downloadableDocs && config.downloadableDocs.length > 0 ? (
+                config.downloadableDocs.map(doc => (
+                  <li key={doc.id}>
+                    <a
+                      href={doc.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={doc.fileName}
+                      className="hover:text-cyan-400 transition flex items-start space-x-1.5 text-slate-300 font-medium group"
+                    >
+                      <Download className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5 group-hover:translate-y-0.5 transition" />
+                      <div>
+                        <span className="group-hover:text-cyan-300 transition">{doc.title}</span>
+                        <span className="block text-[10px] text-slate-400 font-mono">
+                          {doc.fileType} • {doc.fileSize}
+                        </span>
+                      </div>
+                    </a>
+                  </li>
+                ))
+              ) : (
+                <>
+                  <li>
+                    <a
+                      href={config.formulirTemplateUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Formulir Pemain (PDF)</span>
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href={config.regulasiPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Buku Regulasi Kompetisi</span>
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href={config.suratPernyataanTemplateUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Format Surat Pernyataan</span>
+                    </a>
+                  </li>
+                </>
+              )}
             </ul>
 
             <div className="pt-2">
               <button
                 onClick={onOpenCheckStatus}
-                className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition"
+                className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 text-amber-400" />
                 <span>Cek Status Pendaftaran</span>

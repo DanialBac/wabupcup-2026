@@ -32,9 +32,10 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-red-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-200">
       {/* NAVBAR */}
       <Navbar
+        onOpenRegister={() => handleOpenRegistration()}
         onOpenRegistration={() => handleOpenRegistration()}
         onOpenCheckStatus={() => setIsCheckStatusOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
@@ -42,6 +43,7 @@ const MainLayout: React.FC = () => {
 
       {/* HERO SECTION */}
       <Hero
+        onOpenRegister={() => handleOpenRegistration()}
         onOpenRegistration={() => handleOpenRegistration()}
         onOpenCheckStatus={() => setIsCheckStatusOpen(true)}
       />
@@ -54,8 +56,10 @@ const MainLayout: React.FC = () => {
         onSelectCategoryToRegister={(cat) => handleOpenRegistration(cat)}
       />
 
-      {/* TOURNAMENT BRACKET & FULL SCHEDULE */}
-      <ScheduleBracketSection />
+      {/* TOURNAMENT BRACKET & FULL SCHEDULE & TEAMS DIRECTORY */}
+      <ScheduleBracketSection
+        onOpenRegister={(cat) => handleOpenRegistration(cat)}
+      />
 
       {/* VENUE LOCATION & GOOGLE MAPS */}
       <VenueLocationSection />
