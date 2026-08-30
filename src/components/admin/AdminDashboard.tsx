@@ -10,6 +10,7 @@ import {
   DownloadableDoc,
   MatchItem,
   MatchStatus,
+  PageSectionsVisibility,
   PaymentStatus,
   RegistrationItem,
   RegistrationStatus,
@@ -29,6 +30,7 @@ import {
   Shield,
   Users,
   Trophy,
+  Award,
   Calendar,
   Layers,
   Search,
@@ -90,7 +92,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     updatePaymentStatus,
     deleteRegistration,
     categories,
+    addCategory,
     updateCategory,
+    deleteCategory,
     matches,
     addMatch,
     updateMatch,
@@ -151,9 +155,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<CmsTab>('OVERVIEW');
 
   // Settings Sub-Tab State
-  type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'GENERAL';
+  type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'GENERAL';
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('DOCS');
   const [quotaSaveSuccess, setQuotaSaveSuccess] = useState(false);
+  const [visibilitySaveSuccess, setVisibilitySaveSuccess] = useState(false);
+
+  // Category CRUD Modal State
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryDetail | null>(null);
+  const [categoryForm, setCategoryForm] = useState<{
+    id: string;
+    name: string;
+    ageRestriction: string;
+    description: string;
+    maxTeams: number;
+    registrationFee: number;
+    totalPrize: number;
+    prizes: { rank: string; prizeMoney: number; trophy?: string }[];
+    rules: string[];
+  }>({
+    id: '',
+    name: '',
+    ageRestriction: '',
+    description: '',
+    maxTeams: 16,
+    registrationFee: 500000,
+    totalPrize: 10000000,
+    prizes: [
+      { rank: 'Juara 1', prizeMoney: 5000000, trophy: 'Piala Bergilir + Medali Emas' },
+      { rank: 'Juara 2', prizeMoney: 3000000, trophy: 'Piala Tetap + Medali Perak' },
+      { rank: 'Juara 3 Bersama', prizeMoney: 1500000, trophy: 'Piala Tetap + Medali Perunggu' },
+    ],
+    rules: [
+      'Wajib melampirkan berkas dokumen persyaratan resmi PDF.',
+      'Pemain dan official wajib mematuhi seluruh regulasi turnamen.',
+    ],
+  });
 
   // 1. Downloadable Document Form State
   const [docModalOpen, setDocModalOpen] = useState(false);
@@ -563,6 +600,112 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     updateConfig({ panitiaLogoUrl: '' });
   };
 
+  // Section Visibility Toggle Handler
+  const handleToggleSectionVisibility = (key: keyof PageSectionsVisibility) => {
+    const currentVis = config.sectionsVisibility || {
+      hero: true,
+      liveScore: true,
+      categories: true,
+      bracket: true,
+      venue: true,
+      sponsors: true,
+    };
+    const updated = {
+      ...currentVis,
+      [key]: currentVis[key] === false ? true : false,
+    };
+    updateConfig({ sectionsVisibility: updated });
+    setVisibilitySaveSuccess(true);
+    setTimeout(() => setVisibilitySaveSuccess(false), 2500);
+  };
+
+  // Category CRUD Handlers
+  const handleOpenAddCategory = () => {
+    setEditingCategory(null);
+    setCategoryForm({
+      id: '',
+      name: '',
+      ageRestriction: '',
+      description: '',
+      maxTeams: 16,
+      registrationFee: 500000,
+      totalPrize: 10000000,
+      prizes: [
+        { rank: 'Juara 1', prizeMoney: 5000000, trophy: 'Piala Bergilir + Medali Emas' },
+        { rank: 'Juara 2', prizeMoney: 3000000, trophy: 'Piala Tetap + Medali Perak' },
+        { rank: 'Juara 3 Bersama', prizeMoney: 1500000, trophy: 'Piala Tetap + Medali Perunggu' },
+      ],
+      rules: [
+        'Wajib melampirkan berkas dokumen persyaratan resmi PDF.',
+        'Pemain dan official wajib mematuhi seluruh regulasi turnamen.',
+      ],
+    });
+    setCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategory = (c: CategoryDetail) => {
+    setEditingCategory(c);
+    setCategoryForm({
+      id: c.id,
+      name: c.name,
+      ageRestriction: c.ageRestriction,
+      description: c.description || '',
+      maxTeams: c.maxTeams,
+      registrationFee: c.registrationFee,
+      totalPrize: c.totalPrize,
+      prizes: c.prizes && c.prizes.length > 0 ? JSON.parse(JSON.stringify(c.prizes)) : [
+        { rank: 'Juara 1', prizeMoney: c.totalPrize * 0.5, trophy: 'Trofi + Medali' }
+      ],
+      rules: c.rules && c.rules.length > 0 ? [...c.rules] : [
+        'Wajib melampirkan berkas dokumen resmi PDF.'
+      ],
+    });
+    setCategoryModalOpen(true);
+  };
+
+  const handleSaveCategoryModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryForm.name.trim()) {
+      alert('Mohon masukkan nama kategori turnamen.');
+      return;
+    }
+    const catId = editingCategory
+      ? editingCategory.id
+      : (categoryForm.id.trim().toUpperCase().replace(/\s+/g, '_') || categoryForm.name.trim().toUpperCase().replace(/\s+/g, '_'));
+
+    const updatedCat: CategoryDetail = {
+      id: catId,
+      name: categoryForm.name.trim(),
+      badgeTitle: categoryForm.name.trim(),
+      ageRestriction: categoryForm.ageRestriction.trim() || 'Semua Usia',
+      description: categoryForm.description.trim() || undefined,
+      maxTeams: Math.max(1, Number(categoryForm.maxTeams) || 16),
+      registrationFee: Number(categoryForm.registrationFee) || 0,
+      totalPrize: Number(categoryForm.totalPrize) || 0,
+      prizes: categoryForm.prizes.map(p => ({
+        rank: p.rank,
+        prizeMoney: p.prizeMoney,
+        trophyText: p.trophy || p.trophyText || 'Piala & Piagam',
+        trophy: p.trophy || p.trophyText || 'Piala & Piagam',
+      })),
+      rules: categoryForm.rules,
+      registeredTeamsCount: editingCategory ? editingCategory.registeredTeamsCount : 0,
+    };
+
+    if (editingCategory) {
+      updateCategory(updatedCat);
+    } else {
+      addCategory(updatedCat);
+    }
+    setCategoryModalOpen(false);
+  };
+
+  const handleDeleteCategoryPrompt = (id: string, name: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus kategori "${name}" (${id})?\n\nKategori ini akan dihapus dari sistem, form pendaftaran, dan landing page.`)) {
+      deleteCategory(id);
+    }
+  };
+
   // Search and filters for registration tables
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
@@ -856,9 +999,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     setEditMatchModalOpen(false);
     setEditingMatch(null);
   };
-
-  // Category editor state
-  const [editingCategory, setEditingCategory] = useState<CategoryDetail | null>(null);
 
   // Sponsor form modal state
   const [sponsorModalOpen, setSponsorModalOpen] = useState(false);
@@ -2159,16 +2299,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* TAB 8: KELOLA KATEGORI & TOTAL HADIAH (REQ #1) */}
+          {/* TAB 8: KELOLA KATEGORI & TOTAL HADIAH (CRUD LENGKAP) */}
           {activeTab === 'CATEGORIES_PRIZES' && (
             <div className="space-y-6 animate-fadeIn">
-              <div>
-                <h3 className="text-2xl font-heading font-bold uppercase tracking-wide">
-                  KELOLA KATEGORI & TOTAL HADIAH
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Ubah total hadiah, biaya registrasi, batasan usia, dan rincian juara per kategori secara real-time.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800">
+                <div>
+                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide text-white flex items-center space-x-2">
+                    <Award className="w-6 h-6 text-red-500" />
+                    <span>KELOLA KATEGORI & TOTAL HADIAH ({categories.length} KATEGORI)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Tambah, edit rincian hadiah/regulasi, ubah kuota tim, biaya pendaftaran, atau hapus kategori turnamen secara real-time.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleOpenAddCategory}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold flex items-center justify-center space-x-2 transition shadow-lg shadow-red-950/50 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Kategori Baru</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2180,99 +2331,145 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   const percent = Math.min(100, Math.round((count / c.maxTeams) * 100));
 
                   return (
-                    <div key={c.id} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-                      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                        <div className="flex items-center space-x-2">
-                          <span className="px-2.5 py-1 rounded-md bg-red-600 text-white font-bold text-xs">
-                            {c.id}
-                          </span>
-                          <h4 className="text-lg font-bold text-white">{c.name}</h4>
-                        </div>
-                        {isFull ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center space-x-1">
-                            <Lock className="w-3 h-3 text-amber-400" />
-                            <span>KUOTA PENUH</span>
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            {count}/{c.maxTeams} Tim ({remaining} Sisa)
-                          </span>
-                        )}
-                      </div>
+                    <div key={c.id} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4 flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                          <div className="flex items-center space-x-2">
+                            <span className="px-2.5 py-1 rounded-md bg-red-600 text-white font-bold text-xs">
+                              {c.id}
+                            </span>
+                            <h4 className="text-lg font-bold text-white">{c.name}</h4>
+                          </div>
 
-                      {/* QUOTA BAR */}
-                      <div>
-                        <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                          <span>Slot Terisi ({count} dari {c.maxTeams} Tim)</span>
-                          <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>{percent}%</span>
-                        </div>
-                        <div className="w-full h-1.5 rounded-full bg-slate-950 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${percent}%` }}
-                          ></div>
-                        </div>
-                      </div>
+                          <div className="flex items-center space-x-2">
+                            {isFull ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center space-x-1">
+                                <Lock className="w-3 h-3 text-amber-400" />
+                                <span>KUOTA PENUH</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                {count}/{c.maxTeams} Tim ({remaining} Sisa)
+                              </span>
+                            )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                            <button
+                              onClick={() => handleOpenEditCategory(c)}
+                              className="p-1.5 rounded-lg bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-700/50 transition cursor-pointer"
+                              title="Edit Lengkap Rincian Hadiah & Syarat"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteCategoryPrompt(c.id, c.name)}
+                              className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700/50 transition cursor-pointer"
+                              title="Hapus Kategori"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* QUOTA BAR */}
                         <div>
-                          <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
-                            Kuota Maksimal (Tim)
-                          </label>
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                            <span>Slot Terisi ({count} dari {c.maxTeams} Tim)</span>
+                            <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>{percent}%</span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-slate-950 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
+                              style={{ width: `${percent}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* GRID CONFIG */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
+                              Kuota Maksimal (Tim)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={c.maxTeams}
+                              onChange={e => updateCategory({ ...c, maxTeams: Math.max(1, Number(e.target.value) || 1) })}
+                              className="w-full bg-slate-950 border border-amber-500/40 focus:border-amber-400 rounded-lg px-3 py-1.5 text-amber-400 font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
+                              Total Hadiah (Rp)
+                            </label>
+                            <input
+                              type="number"
+                              value={c.totalPrize}
+                              onChange={e => updateCategory({ ...c, totalPrize: Number(e.target.value) })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-red-400 font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
+                              Biaya Registrasi (Rp)
+                            </label>
+                            <input
+                              type="number"
+                              value={c.registrationFee}
+                              onChange={e => updateCategory({ ...c, registrationFee: Number(e.target.value) })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Syarat & Batasan Usia</label>
                           <input
-                            type="number"
-                            min={1}
-                            value={c.maxTeams}
-                            onChange={e => updateCategory({ ...c, maxTeams: Math.max(1, Number(e.target.value) || 1) })}
-                            className="w-full bg-slate-950 border border-amber-500/40 focus:border-amber-400 rounded-lg px-3 py-1.5 text-amber-400 font-bold"
+                            type="text"
+                            value={c.ageRestriction}
+                            onChange={e => updateCategory({ ...c, ageRestriction: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
-                            Total Hadiah (Rp)
-                          </label>
-                          <input
-                            type="number"
-                            value={c.totalPrize}
-                            onChange={e => updateCategory({ ...c, totalPrize: Number(e.target.value) })}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-red-400 font-bold"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
-                            Biaya Registrasi (Rp)
-                          </label>
-                          <input
-                            type="number"
-                            value={c.registrationFee}
-                            onChange={e => updateCategory({ ...c, registrationFee: Number(e.target.value) })}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-bold"
-                          />
+
+                        {/* PRIZES LIST PREVIEW */}
+                        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-slate-400 uppercase">Daftar Juara & Hadiah ({c.prizes.length})</span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditCategory(c)}
+                              className="text-amber-400 hover:underline font-semibold text-[10px]"
+                            >
+                              + Kelola Hadiah
+                            </button>
+                          </div>
+                          <div className="space-y-1 text-xs">
+                            {c.prizes.map((prz, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-[11px] text-slate-300">
+                                <span>{prz.rank}</span>
+                                <span className="font-mono text-emerald-400 font-bold">
+                                  Rp {prz.prizeMoney.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Syarat & Batasan Usia</label>
-                        <input
-                          type="text"
-                          value={c.ageRestriction}
-                          onChange={e => updateCategory({ ...c, ageRestriction: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300"
-                        />
-                      </div>
+                      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                        <span className="text-[11px] text-slate-500">
+                          {c.rules?.length || 0} Ketentuan Regulasi
+                        </span>
 
-                      <div>
-                        <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Rincian Hadiah Juara 1 (Rp)</label>
-                        <input
-                          type="number"
-                          value={c.prizes[0]?.prizeMoney || 0}
-                          onChange={e => {
-                            const prizesCopy = [...c.prizes];
-                            if (prizesCopy[0]) prizesCopy[0].prizeMoney = Number(e.target.value);
-                            updateCategory({ ...c, prizes: prizesCopy });
-                          }}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-bold"
-                        />
+                        <button
+                          onClick={() => handleOpenEditCategory(c)}
+                          className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold flex items-center space-x-1.5 cursor-pointer transition"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Edit Rincian Hadiah & Syarat</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -2654,7 +2851,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   }`}
                 >
                   <Sliders className="w-4 h-4 text-amber-300" />
-                  <span>5. Kuota Pendaftaran Kategori ({categories.length})</span>
+                  <span>5. Kuota Kategori ({categories.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setSettingsSubTab('VISIBILITY')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
+                    settingsSubTab === 'VISIBILITY'
+                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/30'
+                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Eye className="w-4 h-4 text-purple-300" />
+                  <span>6. Visibilitas Section Landing Page</span>
                 </button>
 
                 <button
@@ -2666,7 +2875,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   }`}
                 >
                   <Building className="w-4 h-4" />
-                  <span>6. Informasi Turnamen</span>
+                  <span>7. Informasi Turnamen & Logo</span>
                 </button>
               </div>
 
@@ -3393,7 +3602,166 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
               )}
 
-              {/* SUB-TAB 6: INFORMASI UMUM TURNAMEN */}
+              {/* SUB-TAB 6: VISIBILITAS SECTION LANDING PAGE */}
+              {settingsSubTab === 'VISIBILITY' && (
+                <div className="space-y-6 animate-fadeIn">
+                  <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-white uppercase flex items-center space-x-2">
+                        <Eye className="w-4 h-4 text-purple-400" />
+                        <span>Pengaturan Visibilitas Section Landing Page & Navbar</span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Aktifkan atau nonaktifkan section di halaman utama. Jika dinonaktifkan, section disembunyikan dan tautan pada Navbar otomatis tidak ditampilkan.
+                      </p>
+                    </div>
+
+                    {visibilitySaveSuccess && (
+                      <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center space-x-1.5 animate-fadeIn shrink-0">
+                        <Check className="w-4 h-4" />
+                        <span>Visibilitas Diperbarui!</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* VISIBILITY TOGGLES GRID */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {[
+                      {
+                        key: 'hero' as keyof PageSectionsVisibility,
+                        title: '1. Hero Header & Registrasi',
+                        desc: 'Banner visual utama turnamen, tagline, countdown waktu, dan tombol CTA pendaftaran cepat.',
+                        icon: Sparkles,
+                        color: 'text-red-400',
+                        bgColor: 'bg-red-500/10',
+                        borderColor: 'border-red-500/30',
+                      },
+                      {
+                        key: 'liveScore' as keyof PageSectionsVisibility,
+                        title: '2. Live Score & Match Center',
+                        desc: 'Papan skor pertandingan real-time, status LIVE/FINISHED, jadwal kick-off, dan match tracker.',
+                        icon: Activity,
+                        color: 'text-amber-400',
+                        bgColor: 'bg-amber-500/10',
+                        borderColor: 'border-amber-500/30',
+                      },
+                      {
+                        key: 'categories' as keyof PageSectionsVisibility,
+                        title: '3. Kategori & Total Hadiah',
+                        desc: 'Daftar kategori usia, rincian hadiah juara, biaya registrasi, dan syarat batasan usia.',
+                        icon: Award,
+                        color: 'text-emerald-400',
+                        bgColor: 'bg-emerald-500/10',
+                        borderColor: 'border-emerald-500/30',
+                      },
+                      {
+                        key: 'bracket' as keyof PageSectionsVisibility,
+                        title: '4. Bagan Pertandingan & Tim',
+                        desc: 'Bagan turnamen knockout beserta daftar direktori tim peserta yang terdaftar.',
+                        icon: Shuffle,
+                        color: 'text-blue-400',
+                        bgColor: 'bg-blue-500/10',
+                        borderColor: 'border-blue-500/30',
+                      },
+                      {
+                        key: 'venue' as keyof PageSectionsVisibility,
+                        title: '5. Lokasi Stadion & Venue Peta',
+                        desc: 'Informasi stadion pertandingan, alamat lengkap, fasilitas lapangan, dan peta interaktif Google Maps.',
+                        icon: MapPin,
+                        color: 'text-cyan-400',
+                        bgColor: 'bg-cyan-500/10',
+                        borderColor: 'border-cyan-500/30',
+                      },
+                      {
+                        key: 'sponsors' as keyof PageSectionsVisibility,
+                        title: '6. Mitra Sponsor & Kerjasama',
+                        desc: 'Grid logo sponsor resmi turnamen beserta tombol ajakan kerjasama sponsor.',
+                        icon: Building,
+                        color: 'text-purple-400',
+                        bgColor: 'bg-purple-500/10',
+                        borderColor: 'border-purple-500/30',
+                      },
+                    ].map(sec => {
+                      const isVisible = (config.sectionsVisibility?.[sec.key] ?? true) !== false;
+                      const IconComp = sec.icon;
+
+                      return (
+                        <div
+                          key={sec.key}
+                          className={`p-5 rounded-2xl bg-slate-900 border transition shadow-lg flex flex-col justify-between space-y-4 ${
+                            isVisible ? 'border-slate-700/80 shadow-slate-950/50' : 'border-slate-800/40 opacity-70'
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className={`w-10 h-10 rounded-xl ${sec.bgColor} ${sec.color} flex items-center justify-center font-bold border ${sec.borderColor}`}>
+                                <IconComp className="w-5 h-5" />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSectionVisibility(sec.key)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  isVisible ? 'bg-emerald-500' : 'bg-slate-700'
+                                }`}
+                                role="switch"
+                                aria-checked={isVisible}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                    isVisible ? 'translate-x-5' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                            </div>
+
+                            <div>
+                              <h5 className="font-bold text-sm text-white flex items-center space-x-1.5">
+                                <span>{sec.title}</span>
+                              </h5>
+                              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                                {sec.desc}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                            <span className="text-[11px] font-semibold flex items-center space-x-1.5">
+                              <span className={`w-2 h-2 rounded-full ${isVisible ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                              <span className={isVisible ? 'text-emerald-300' : 'text-slate-400'}>
+                                {isVisible ? 'Aktif (Tampil di Landing & Nav)' : 'Dinonaktifkan (Disembunyikan)'}
+                              </span>
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSectionVisibility(sec.key)}
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                                isVisible
+                                  ? 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/40'
+                                  : 'bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/40'
+                              }`}
+                            >
+                              {isVisible ? 'Sembunyikan' : 'Tampilkan'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* QUICK INFO BANNER */}
+                  <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-800/30 flex items-start space-x-3 text-xs text-purple-200">
+                    <CheckSquare className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block text-white font-bold mb-0.5">Sinkronisasi Otomatis</strong>
+                      Setiap perubahan visibilitas section langsung tersimpan secara permanen dan merefleksikan tampilan landing page serta menu navigasi atas (Navbar) seketika tanpa perlu reload browser.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 7: INFORMASI UMUM TURNAMEN */}
               {settingsSubTab === 'GENERAL' && (
                 <div className="space-y-6 animate-fadeIn">
                   <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex items-center justify-between">
@@ -5111,6 +5479,305 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 >
                   <Save className="w-4 h-4" />
                   <span>Simpan Perubahan Match</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TAMBAH / EDIT KATEGORI & RINCIAN HADIAH */}
+      {categoryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-red-600/20 text-red-500 flex items-center justify-center font-bold">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white uppercase">
+                    {editingCategory ? `Edit Kategori: ${editingCategory.name} (${editingCategory.id})` : 'Tambah Kategori Turnamen Baru'}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Kelola nama kategori, kuota, biaya, batas usia, rincian hadiah juara, dan regulasi turnamen.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCategoryModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCategoryModal} className="space-y-6 text-xs">
+              {/* BASIC INFO */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300 uppercase text-[11px]">
+                    Kode / ID Kategori <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!!editingCategory}
+                    value={categoryForm.id}
+                    onChange={e => setCategoryForm({ ...categoryForm, id: e.target.value.toUpperCase() })}
+                    placeholder="Contoh: U-10, VETERAN, PUTRI"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-60"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="font-bold text-slate-300 uppercase text-[11px]">
+                    Nama Lengkap Kategori <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={categoryForm.name}
+                    onChange={e => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    placeholder="Contoh: Usia Dini U-10 (Kelahiran 2014)"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+              {/* BATASAN USIA & DESKRIPSI */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300 uppercase text-[11px]">
+                    Syarat & Batasan Usia
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryForm.ageRestriction}
+                    onChange={e => setCategoryForm({ ...categoryForm, ageRestriction: e.target.value })}
+                    placeholder="Contoh: Kelahiran 1 Januari 2014 atau sesudahnya"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300 uppercase text-[11px]">
+                    Deskripsi Singkat (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryForm.description}
+                    onChange={e => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                    placeholder="Contoh: Kategori pembinaan bakat sepak bola usia dini"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+              {/* FINANCIAL & QUOTA */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="space-y-1">
+                  <label className="font-bold text-amber-400 uppercase text-[11px]">
+                    Kuota Maksimal (Tim)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={128}
+                    required
+                    value={categoryForm.maxTeams}
+                    onChange={e => setCategoryForm({ ...categoryForm, maxTeams: Math.max(1, Number(e.target.value) || 1) })}
+                    className="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-white font-mono font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300 uppercase text-[11px]">
+                    Biaya Registrasi (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={categoryForm.registrationFee}
+                    onChange={e => setCategoryForm({ ...categoryForm, registrationFee: Number(e.target.value) || 0 })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-red-400 uppercase text-[11px]">
+                    Total Hadiah Pool (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={categoryForm.totalPrize}
+                    onChange={e => setCategoryForm({ ...categoryForm, totalPrize: Number(e.target.value) || 0 })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-red-400 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* DAFTAR RINCIAN HADIAH JUARA (DYNAMIC) */}
+              <div className="space-y-3 p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h5 className="font-bold text-white uppercase text-[11px] flex items-center space-x-1.5">
+                      <Award className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Rincian Hadiah & Trofi Juara</span>
+                    </h5>
+                    <p className="text-[10px] text-slate-400">Atur nominal uang tunai dan trofi penghargaan per peringkat.</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryForm(prev => ({
+                        ...prev,
+                        prizes: [
+                          ...prev.prizes,
+                          { rank: `Gelar / Juara ${prev.prizes.length + 1}`, prizeMoney: 500000, trophy: 'Piala + Sertifikat' }
+                        ]
+                      }));
+                    }}
+                    className="px-3 py-1 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-xs font-bold flex items-center space-x-1 cursor-pointer transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Baris Hadiah</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {categoryForm.prizes.map((prz, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                      <input
+                        type="text"
+                        placeholder="Nama Juara (mis: Juara 1 / Top Scorer)"
+                        value={prz.rank}
+                        onChange={e => {
+                          const updated = [...categoryForm.prizes];
+                          updated[idx].rank = e.target.value;
+                          setCategoryForm({ ...categoryForm, prizes: updated });
+                        }}
+                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-semibold sm:w-44"
+                      />
+
+                      <div className="flex items-center space-x-1 flex-1">
+                        <span className="text-[11px] text-slate-400 font-mono">Rp</span>
+                        <input
+                          type="number"
+                          placeholder="Nominal Hadiah"
+                          value={prz.prizeMoney}
+                          onChange={e => {
+                            const updated = [...categoryForm.prizes];
+                            updated[idx].prizeMoney = Number(e.target.value) || 0;
+                            setCategoryForm({ ...categoryForm, prizes: updated });
+                          }}
+                          className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono font-bold w-full"
+                        />
+                      </div>
+
+                      <input
+                        type="text"
+                        placeholder="Trofi / Fasilitas (opsional)"
+                        value={prz.trophy || ''}
+                        onChange={e => {
+                          const updated = [...categoryForm.prizes];
+                          updated[idx].trophy = e.target.value;
+                          setCategoryForm({ ...categoryForm, prizes: updated });
+                        }}
+                        className="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 sm:w-44"
+                      />
+
+                      {categoryForm.prizes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = categoryForm.prizes.filter((_, i) => i !== idx);
+                            setCategoryForm({ ...categoryForm, prizes: updated });
+                          }}
+                          className="p-1.5 rounded-lg bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/50 cursor-pointer self-center"
+                          title="Hapus baris hadiah"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* DAFTAR REGULASI & KETENTUAN (DYNAMIC) */}
+              <div className="space-y-3 p-4 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h5 className="font-bold text-white uppercase text-[11px]">
+                      Poin Regulasi & Ketentuan Kategori
+                    </h5>
+                    <p className="text-[10px] text-slate-400">Ketentuan khusus yang wajib dipatuhi tim pada kategori ini.</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryForm(prev => ({
+                        ...prev,
+                        rules: [...prev.rules, 'Poin ketentuan atau regulasi baru...']
+                      }));
+                    }}
+                    className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1 cursor-pointer transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Aturan</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {categoryForm.rules.map((rule, idx) => (
+                    <div key={idx} className="flex items-center space-x-2">
+                      <span className="text-[11px] font-mono text-red-400 font-bold">{idx + 1}.</span>
+                      <input
+                        type="text"
+                        value={rule}
+                        onChange={e => {
+                          const updated = [...categoryForm.rules];
+                          updated[idx] = e.target.value;
+                          setCategoryForm({ ...categoryForm, rules: updated });
+                        }}
+                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 flex-1"
+                      />
+                      {categoryForm.rules.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = categoryForm.rules.filter((_, i) => i !== idx);
+                            setCategoryForm({ ...categoryForm, rules: updated });
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* MODAL FOOTER */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-slate-950 font-bold transition flex items-center space-x-2 shadow-lg shadow-red-900/40 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{editingCategory ? 'Simpan Perubahan Kategori' : 'Tambahkan Kategori'}</span>
                 </button>
               </div>
             </form>

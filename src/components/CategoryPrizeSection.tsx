@@ -59,7 +59,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
             <span>Perebutan Total Hadiah Rp {config.totalPrizePool.toLocaleString('id-ID')}</span>
           </div>
           <h2 className="text-4xl sm:text-6xl font-heading font-extrabold uppercase tracking-tight text-slate-900 dark:text-white">
-            6 KATEGORI TURNAMEN & HADIAH
+            {categories.length} KATEGORI TURNAMEN & HADIAH
           </h2>
           <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400">
             Pilih kategori tim Anda, lengkapi berkas persyaratan dokumen PDF, dan raih trofi bergilir beserta uang pembinaan.

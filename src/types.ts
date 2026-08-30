@@ -1,4 +1,4 @@
-export type TournamentCategory = 'SD' | 'SMP' | 'SMA' | 'INSTANSI' | 'UMUM' | 'DESA';
+export type TournamentCategory = 'SD' | 'SMP' | 'SMA' | 'INSTANSI' | 'UMUM' | 'DESA' | string;
 
 export type RegistrationStatus = 'PENDING_PAYMENT' | 'APPROVED' | 'REJECTED';
 
@@ -48,19 +48,20 @@ export interface RegistrationItem {
 export interface CategoryPrizeItem {
   rank: string; // Juara 1, Juara 2, Juara 3 Bersama / Juara 3, Top Scorer, Pemain Terbaik, Kiper Terbaik, Best Supporter
   prizeMoney: number;
-  trophyText: string;
+  trophyText?: string;
+  trophy?: string;
 }
 
 export interface CategoryDetail {
   id: TournamentCategory;
   name: string;
-  badgeTitle: string;
+  badgeTitle?: string;
   ageRestriction: string;
   maxTeams: number;
   registeredTeamsCount: number;
   registrationFee: number;
   totalPrize: number;
-  description: string;
+  description?: string;
   prizes: CategoryPrizeItem[];
   rules: string[];
 }
@@ -214,4 +215,14 @@ export interface TournamentConfig {
   committeeContacts?: CommitteeContact[];
   committeeEmails?: CommitteeEmail[];
   bankAccounts?: CommitteeBankAccount[];
+  sectionsVisibility?: PageSectionsVisibility;
+}
+
+export interface PageSectionsVisibility {
+  hero: boolean;
+  liveScore: boolean;
+  categories: boolean;
+  bracket: boolean;
+  venue: boolean;
+  sponsors: boolean;
 }

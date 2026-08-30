@@ -13,18 +13,13 @@ import {
 } from 'lucide-react';
 
 export const LiveScoreSection: React.FC = () => {
-  const { matches } = useTournament();
+  const { matches, categories: tourneyCategories } = useTournament();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING'>('ALL');
 
-  const categories: { id: string; label: string }[] = [
+  const categoriesList = [
     { id: 'ALL', label: 'Semua Kategori' },
-    { id: 'SD', label: 'SD (U-12)' },
-    { id: 'SMP', label: 'SMP' },
-    { id: 'SMA', label: 'SMA / SMK' },
-    { id: 'INSTANSI', label: 'Instansi' },
-    { id: 'UMUM', label: 'Umum' },
-    { id: 'DESA', label: 'Desa / Kel' },
+    ...tourneyCategories.map(c => ({ id: c.id, label: c.name })),
   ];
 
   // Active / Upcoming matches only (FINISHED matches are archived to the bracket section)
@@ -161,35 +156,13 @@ export const LiveScoreSection: React.FC = () => {
 
               </div>
 
-              {/* TIMELINE OF GOALS / EVENTS */}
-              {activeLiveMatch.events && activeLiveMatch.events.length > 0 && (
-                <div className="w-full lg:w-72 bg-slate-950/90 border border-slate-800 rounded-xl p-3 text-xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase block mb-1.5 border-b border-slate-800 pb-1">
-                    Timeline Gol & Kejadian
-                  </span>
-                  <div className="space-y-1.5 max-h-28 overflow-y-auto pr-1">
-                    {activeLiveMatch.events.map(ev => (
-                      <div key={ev.id} className="flex items-center justify-between text-[11px]">
-                        <span className="font-mono text-red-400 font-bold">{ev.minute}</span>
-                        <span className="text-slate-200 font-medium truncate max-w-[140px]">
-                          {ev.playerName}
-                        </span>
-                        <span className="text-xs">
-                          {ev.type === 'GOAL' ? '⚽' : ev.type === 'YELLOW' ? '🟨' : '🟥'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
             </div>
           </div>
         )}
 
         {/* CATEGORY SELECTOR PILLS */}
         <div className="flex items-center space-x-2 overflow-x-auto pb-4 mb-6 scrollbar-none">
-          {categories.map(cat => (
+          {categoriesList.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}

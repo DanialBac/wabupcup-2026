@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { TournamentProvider } from './context/TournamentContext';
+import { TournamentProvider, useTournament } from './context/TournamentContext';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { LiveScoreSection } from './components/LiveScoreSection';
@@ -19,6 +19,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { TournamentCategory } from './types';
 
 const MainLayout: React.FC = () => {
+  const { config } = useTournament();
   const [isRegModalOpen, setIsRegModalOpen] = useState(false);
   const [regCategory, setRegCategory] = useState<TournamentCategory>('SMA');
   const [isCheckStatusOpen, setIsCheckStatusOpen] = useState(false);
@@ -29,6 +30,15 @@ const MainLayout: React.FC = () => {
       setRegCategory(category);
     }
     setIsRegModalOpen(true);
+  };
+
+  const visibility = config.sectionsVisibility || {
+    hero: true,
+    liveScore: true,
+    categories: true,
+    bracket: true,
+    venue: true,
+    sponsors: true,
   };
 
   return (
@@ -42,30 +52,36 @@ const MainLayout: React.FC = () => {
       />
 
       {/* HERO SECTION */}
-      <Hero
-        onOpenRegister={() => handleOpenRegistration()}
-        onOpenRegistration={() => handleOpenRegistration()}
-        onOpenCheckStatus={() => setIsCheckStatusOpen(true)}
-      />
+      {visibility.hero !== false && (
+        <Hero
+          onOpenRegister={() => handleOpenRegistration()}
+          onOpenRegistration={() => handleOpenRegistration()}
+          onOpenCheckStatus={() => setIsCheckStatusOpen(true)}
+        />
+      )}
 
       {/* LIVE SCORE & TICKER SECTION */}
-      <LiveScoreSection />
+      {visibility.liveScore !== false && <LiveScoreSection />}
 
-      {/* 6 TOURNAMENT CATEGORIES & PRIZES */}
-      <CategoryPrizeSection
-        onSelectCategoryToRegister={(cat) => handleOpenRegistration(cat)}
-      />
+      {/* TOURNAMENT CATEGORIES & PRIZES */}
+      {visibility.categories !== false && (
+        <CategoryPrizeSection
+          onSelectCategoryToRegister={(cat) => handleOpenRegistration(cat)}
+        />
+      )}
 
       {/* TOURNAMENT BRACKET & FULL SCHEDULE & TEAMS DIRECTORY */}
-      <ScheduleBracketSection
-        onOpenRegister={(cat) => handleOpenRegistration(cat)}
-      />
+      {visibility.bracket !== false && (
+        <ScheduleBracketSection
+          onOpenRegister={(cat) => handleOpenRegistration(cat)}
+        />
+      )}
 
       {/* VENUE LOCATION & GOOGLE MAPS */}
-      <VenueLocationSection />
+      {visibility.venue !== false && <VenueLocationSection />}
 
       {/* SPONSORSHIP & OFFICIAL PARTNERS */}
-      <SponsorSection />
+      {visibility.sponsors !== false && <SponsorSection />}
 
       {/* FOOTER */}
       <Footer

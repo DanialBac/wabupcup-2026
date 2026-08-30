@@ -39,14 +39,25 @@ export const Navbar: React.FC<NavbarProps> = ({
     else if (onOpenRegistration) onOpenRegistration();
   };
 
-  const navLinks = [
-    { id: 'beranda', label: 'Beranda', icon: Trophy, href: '#beranda' },
-    { id: 'kategori', label: 'Kategori & Hadiah', icon: Award, href: '#kategori' },
-    { id: 'live-jadwal', label: 'Live & Jadwal', icon: Flame, href: '#live-jadwal' },
-    { id: 'bagan', label: 'Bagan & Tim', icon: Calendar, href: '#bagan' },
-    { id: 'lokasi', label: 'Lokasi Map', icon: MapPin, href: '#lokasi' },
-    { id: 'sponsor', label: 'Sponsor', icon: Users, href: '#sponsor' },
+  const visibility = config.sectionsVisibility || {
+    hero: true,
+    liveScore: true,
+    categories: true,
+    bracket: true,
+    venue: true,
+    sponsors: true,
+  };
+
+  const allNavLinks = [
+    { id: 'beranda', label: 'Beranda', icon: Trophy, href: '#beranda', visible: visibility.hero !== false },
+    { id: 'kategori', label: 'Kategori & Hadiah', icon: Award, href: '#kategori', visible: visibility.categories !== false },
+    { id: 'live-jadwal', label: 'Live & Jadwal', icon: Flame, href: '#live-jadwal', visible: visibility.liveScore !== false },
+    { id: 'bagan', label: 'Bagan & Tim', icon: Calendar, href: '#bagan', visible: visibility.bracket !== false },
+    { id: 'lokasi', label: 'Lokasi Map', icon: MapPin, href: '#lokasi', visible: visibility.venue !== false },
+    { id: 'sponsor', label: 'Sponsor', icon: Users, href: '#sponsor', visible: visibility.sponsors !== false },
   ];
+
+  const navLinks = allNavLinks.filter(l => l.visible);
 
   return (
     <nav

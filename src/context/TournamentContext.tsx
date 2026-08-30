@@ -52,7 +52,9 @@ interface TournamentContextType {
   setPrimaryBankAccount: (id: string) => void;
   // Categories & Registration
   categories: CategoryDetail[];
+  addCategory: (category: CategoryDetail) => void;
   updateCategory: (category: CategoryDetail) => void;
+  deleteCategory: (categoryId: string) => void;
   registrations: RegistrationItem[];
   submitNewRegistration: (data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>) => RegistrationItem;
   updateRegistration: (item: RegistrationItem) => void;
@@ -112,6 +114,15 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const DEFAULT_SECTIONS_VISIBILITY = {
+    hero: true,
+    liveScore: true,
+    categories: true,
+    bracket: true,
+    venue: true,
+    sponsors: true,
+  };
+
   // Tournament Config
   const [config, setConfig] = useState<TournamentConfig>(() => {
     const saved = localStorage.getItem('wabupcup_config');
@@ -121,16 +132,26 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return {
           ...INITIAL_TOURNAMENT_CONFIG,
           ...parsed,
+          sectionsVisibility: {
+            ...DEFAULT_SECTIONS_VISIBILITY,
+            ...(parsed.sectionsVisibility || {}),
+          },
           downloadableDocs: parsed.downloadableDocs && parsed.downloadableDocs.length > 0 ? parsed.downloadableDocs : INITIAL_TOURNAMENT_CONFIG.downloadableDocs,
           committeeContacts: parsed.committeeContacts && parsed.committeeContacts.length > 0 ? parsed.committeeContacts : INITIAL_TOURNAMENT_CONFIG.committeeContacts,
           committeeEmails: parsed.committeeEmails && parsed.committeeEmails.length > 0 ? parsed.committeeEmails : INITIAL_TOURNAMENT_CONFIG.committeeEmails,
           bankAccounts: parsed.bankAccounts && parsed.bankAccounts.length > 0 ? parsed.bankAccounts : INITIAL_TOURNAMENT_CONFIG.bankAccounts,
         };
       } catch {
-        return INITIAL_TOURNAMENT_CONFIG;
+        return {
+          ...INITIAL_TOURNAMENT_CONFIG,
+          sectionsVisibility: DEFAULT_SECTIONS_VISIBILITY,
+        };
       }
     }
-    return INITIAL_TOURNAMENT_CONFIG;
+    return {
+      ...INITIAL_TOURNAMENT_CONFIG,
+      sectionsVisibility: DEFAULT_SECTIONS_VISIBILITY,
+    };
   });
 
   const updateConfig = (newConfig: Partial<TournamentConfig>) => {
@@ -360,9 +381,25 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
   });
 
+  const addCategory = (newCat: CategoryDetail) => {
+    setCategories(prev => {
+      const next = [...prev, newCat];
+      localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const updateCategory = (updated: CategoryDetail) => {
     setCategories(prev => {
       const next = prev.map(c => (c.id === updated.id ? updated : c));
+      localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const deleteCategory = (categoryId: string) => {
+    setCategories(prev => {
+      const next = prev.filter(c => c.id !== categoryId);
       localStorage.setItem('wabupcup_categories', JSON.stringify(next));
       return next;
     });
@@ -482,6 +519,87 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     localStorage.setItem('wabupcup_matches', JSON.stringify(matches));
   }, [matches]);
+
+  // Auto-transition matches from UPCOMING to LIVE and advance the live minute automatically
+  // Stops if match is FINISHED by admin
+  useEffect(() => {
+    const evaluateLiveMatches = () => {
+      const now = new Date();
+
+      setMatches(prevMatches => {
+        let changed = false;
+        const updated = prevMatches.map(m => {
+          // If already FINISHED, do not modify status automatically
+          if (m.status === 'FINISHED') {
+            return m;
+          }
+
+          if (!m.date || !m.time) return m;
+
+          try {
+            const dateParts = m.date.split('-').map(Number);
+            const timeParts = m.time.split(':').map(Number);
+            if (dateParts.length < 3 || timeParts.length < 2) return m;
+
+            const [year, month, day] = dateParts;
+            const [hours, minutes] = timeParts;
+
+            if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
+              return m;
+            }
+
+            const matchStartTime = new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+            const nowTime = now.getTime();
+            const diffMs = nowTime - matchStartTime;
+            const diffMinutes = Math.floor(diffMs / (60 * 1000));
+
+            // If match time has arrived (0 to 120 minutes from kickoff)
+            if (diffMinutes >= 0 && diffMinutes <= 120) {
+              let minuteStr = '';
+              if (diffMinutes < 45) {
+                minuteStr = `${Math.max(1, diffMinutes + 1)}'`;
+              } else if (diffMinutes >= 45 && diffMinutes < 60) {
+                minuteStr = `HT (45+')`;
+              } else if (diffMinutes >= 60 && diffMinutes < 105) {
+                minuteStr = `${diffMinutes - 15}'`;
+              } else {
+                minuteStr = `90+'`;
+              }
+
+              if (m.status !== 'LIVE' || m.liveMinute !== minuteStr) {
+                changed = true;
+                return {
+                  ...m,
+                  status: 'LIVE' as const,
+                  liveMinute: minuteStr,
+                };
+              }
+            } else if (diffMinutes < 0) {
+              // Match is in the future
+              if (m.status === 'LIVE') {
+                changed = true;
+                return {
+                  ...m,
+                  status: 'UPCOMING' as const,
+                  liveMinute: undefined,
+                };
+              }
+            }
+          } catch {
+            // Ignore date calculation errors
+          }
+
+          return m;
+        });
+
+        return changed ? updated : prevMatches;
+      });
+    };
+
+    evaluateLiveMatches();
+    const timer = setInterval(evaluateLiveMatches, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   const addMatch = (newMatch: Omit<MatchItem, 'id'>) => {
     const item: MatchItem = {
@@ -1110,7 +1228,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteBankAccount,
         setPrimaryBankAccount,
         categories,
+        addCategory,
         updateCategory,
+        deleteCategory,
         registrations,
         submitNewRegistration,
         updateRegistration,
