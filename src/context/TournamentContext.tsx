@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import {
   AdminUser,
   CategoryDetail,
@@ -22,12 +22,15 @@ import {
   INITIAL_SPONSORS,
   INITIAL_TOURNAMENT_CONFIG,
 } from '../data/mockData';
+import { ApiService } from '../services/api';
 
 interface TournamentContextType {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
   config: TournamentConfig;
   updateConfig: (newConfig: Partial<TournamentConfig>) => void;
+  refreshDataFromServer: () => Promise<void>;
+  isSyncingWithServer: boolean;
   // Downloadable Documents
   downloadableDocs: DownloadableDoc[];
   addDownloadableDoc: (doc: Omit<DownloadableDoc, 'id' | 'updatedAt'>) => void;
@@ -154,10 +157,86 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   });
 
+  // Sync with Backend (MySQL / Node API)
+  const [isSyncingWithServer, setIsSyncingWithServer] = useState(false);
+
+  const refreshDataFromServer = useCallback(async () => {
+    try {
+      setIsSyncingWithServer(true);
+      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors] =
+        await Promise.all([
+          ApiService.getConfig(),
+          ApiService.getCategories(),
+          ApiService.getRegistrations(),
+          ApiService.getMatches(),
+          ApiService.getSponsors(),
+        ]);
+
+      if (serverConfig) {
+        setConfig(prev => ({
+          ...prev,
+          ...serverConfig,
+          sectionsVisibility: {
+            ...DEFAULT_SECTIONS_VISIBILITY,
+            ...(serverConfig.sectionsVisibility || prev.sectionsVisibility || {}),
+          },
+          downloadableDocs:
+            serverConfig.downloadableDocs && serverConfig.downloadableDocs.length > 0
+              ? serverConfig.downloadableDocs
+              : prev.downloadableDocs,
+          committeeContacts:
+            serverConfig.committeeContacts && serverConfig.committeeContacts.length > 0
+              ? serverConfig.committeeContacts
+              : prev.committeeContacts,
+          committeeEmails:
+            serverConfig.committeeEmails && serverConfig.committeeEmails.length > 0
+              ? serverConfig.committeeEmails
+              : prev.committeeEmails,
+          bankAccounts:
+            serverConfig.bankAccounts && serverConfig.bankAccounts.length > 0
+              ? serverConfig.bankAccounts
+              : prev.bankAccounts,
+        }));
+      }
+
+      if (serverCategories && Array.isArray(serverCategories) && serverCategories.length > 0) {
+        setCategories(serverCategories);
+        localStorage.setItem('wabupcup_categories', JSON.stringify(serverCategories));
+      }
+
+      if (serverRegistrations && Array.isArray(serverRegistrations) && serverRegistrations.length > 0) {
+        setRegistrations(serverRegistrations);
+        localStorage.setItem('wabupcup_registrations', JSON.stringify(serverRegistrations));
+      }
+
+      if (serverMatches && Array.isArray(serverMatches) && serverMatches.length > 0) {
+        setMatches(serverMatches);
+        localStorage.setItem('wabupcup_matches', JSON.stringify(serverMatches));
+      }
+
+      if (serverSponsors && Array.isArray(serverSponsors) && serverSponsors.length > 0) {
+        setSponsors(serverSponsors);
+        localStorage.setItem('wabupcup_sponsors', JSON.stringify(serverSponsors));
+      }
+    } catch (err) {
+      console.warn('Backend server synchronization encountered an error, running with local data:', err);
+    } finally {
+      setIsSyncingWithServer(false);
+    }
+  }, []);
+
+  // Initial load from server on app mount
+  useEffect(() => {
+    refreshDataFromServer();
+  }, [refreshDataFromServer]);
+
   const updateConfig = (newConfig: Partial<TournamentConfig>) => {
     setConfig(prev => {
       const updated = { ...prev, ...newConfig };
       localStorage.setItem('wabupcup_config', JSON.stringify(updated));
+      ApiService.updateConfig(updated).catch(err =>
+        console.warn('Could not sync config update to backend API:', err)
+      );
       return updated;
     });
   };
@@ -385,6 +464,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCategories(prev => {
       const next = [...prev, newCat];
       localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      ApiService.saveCategory(newCat).catch(err =>
+        console.warn('Could not save category to backend:', err)
+      );
       return next;
     });
   };
@@ -393,6 +475,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCategories(prev => {
       const next = prev.map(c => (c.id === updated.id ? updated : c));
       localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      ApiService.saveCategory(updated).catch(err =>
+        console.warn('Could not update category on backend:', err)
+      );
       return next;
     });
   };
@@ -401,6 +486,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCategories(prev => {
       const next = prev.filter(c => c.id !== categoryId);
       localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      ApiService.deleteCategory(categoryId).catch(err =>
+        console.warn('Could not delete category on backend:', err)
+      );
       return next;
     });
   };
@@ -437,14 +525,24 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setRegistrations(prev => [newReg, ...prev]);
 
+    // Send to backend API
+    ApiService.createRegistration(newReg).catch(err =>
+      console.warn('Could not persist new registration to backend:', err)
+    );
+
     // Update category count
-    setCategories(prev =>
-      prev.map(c =>
+    setCategories(prev => {
+      const next = prev.map(c =>
         c.id === data.category
           ? { ...c, registeredTeamsCount: c.registeredTeamsCount + 1 }
           : c
-      )
-    );
+      );
+      const updatedCat = next.find(c => c.id === data.category);
+      if (updatedCat) {
+        ApiService.saveCategory(updatedCat).catch(() => {});
+      }
+      return next;
+    });
 
     return newReg;
   };
@@ -452,9 +550,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateRegistration = (updatedItem: RegistrationItem) => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const fullUpdated = { ...updatedItem, lastUpdated: formattedDate };
     
     setRegistrations(prev =>
-      prev.map(item => (item.id === updatedItem.id ? { ...updatedItem, lastUpdated: formattedDate } : item))
+      prev.map(item => (item.id === updatedItem.id ? fullUpdated : item))
+    );
+
+    ApiService.updateRegistration(fullUpdated).catch(err =>
+      console.warn('Could not sync registration update to backend:', err)
     );
   };
 
@@ -481,6 +584,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return item;
       })
     );
+
+    ApiService.updateRegistrationStatus(id, status, reason, notes).catch(err =>
+      console.warn('Could not sync status update to backend:', err)
+    );
   };
 
   const updatePaymentStatus = (id: string, paymentStatus: PaymentStatus) => {
@@ -504,10 +611,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return item;
       })
     );
+
+    ApiService.updatePaymentStatus(id, paymentStatus).catch(err =>
+      console.warn('Could not sync payment update to backend:', err)
+    );
   };
 
   const deleteRegistration = (id: string) => {
     setRegistrations(prev => prev.filter(item => item.id !== id));
+    ApiService.deleteRegistration(id).catch(err =>
+      console.warn('Could not delete registration on backend:', err)
+    );
   };
 
   // Matches & Schedule
@@ -607,6 +721,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       id: `match-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     };
     setMatches(prev => [item, ...prev]);
+    ApiService.saveMatch(item).catch(err =>
+      console.warn('Could not save match to backend:', err)
+    );
   };
 
   const updateMatch = (updated: MatchItem) => {
@@ -650,27 +767,27 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (matchWithWinner.nextMatchId) {
           newMatchesList = newMatchesList.map(m => {
             if (m.id === matchWithWinner.nextMatchId) {
-              if (matchWithWinner.nextMatchSlot === 'B') {
-                return {
-                  ...m,
-                  teamB: {
-                    ...m.teamB,
-                    name: winningTeam.name,
-                    institution: winningTeam.institution,
-                    logo: winningTeam.logo,
-                  },
-                };
-              } else {
-                return {
-                  ...m,
-                  teamA: {
-                    ...m.teamA,
-                    name: winningTeam.name,
-                    institution: winningTeam.institution,
-                    logo: winningTeam.logo,
-                  },
-                };
-              }
+              const updatedNextMatch = matchWithWinner.nextMatchSlot === 'B'
+                ? {
+                    ...m,
+                    teamB: {
+                      ...m.teamB,
+                      name: winningTeam.name,
+                      institution: winningTeam.institution,
+                      logo: winningTeam.logo,
+                    },
+                  }
+                : {
+                    ...m,
+                    teamA: {
+                      ...m.teamA,
+                      name: winningTeam.name,
+                      institution: winningTeam.institution,
+                      logo: winningTeam.logo,
+                    },
+                  };
+              ApiService.saveMatch(updatedNextMatch).catch(() => {});
+              return updatedNextMatch;
             }
             return m;
           });
@@ -680,31 +797,31 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const placeholderName = `Pemenang Match ${matchWithWinner.matchNumber}`;
         newMatchesList = newMatchesList.map(m => {
           if (m.id === matchWithWinner.nextMatchId) {
-            if (matchWithWinner.nextMatchSlot === 'B') {
-              return {
-                ...m,
-                teamB: {
-                  ...m.teamB,
-                  name: placeholderName,
-                  institution: 'TBD',
-                  logo: undefined,
-                  score: undefined,
-                  penalties: undefined,
-                },
-              };
-            } else {
-              return {
-                ...m,
-                teamA: {
-                  ...m.teamA,
-                  name: placeholderName,
-                  institution: 'TBD',
-                  logo: undefined,
-                  score: undefined,
-                  penalties: undefined,
-                },
-              };
-            }
+            const updatedNextMatch = matchWithWinner.nextMatchSlot === 'B'
+              ? {
+                  ...m,
+                  teamB: {
+                    ...m.teamB,
+                    name: placeholderName,
+                    institution: 'TBD',
+                    logo: undefined,
+                    score: undefined,
+                    penalties: undefined,
+                  },
+                }
+              : {
+                  ...m,
+                  teamA: {
+                    ...m.teamA,
+                    name: placeholderName,
+                    institution: 'TBD',
+                    logo: undefined,
+                    score: undefined,
+                    penalties: undefined,
+                  },
+                };
+            ApiService.saveMatch(updatedNextMatch).catch(() => {});
+            return updatedNextMatch;
           }
           return m;
         });
@@ -712,10 +829,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       return newMatchesList;
     });
+
+    ApiService.saveMatch(matchWithWinner).catch(err =>
+      console.warn('Could not sync match update to backend:', err)
+    );
   };
 
   const deleteMatch = (matchId: string) => {
     setMatches(prev => prev.filter(m => m.id !== matchId));
+    ApiService.deleteMatch(matchId).catch(err =>
+      console.warn('Could not delete match on backend:', err)
+    );
   };
 
   // CHECK IF NEXT ROUND CAN BE DRAWN (Must wait until previous round matches are ALL FINISHED)
@@ -1105,14 +1229,23 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       id: `sp-${Date.now()}`,
     };
     setSponsors(prev => [...prev, item]);
+    ApiService.saveSponsor(item).catch(err =>
+      console.warn('Could not save sponsor to backend:', err)
+    );
   };
 
   const updateSponsor = (updated: SponsorItem) => {
     setSponsors(prev => prev.map(s => (s.id === updated.id ? updated : s)));
+    ApiService.saveSponsor(updated).catch(err =>
+      console.warn('Could not update sponsor on backend:', err)
+    );
   };
 
   const deleteSponsor = (id: string) => {
     setSponsors(prev => prev.filter(s => s.id !== id));
+    ApiService.deleteSponsor(id).catch(err =>
+      console.warn('Could not delete sponsor on backend:', err)
+    );
   };
 
   // Admin Users & Auth
@@ -1209,6 +1342,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         toggleTheme,
         config,
         updateConfig,
+        refreshDataFromServer,
+        isSyncingWithServer,
         downloadableDocs,
         addDownloadableDoc,
         updateDownloadableDoc,

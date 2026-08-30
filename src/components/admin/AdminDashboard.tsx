@@ -20,6 +20,7 @@ import {
   UploadedDoc,
 } from '../../types';
 import { PdfViewerModal } from './PdfViewerModal';
+import { DatabaseManagerTab } from './DatabaseManagerTab';
 import {
   SETUP_GS_CODE,
   CODE_GS_CODE,
@@ -27,6 +28,8 @@ import {
   DEPLOYMENT_AND_GIT_GUIDE,
 } from '../../utils/gasCodeGenerator';
 import {
+  Database,
+  Server,
   Shield,
   Users,
   Trophy,
@@ -150,6 +153,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     | 'SPONSORS'
     | 'SETTINGS'
     | 'ADMIN_USERS'
+    | 'MYSQL_DATABASE_MANAGER'
     | 'GAS_EXPORT_GUIDE';
 
   const [activeTab, setActiveTab] = useState<CmsTab>('OVERVIEW');
@@ -1539,6 +1543,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             </button>
 
             <button
+              onClick={() => setActiveTab('MYSQL_DATABASE_MANAGER')}
+              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                activeTab === 'MYSQL_DATABASE_MANAGER'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/30'
+                  : 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300'
+              }`}
+            >
+              <Database className="w-4 h-4 text-emerald-400" />
+              <span className="flex-1 text-left">Database MySQL & Vercel</span>
+              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                PRO
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('GAS_EXPORT_GUIDE')}
               className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
                 activeTab === 'GAS_EXPORT_GUIDE'
@@ -1554,12 +1573,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           {/* DATABASE SYNC STATUS WIDGET */}
           <div className="mt-auto p-4 bg-slate-800/50 rounded-xl border border-slate-700">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-medium text-slate-300">Database Sync</p>
+              <p className="text-xs font-medium text-slate-300">Database Engine</p>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
-            <p className="text-[10px] text-slate-400 mb-3">Connected to G-Sheets & Drive</p>
+            <p className="text-[10px] text-slate-400 mb-2">MySQL & In-Memory Fallback Active</p>
             <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-blue-500 w-3/4 h-full rounded-full"></div>
+              <div className="bg-emerald-500 w-full h-full rounded-full"></div>
             </div>
           </div>
         </aside>
@@ -1585,6 +1604,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               <option value="SPONSORS">🤝 Sponsorship</option>
               <option value="SETTINGS">⚙️ Pengaturan & Berkas (Settings)</option>
               <option value="ADMIN_USERS">🛡️ Kelola Admin Users</option>
+              <option value="MYSQL_DATABASE_MANAGER">🗄️ Database MySQL & Hosting Vercel</option>
               <option value="GAS_EXPORT_GUIDE">📁 Google Sheets 3-File Hub</option>
             </select>
           </div>
@@ -2703,6 +2723,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </table>
               </div>
             </div>
+          )}
+
+          {/* TAB: DATABASE MYSQL & HOSTING VERCEL */}
+          {activeTab === 'MYSQL_DATABASE_MANAGER' && (
+            <DatabaseManagerTab />
           )}
 
           {/* TAB 11: GOOGLE APPS SCRIPT 3-FILE HUB & DEPLOYMENT GUIDE */}
