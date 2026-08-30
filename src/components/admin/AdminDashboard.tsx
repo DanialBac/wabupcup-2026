@@ -85,6 +85,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     loginAdmin,
     logoutAdmin,
     registrations,
+    updateRegistration,
     updateRegistrationStatus,
     updatePaymentStatus,
     deleteRegistration,
@@ -95,6 +96,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     updateMatch,
     deleteMatch,
     randomizeMatchesForCategory,
+    checkCanDrawNextRound,
     sponsors,
     addSponsor,
     updateSponsor,
@@ -238,6 +240,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     venueCity: config.venueCity,
     googleMapsEmbedUrl: config.googleMapsEmbedUrl,
     totalPrizePool: config.totalPrizePool,
+    wabupLogoUrl: config.wabupLogoUrl || '',
+    panitiaLogoUrl: config.panitiaLogoUrl || '',
   });
   const [generalSaveSuccess, setGeneralSaveSuccess] = useState(false);
 
@@ -510,9 +514,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       venueCity: generalConfigForm.venueCity.trim(),
       googleMapsEmbedUrl: generalConfigForm.googleMapsEmbedUrl.trim(),
       totalPrizePool: Number(generalConfigForm.totalPrizePool) || config.totalPrizePool,
+      wabupLogoUrl: generalConfigForm.wabupLogoUrl.trim() || undefined,
+      panitiaLogoUrl: generalConfigForm.panitiaLogoUrl.trim() || undefined,
     });
     setGeneralSaveSuccess(true);
     setTimeout(() => setGeneralSaveSuccess(false), 3000);
+  };
+
+  const handleWabupLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran file logo maksimal 5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setGeneralConfigForm(prev => ({ ...prev, wabupLogoUrl: dataUrl }));
+      updateConfig({ wabupLogoUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePanitiaLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran file logo maksimal 5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setGeneralConfigForm(prev => ({ ...prev, panitiaLogoUrl: dataUrl }));
+      updateConfig({ panitiaLogoUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveWabupLogo = () => {
+    setGeneralConfigForm(prev => ({ ...prev, wabupLogoUrl: '' }));
+    updateConfig({ wabupLogoUrl: '' });
+  };
+
+  const handleRemovePanitiaLogo = () => {
+    setGeneralConfigForm(prev => ({ ...prev, panitiaLogoUrl: '' }));
+    updateConfig({ panitiaLogoUrl: '' });
   };
 
   // Search and filters for registration tables
@@ -530,16 +578,284 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [targetRejectItem, setTargetRejectItem] = useState<RegistrationItem | null>(null);
   const [rejectionReasonText, setRejectionReasonText] = useState('');
 
+  // Super Admin Full Registration Editor Modal State
+  const [editRegModalOpen, setEditRegModalOpen] = useState(false);
+  const [editingReg, setEditingReg] = useState<RegistrationItem | null>(null);
+  const [regForm, setRegForm] = useState<{
+    teamName: string;
+    category: TournamentCategory;
+    institutionName: string;
+    coachName: string;
+    coachPhone: string;
+    coachEmail: string;
+    playerCount: number;
+    officialCount: number;
+    paymentAmount: number;
+    paymentStatus: PaymentStatus;
+    status: RegistrationStatus;
+    rejectionReason: string;
+    adminNotes: string;
+    teamLogo: string;
+    suratKeterangan: UploadedDoc | undefined;
+    suratPernyataan: UploadedDoc | undefined;
+    formulirPemain: UploadedDoc | undefined;
+    aktaKelahiran: UploadedDoc | undefined;
+  }>({
+    teamName: '',
+    category: 'SMA',
+    institutionName: '',
+    coachName: '',
+    coachPhone: '',
+    coachEmail: '',
+    playerCount: 12,
+    officialCount: 2,
+    paymentAmount: 350000,
+    paymentStatus: 'UNPAID',
+    status: 'PENDING_PAYMENT',
+    rejectionReason: '',
+    adminNotes: '',
+    teamLogo: '',
+    suratKeterangan: undefined,
+    suratPernyataan: undefined,
+    formulirPemain: undefined,
+    aktaKelahiran: undefined,
+  });
+
+  const handleOpenEditReg = (item: RegistrationItem) => {
+    setEditingReg(item);
+    setRegForm({
+      teamName: item.teamName,
+      category: item.category,
+      institutionName: item.institutionName,
+      coachName: item.coachName,
+      coachPhone: item.coachPhone,
+      coachEmail: item.coachEmail || '',
+      playerCount: item.playerCount || 12,
+      officialCount: item.officialCount || 2,
+      paymentAmount: item.paymentAmount,
+      paymentStatus: item.paymentStatus,
+      status: item.status,
+      rejectionReason: item.rejectionReason || '',
+      adminNotes: item.adminNotes || '',
+      teamLogo: item.teamLogo || '',
+      suratKeterangan: item.documents?.suratKeterangan,
+      suratPernyataan: item.documents?.suratPernyataan,
+      formulirPemain: item.documents?.formulirPemain,
+      aktaKelahiran: item.documents?.aktaKelahiran,
+    });
+    setEditRegModalOpen(true);
+  };
+
+  const handleSaveEditReg = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReg) return;
+    const updated: RegistrationItem = {
+      ...editingReg,
+      teamName: regForm.teamName.trim(),
+      category: regForm.category,
+      institutionName: regForm.institutionName.trim(),
+      coachName: regForm.coachName.trim(),
+      coachPhone: regForm.coachPhone.trim(),
+      coachEmail: regForm.coachEmail.trim() || '',
+      playerCount: Number(regForm.playerCount) || 12,
+      officialCount: Number(regForm.officialCount) || 2,
+      paymentAmount: Number(regForm.paymentAmount) || editingReg.paymentAmount,
+      paymentStatus: regForm.paymentStatus,
+      status: regForm.status,
+      rejectionReason: regForm.rejectionReason.trim() || undefined,
+      adminNotes: regForm.adminNotes.trim() || undefined,
+      teamLogo: regForm.teamLogo.trim() || undefined,
+      documents: {
+        ...editingReg.documents,
+        suratKeterangan: regForm.suratKeterangan,
+        suratPernyataan: regForm.suratPernyataan,
+        formulirPemain: regForm.formulirPemain,
+        aktaKelahiran: regForm.aktaKelahiran,
+      },
+      lastUpdated: new Date().toISOString(),
+    };
+    updateRegistration(updated);
+    setEditRegModalOpen(false);
+    setEditingReg(null);
+  };
+
+  const handleRegTeamLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran logo maksimal 5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      setRegForm(prev => ({ ...prev, teamLogo: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRegDocUpload = (
+    docType: 'suratKeterangan' | 'suratPernyataan' | 'formulirPemain' | 'aktaKelahiran',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target?.result as string;
+      const uploadedDoc: UploadedDoc = {
+        name: file.name,
+        size: sizeMb,
+        fileData: dataUrl,
+        uploadDate: new Date().toISOString().split('T')[0],
+        type: file.type || 'application/pdf',
+      };
+      setRegForm(prev => ({ ...prev, [docType]: uploadedDoc }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Drawing Randomizer State
   const [drawCategory, setDrawCategory] = useState<TournamentCategory>('SMA');
+  const [drawStageOption, setDrawStageOption] = useState<'AUTO' | 'PENYISIHAN' | '16_BESAR' | '8_BESAR' | 'SEMIFINAL'>('AUTO');
   const [drawResultMatches, setDrawResultMatches] = useState<MatchItem[] | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
-  // Live Score Controller State
+  // Live Score & Match Editor State
   const [editMatchModalOpen, setEditMatchModalOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<MatchItem | null>(null);
-  const [newGoalPlayer, setNewGoalPlayer] = useState('');
-  const [newGoalTeam, setNewGoalTeam] = useState<'A' | 'B'>('A');
+  const [matchForm, setMatchForm] = useState<{
+    id: string;
+    matchNumber: number;
+    category: TournamentCategory;
+    round: string;
+    roundIndex: number;
+    teamAName: string;
+    teamAInstitution: string;
+    teamALogo: string;
+    teamAScore: number;
+    teamAPenalties: string;
+    teamBName: string;
+    teamBInstitution: string;
+    teamBLogo: string;
+    teamBScore: number;
+    teamBPenalties: string;
+    date: string;
+    time: string;
+    pitch: string;
+    status: MatchStatus;
+    liveMinute: string;
+    winnerId: 'A' | 'B' | 'DRAW';
+  }>({
+    id: '',
+    matchNumber: 1,
+    category: 'SMA',
+    round: 'Babak Penyisihan',
+    roundIndex: 2,
+    teamAName: '',
+    teamAInstitution: '',
+    teamALogo: '',
+    teamAScore: 0,
+    teamAPenalties: '',
+    teamBName: '',
+    teamBInstitution: '',
+    teamBLogo: '',
+    teamBScore: 0,
+    teamBPenalties: '',
+    date: '2026-10-25',
+    time: '14:00',
+    pitch: 'Lapangan 1 - Utama',
+    status: 'UPCOMING',
+    liveMinute: '45\'',
+    winnerId: 'DRAW',
+  });
+
+  const handleOpenEditMatch = (m: MatchItem) => {
+    setEditingMatch(m);
+    const pA = m.teamA.penalties !== undefined ? String(m.teamA.penalties) : '';
+    const pB = m.teamB.penalties !== undefined ? String(m.teamB.penalties) : '';
+    let win: 'A' | 'B' | 'DRAW' = 'DRAW';
+    if (m.winnerId === 'A' || (m.teamA.score ?? 0) > (m.teamB.score ?? 0)) win = 'A';
+    else if (m.winnerId === 'B' || (m.teamB.score ?? 0) > (m.teamA.score ?? 0)) win = 'B';
+
+    setMatchForm({
+      id: m.id,
+      matchNumber: m.matchNumber,
+      category: m.category,
+      round: m.round,
+      roundIndex: m.roundIndex || 2,
+      teamAName: m.teamA.name,
+      teamAInstitution: m.teamA.institution || '',
+      teamALogo: m.teamA.logo || '',
+      teamAScore: m.teamA.score ?? 0,
+      teamAPenalties: pA,
+      teamBName: m.teamB.name,
+      teamBInstitution: m.teamB.institution || '',
+      teamBLogo: m.teamB.logo || '',
+      teamBScore: m.teamB.score ?? 0,
+      teamBPenalties: pB,
+      date: m.date,
+      time: m.time,
+      pitch: m.pitch,
+      status: m.status,
+      liveMinute: m.liveMinute || '45\'',
+      winnerId: win,
+    });
+    setEditMatchModalOpen(true);
+  };
+
+  const handleSaveEditMatch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMatch) return;
+    const penA = matchForm.teamAPenalties !== '' ? Number(matchForm.teamAPenalties) : undefined;
+    const penB = matchForm.teamBPenalties !== '' ? Number(matchForm.teamBPenalties) : undefined;
+
+    let finalWinnerId: 'A' | 'B' | undefined = undefined;
+    if (matchForm.winnerId === 'A') finalWinnerId = 'A';
+    else if (matchForm.winnerId === 'B') finalWinnerId = 'B';
+    else if (matchForm.status === 'FINISHED') {
+      if (matchForm.teamAScore > matchForm.teamBScore) finalWinnerId = 'A';
+      else if (matchForm.teamBScore > matchForm.teamAScore) finalWinnerId = 'B';
+      else if (penA !== undefined && penB !== undefined) {
+        if (penA > penB) finalWinnerId = 'A';
+        else if (penB > penA) finalWinnerId = 'B';
+      }
+    }
+
+    const updated: MatchItem = {
+      ...editingMatch,
+      matchNumber: Number(matchForm.matchNumber) || editingMatch.matchNumber,
+      category: matchForm.category,
+      round: matchForm.round.trim(),
+      roundIndex: Number(matchForm.roundIndex) || editingMatch.roundIndex,
+      teamA: {
+        ...editingMatch.teamA,
+        name: matchForm.teamAName.trim(),
+        institution: matchForm.teamAInstitution.trim() || undefined,
+        logo: matchForm.teamALogo.trim() || undefined,
+        score: Number(matchForm.teamAScore) || 0,
+        penalties: penA,
+      },
+      teamB: {
+        ...editingMatch.teamB,
+        name: matchForm.teamBName.trim(),
+        institution: matchForm.teamBInstitution.trim() || undefined,
+        logo: matchForm.teamBLogo.trim() || undefined,
+        score: Number(matchForm.teamBScore) || 0,
+        penalties: penB,
+      },
+      date: matchForm.date.trim(),
+      time: matchForm.time.trim(),
+      pitch: matchForm.pitch.trim(),
+      status: matchForm.status,
+      liveMinute: matchForm.liveMinute.trim() || undefined,
+      winnerId: finalWinnerId,
+    };
+    updateMatch(updated);
+    setEditMatchModalOpen(false);
+    setEditingMatch(null);
+  };
 
   // Category editor state
   const [editingCategory, setEditingCategory] = useState<CategoryDetail | null>(null);
@@ -624,8 +940,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const handleRunDrawing = () => {
     setIsDrawing(true);
     setTimeout(() => {
-      const generated = randomizeMatchesForCategory(drawCategory);
-      setDrawResultMatches(generated);
+      const result = randomizeMatchesForCategory(drawCategory, drawStageOption);
+      if (result.matches) {
+        setDrawResultMatches(result.matches);
+      }
       setIsDrawing(false);
     }, 600);
   };
@@ -1470,18 +1788,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                       <Phone className="w-4 h-4" />
                                     </a>
 
-                                    {/* Hapus */}
+                                    {/* Edit Data & Dokumen Pendaftar (Super Admin) */}
                                     <button
-                                      onClick={() => {
-                                        if (confirm(`Hapus data tim ${item.teamName}?`)) {
-                                          deleteRegistration(item.id);
-                                        }
-                                      }}
-                                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400"
-                                      title="Hapus Registrasi"
+                                      onClick={() => handleOpenEditReg(item)}
+                                      className="p-1.5 rounded-lg bg-blue-950 hover:bg-blue-800 text-blue-300 border border-blue-700 cursor-pointer"
+                                      title="Edit Lengkap Data Pendaftar, Logo & Berkas"
                                     >
-                                      <Trash2 className="w-4 h-4" />
+                                      <Edit className="w-4 h-4" />
                                     </button>
+
+                                    {/* Hapus Registrasi (Hanya Super Admin) */}
+                                    {currentAdmin?.role === 'SUPERADMIN' && (
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Hapus data pendaftaran tim ${item.teamName}? Tindakan ini tidak dapat dibatalkan.`)) {
+                                            deleteRegistration(item.id);
+                                          }
+                                        }}
+                                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400 cursor-pointer"
+                                        title="Hapus Registrasi (Super Admin)"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
 
                                   </div>
                                 </td>
@@ -1513,40 +1842,105 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               </div>
 
               {/* DRAWING CONTROL PANEL */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-300 uppercase">
-                    Pilih Kategori untuk Dilakukan Pengacakan:
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    {(['SD', 'SMP', 'SMA', 'INSTANSI', 'UMUM', 'DESA'] as TournamentCategory[]).map(c => (
-                      <button
-                        key={c}
-                        onClick={() => {
-                          setDrawCategory(c);
-                          setDrawResultMatches(null);
-                        }}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition ${
-                          drawCategory === c
-                            ? 'bg-red-600 text-white shadow-lg'
-                            : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {(() => {
+                const drawCheck = checkCanDrawNextRound(drawCategory);
+                const approvedCount = registrations.filter(r => r.category === drawCategory && (r.status === 'APPROVED' || r.status === 'PENDING_PAYMENT')).length;
 
-                <button
-                  onClick={handleRunDrawing}
-                  disabled={isDrawing}
-                  className="px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition flex items-center justify-center space-x-2 disabled:opacity-50"
-                >
-                  <Shuffle className={`w-4 h-4 ${isDrawing ? 'animate-spin' : ''}`} />
-                  <span>{isDrawing ? 'Mengacak Tim...' : `🎲 Acak Bagan Match ${drawCategory}`}</span>
-                </button>
-              </div>
+                return (
+                  <div className="space-y-4">
+                    {/* Status Alert if ongoing matches */}
+                    {!drawCheck.canDraw && (
+                      <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-600/50 flex items-start space-x-3 text-amber-200">
+                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="text-xs space-y-1">
+                          <p className="font-bold uppercase tracking-wider text-amber-300">
+                            Peringatan Status Pertandingan Aktif
+                          </p>
+                          <p>
+                            Masih ada <strong className="text-white">{drawCheck.pendingMatchesCount} pertandingan</strong> pada kategori {drawCategory} yang belum berstatus <strong>SELESAI (FINISHED)</strong>. Pengundian babak berikutnya disarankan menunggu semua match selesai agar tim pemenang terintegrasi otomatis ke bagan lanjutan.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                      {/* Step 1: Pilih Kategori */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-300 uppercase">
+                            1. Pilih Kategori Pertandingan:
+                          </label>
+                          <span className="text-xs text-slate-400">
+                            Tim Terdaftar ({drawCategory}): <strong className="text-emerald-400">{approvedCount} Tim</strong>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {(['SD', 'SMP', 'SMA', 'INSTANSI', 'UMUM', 'DESA'] as TournamentCategory[]).map(c => (
+                            <button
+                              key={c}
+                              onClick={() => {
+                                setDrawCategory(c);
+                                setDrawResultMatches(null);
+                              }}
+                              className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                drawCategory === c
+                                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                              }`}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Step 2: Pilih Struktur Babak Undian */}
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-slate-300 uppercase">
+                          2. Pilih Format & Babak Pengacakan:
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                          {[
+                            { id: 'AUTO', label: 'Otomatis Sesuai Kuota', desc: 'Bagan adaptif sesuai jumlah tim terdaftar' },
+                            { id: '16_BESAR', label: 'Babak Penyisihan (16 Besar)', desc: '8 Match Penyisihan -> 4 QF -> 2 SF -> Final' },
+                            { id: '8_BESAR', label: 'Perempat Final (8 Besar)', desc: '4 Match QF -> 2 SF -> Final' },
+                            { id: 'SEMIFINAL', label: 'Babak Semifinal (4 Besar)', desc: '2 Match SF -> Final' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setDrawStageOption(opt.id as any)}
+                              className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                                drawStageOption === opt.id
+                                  ? 'bg-red-950/70 border-red-500 text-white shadow-md'
+                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                              }`}
+                            >
+                              <span className="block text-xs font-bold">{opt.label}</span>
+                              <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">{opt.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Step 3: Tombol Acak */}
+                      <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/80">
+                        <p className="text-xs text-slate-400">
+                          Algoritma Fisher-Yates akan mengacak slot pertandingan dan menyinkronkan bagan sistem gugur ke landing page secara instan.
+                        </p>
+                        <button
+                          onClick={handleRunDrawing}
+                          disabled={isDrawing}
+                          className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer shrink-0"
+                        >
+                          <Shuffle className={`w-4 h-4 ${isDrawing ? 'animate-spin' : ''}`} />
+                          <span>{isDrawing ? 'Mengacak Tim...' : `🎲 Acak Bagan Match ${drawCategory}`}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* DRAWING RESULTS PREVIEW */}
               {drawResultMatches && (
@@ -1724,20 +2118,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                         />
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
                         <input
                           type="text"
                           value={m.pitch}
                           onChange={e => updateMatch({ ...m, pitch: e.target.value })}
-                          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-400 w-36 truncate"
+                          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-400 flex-1 truncate"
                         />
+                        
+                        {/* Edit Match & Penalti Modal Button */}
                         <button
-                          onClick={() => deleteMatch(m.id)}
-                          className="text-red-400 hover:text-red-300 p-1"
-                          title="Hapus Match"
+                          onClick={() => handleOpenEditMatch(m)}
+                          className="px-2 py-1 rounded bg-blue-950 hover:bg-blue-800 text-blue-300 border border-blue-700 text-[10px] font-bold flex items-center space-x-1 cursor-pointer shrink-0"
+                          title="Edit Lengkap Skor, Penalti, Tim, Status & Menit"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Edit className="w-3 h-3" />
+                          <span>Edit</span>
                         </button>
+
+                        {/* Hapus Match (Hanya Super Admin) */}
+                        {currentAdmin?.role === 'SUPERADMIN' && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Hapus pertandingan Match #${m.matchNumber} (${m.teamA.name} vs ${m.teamB.name})?`)) {
+                                deleteMatch(m.id);
+                              }
+                            }}
+                            className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/60 cursor-pointer shrink-0"
+                            title="Hapus Match (Super Admin)"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
 
                     </div>
@@ -3156,6 +3568,157 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                       </div>
                     </div>
 
+                    {/* LOGO & BRANDING RESMI TURNAMEN */}
+                    <div className="pt-6 border-t border-slate-800 space-y-4">
+                      <div>
+                        <h5 className="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                          <ImageIcon className="w-4 h-4 text-amber-400" />
+                          <span>Logo Turnamen & Logo Panitia Penyelenggara</span>
+                        </h5>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Logo ini akan otomatis tampil di Navbar header, Hero banner beranda, footer, dan dokumen resmi.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* 1. LOGO WABUP CUP */}
+                        <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-200 uppercase">
+                              1. Logo Utama WabupCup
+                            </span>
+                            {generalConfigForm.wabupLogoUrl && (
+                              <button
+                                type="button"
+                                onClick={handleRemoveWabupLogo}
+                                className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 hover:underline flex items-center space-x-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus Logo</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Preview Frame */}
+                          <div className="w-full h-32 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center p-3 overflow-hidden relative group">
+                            {generalConfigForm.wabupLogoUrl ? (
+                              <img
+                                src={generalConfigForm.wabupLogoUrl}
+                                alt="Preview Logo WabupCup"
+                                className="max-h-full max-w-full object-contain filter drop-shadow-md"
+                              />
+                            ) : (
+                              <div className="text-center space-y-1">
+                                <ImageIcon className="w-8 h-8 text-slate-600 mx-auto" />
+                                <span className="text-[11px] text-slate-500 block">Belum ada logo terpasang (Memakai default ⚽)</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Upload / URL Options */}
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                              Unggah File Logo (PNG / JPG / WebP / SVG):
+                            </label>
+                            <label className="flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer transition">
+                              <Upload className="w-4 h-4 text-red-500" />
+                              <span>Pilih File Dari Komputer / HP</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleWabupLogoUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                              Atau Masukkan URL Logo Eksternal:
+                            </label>
+                            <input
+                              type="url"
+                              value={generalConfigForm.wabupLogoUrl}
+                              onChange={e => {
+                                setGeneralConfigForm({ ...generalConfigForm, wabupLogoUrl: e.target.value });
+                                updateConfig({ wabupLogoUrl: e.target.value });
+                              }}
+                              placeholder="https://example.com/logo-wabupcup.png"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-red-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 2. LOGO PANITIA */}
+                        <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-200 uppercase">
+                              2. Logo Panitia Penyelenggara (Askab / Pemda)
+                            </span>
+                            {generalConfigForm.panitiaLogoUrl && (
+                              <button
+                                type="button"
+                                onClick={handleRemovePanitiaLogo}
+                                className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 hover:underline flex items-center space-x-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus Logo</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Preview Frame */}
+                          <div className="w-full h-32 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center p-3 overflow-hidden relative group">
+                            {generalConfigForm.panitiaLogoUrl ? (
+                              <img
+                                src={generalConfigForm.panitiaLogoUrl}
+                                alt="Preview Logo Panitia"
+                                className="max-h-full max-w-full object-contain filter drop-shadow-md"
+                              />
+                            ) : (
+                              <div className="text-center space-y-1">
+                                <Shield className="w-8 h-8 text-slate-600 mx-auto" />
+                                <span className="text-[11px] text-slate-500 block">Belum ada logo panitia terpasang</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Upload / URL Options */}
+                          <div className="space-y-2">
+                            <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                              Unggah File Logo (PNG / JPG / WebP / SVG):
+                            </label>
+                            <label className="flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer transition">
+                              <Upload className="w-4 h-4 text-blue-500" />
+                              <span>Pilih File Dari Komputer / HP</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePanitiaLogoUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                              Atau Masukkan URL Logo Eksternal:
+                            </label>
+                            <input
+                              type="url"
+                              value={generalConfigForm.panitiaLogoUrl}
+                              onChange={e => {
+                                setGeneralConfigForm({ ...generalConfigForm, panitiaLogoUrl: e.target.value });
+                                updateConfig({ panitiaLogoUrl: e.target.value });
+                              }}
+                              placeholder="https://example.com/logo-panitia.png"
+                              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex justify-end pt-4 border-t border-slate-800">
                       <button
                         type="submit"
@@ -3976,6 +4539,578 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 >
                   <Save className="w-4 h-4" />
                   <span>Simpan Rekening</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. MODAL: SUPER ADMIN EDIT REGISTRASI LENGKAP & BERKAS DOKUMEN & LOGO TIM */}
+      {editRegModalOpen && editingReg && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white space-y-6 shadow-2xl animate-fadeIn max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                  <Edit className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white uppercase">
+                    Edit Data Pendaftar & Berkas Tim (Super Admin)
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    ID Pendaftaran: <span className="font-mono text-slate-300">{editingReg.id}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditRegModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditReg} className="space-y-6 text-xs">
+              {/* SECTION 1: LOGO TIM */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
+                    <ImageIcon className="w-4 h-4 text-amber-400" />
+                    <span>Logo Resmi Tim</span>
+                  </label>
+                  {regForm.teamLogo && (
+                    <button
+                      type="button"
+                      onClick={() => setRegForm(prev => ({ ...prev, teamLogo: '' }))}
+                      className="text-[11px] text-rose-400 hover:underline cursor-pointer"
+                    >
+                      Hapus Logo
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-20 h-20 rounded-2xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center p-2 overflow-hidden shrink-0">
+                    {regForm.teamLogo ? (
+                      <img src={regForm.teamLogo} alt="Logo Tim" className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <span className="text-2xl">🛡️</span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 w-full space-y-2">
+                    <label className="flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer transition">
+                      <Upload className="w-4 h-4 text-blue-400" />
+                      <span>Ganti / Unggah File Logo Tim</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleRegTeamLogoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    <input
+                      type="url"
+                      value={regForm.teamLogo}
+                      onChange={e => setRegForm(prev => ({ ...prev, teamLogo: e.target.value }))}
+                      placeholder="Atau paste URL logo: https://..."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: IDENTITAS TIM & OFFICIAL */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Nama Tim / Sekolah / Instansi *</label>
+                  <input
+                    type="text"
+                    required
+                    value={regForm.teamName}
+                    onChange={e => setRegForm({ ...regForm, teamName: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Kategori Turnamen *</label>
+                  <select
+                    value={regForm.category}
+                    onChange={e => setRegForm({ ...regForm, category: e.target.value as TournamentCategory })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {(['SD', 'SMP', 'SMA', 'INSTANSI', 'UMUM', 'DESA'] as TournamentCategory[]).map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Nama Asal Lembaga / Desa</label>
+                  <input
+                    type="text"
+                    value={regForm.institutionName}
+                    onChange={e => setRegForm({ ...regForm, institutionName: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Nama Official / Pelatih Penanggung Jawab *</label>
+                  <input
+                    type="text"
+                    required
+                    value={regForm.coachName}
+                    onChange={e => setRegForm({ ...regForm, coachName: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">No. WhatsApp Official *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={regForm.coachPhone}
+                    onChange={e => setRegForm({ ...regForm, coachPhone: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Email Official</label>
+                  <input
+                    type="email"
+                    value={regForm.coachEmail}
+                    onChange={e => setRegForm({ ...regForm, coachEmail: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* SECTION 3: STATUS REGISTRASI & STATUS PEMBAYARAN */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Status Registrasi</label>
+                  <select
+                    value={regForm.status}
+                    onChange={e => setRegForm({ ...regForm, status: e.target.value as RegistrationStatus })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="APPROVED">✅ APPROVED (Disetujui)</option>
+                    <option value="PENDING_PAYMENT">⏳ PENDING_PAYMENT (Menunggu Bayar)</option>
+                    <option value="REJECTED">❌ REJECTED (Ditolak / Perbaikan)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Status Pembayaran</label>
+                  <select
+                    value={regForm.paymentStatus}
+                    onChange={e => setRegForm({ ...regForm, paymentStatus: e.target.value as PaymentStatus })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="PAID">🟢 PAID (Lunas)</option>
+                    <option value="VERIFYING">🟡 VERIFYING (Cek Bukti Transfer)</option>
+                    <option value="UNPAID">🔴 UNPAID (Belum Bayar)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Nominal Biaya (Rp)</label>
+                  <input
+                    type="number"
+                    value={regForm.paymentAmount}
+                    onChange={e => setRegForm({ ...regForm, paymentAmount: Number(e.target.value) })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* SECTION 4: BERKAS DOKUMEN & PERSYARATAN */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                <h5 className="font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                  <FileText className="w-4 h-4 text-blue-400" />
+                  <span>Kelola Berkas Dokumen Persyaratan</span>
+                </h5>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Doc 1: Surat Keterangan */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-300">1. Surat Keterangan Lembaga</span>
+                      {regForm.suratKeterangan ? (
+                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                      )}
+                    </div>
+                    {regForm.suratKeterangan && (
+                      <p className="text-[11px] text-slate-400 truncate">{regForm.suratKeterangan.name}</p>
+                    )}
+                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{regForm.suratKeterangan ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={e => handleRegDocUpload('suratKeterangan', e)}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Doc 2: Surat Pernyataan */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-300">2. Surat Pernyataan / SPTJM</span>
+                      {regForm.suratPernyataan ? (
+                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                      )}
+                    </div>
+                    {regForm.suratPernyataan && (
+                      <p className="text-[11px] text-slate-400 truncate">{regForm.suratPernyataan.name}</p>
+                    )}
+                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{regForm.suratPernyataan ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={e => handleRegDocUpload('suratPernyataan', e)}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Doc 3: Formulir Biodata */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-300">3. Formulir Pemain & Official</span>
+                      {regForm.formulirPemain ? (
+                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                      )}
+                    </div>
+                    {regForm.formulirPemain && (
+                      <p className="text-[11px] text-slate-400 truncate">{regForm.formulirPemain.name}</p>
+                    )}
+                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{regForm.formulirPemain ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx"
+                        onChange={e => handleRegDocUpload('formulirPemain', e)}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Doc 4: Akta Kelahiran */}
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-300">4. Akta Kelahiran / Identitas</span>
+                      {regForm.aktaKelahiran ? (
+                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                      )}
+                    </div>
+                    {regForm.aktaKelahiran && (
+                      <p className="text-[11px] text-slate-400 truncate">{regForm.aktaKelahiran.name}</p>
+                    )}
+                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{regForm.aktaKelahiran ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={e => handleRegDocUpload('aktaKelahiran', e)}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: CATATAN ADMIN / ALASAN PENOLAKAN */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-300">Catatan Admin / Alasan Penolakan (Jika Ada)</label>
+                <textarea
+                  rows={2}
+                  value={regForm.rejectionReason}
+                  onChange={e => setRegForm({ ...regForm, rejectionReason: e.target.value })}
+                  placeholder="Contoh: Lampirkan kembali akta kelahiran yang lebih jelas..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* MODAL FOOTER BUTTONS */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditRegModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold transition flex items-center space-x-2 shadow-lg shadow-blue-900/40 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Perubahan Pendaftar</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL: EDIT MATCH, SKOR OTOMATIS & SKOR PENALTI */}
+      {editMatchModalOpen && editingMatch && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white space-y-6 shadow-2xl animate-fadeIn">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white uppercase">
+                    Edit Match #{matchForm.matchNumber} • {matchForm.category}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    {matchForm.round} • {matchForm.pitch}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditMatchModalOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditMatch} className="space-y-6 text-xs">
+              {/* STATUS & ROUND */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Status Match</label>
+                  <select
+                    value={matchForm.status}
+                    onChange={e => setMatchForm({ ...matchForm, status: e.target.value as MatchStatus })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="UPCOMING">UPCOMING (Belum Dimulai)</option>
+                    <option value="LIVE">🔴 LIVE (Sedang Berlangsung)</option>
+                    <option value="FINISHED">🏁 FINISHED (Selesai)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Menit Match (Jika Live)</label>
+                  <input
+                    type="text"
+                    value={matchForm.liveMinute}
+                    onChange={e => setMatchForm({ ...matchForm, liveMinute: e.target.value })}
+                    placeholder="Contoh: 45', Babak 2"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Babak Pertandingan</label>
+                  <input
+                    type="text"
+                    value={matchForm.round}
+                    onChange={e => setMatchForm({ ...matchForm, round: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+              {/* SCORE BOARD & PENALTIES */}
+              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                <h5 className="font-bold text-amber-400 uppercase tracking-wider text-center text-xs">
+                  Papan Skor & Adu Penalti
+                </h5>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  {/* TIM A */}
+                  <div className="space-y-3 p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <label className="font-bold text-red-400 uppercase block">Tim A (Tuan Rumah)</label>
+                    <input
+                      type="text"
+                      required
+                      value={matchForm.teamAName}
+                      onChange={e => setMatchForm({ ...matchForm, teamAName: e.target.value })}
+                      placeholder="Nama Tim A"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Skor Utama</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={matchForm.teamAScore}
+                          onChange={e => setMatchForm({ ...matchForm, teamAScore: Number(e.target.value) })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 text-center text-xl font-mono font-bold text-red-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Adu Penalti (Opsional)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={matchForm.teamAPenalties}
+                          onChange={e => setMatchForm({ ...matchForm, teamAPenalties: e.target.value })}
+                          placeholder="-"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 text-center text-base font-mono text-amber-300"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* TIM B */}
+                  <div className="space-y-3 p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <label className="font-bold text-blue-400 uppercase block">Tim B (Tamu)</label>
+                    <input
+                      type="text"
+                      required
+                      value={matchForm.teamBName}
+                      onChange={e => setMatchForm({ ...matchForm, teamBName: e.target.value })}
+                      placeholder="Nama Tim B"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                    />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Skor Utama</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={matchForm.teamBScore}
+                          onChange={e => setMatchForm({ ...matchForm, teamBScore: Number(e.target.value) })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 text-center text-xl font-mono font-bold text-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-bold block mb-1">Adu Penalti (Opsional)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={matchForm.teamBPenalties}
+                          onChange={e => setMatchForm({ ...matchForm, teamBPenalties: e.target.value })}
+                          placeholder="-"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2 text-center text-base font-mono text-amber-300"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* WINNER DETERMINATION */}
+                <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-2">
+                  <span className="text-slate-400 text-xs">Pemenang Lolos ke Babak Selanjutnya:</span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setMatchForm({ ...matchForm, winnerId: 'A' })}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        matchForm.winnerId === 'A'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      🏆 {matchForm.teamAName || 'Tim A'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMatchForm({ ...matchForm, winnerId: 'B' })}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        matchForm.winnerId === 'B'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      🏆 {matchForm.teamBName || 'Tim B'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMatchForm({ ...matchForm, winnerId: 'DRAW' })}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        matchForm.winnerId === 'DRAW'
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-slate-900 text-slate-400 border border-slate-800'
+                      }`}
+                    >
+                      Otomatis / Seri
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* JADWAL & LOKASI */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Tanggal</label>
+                  <input
+                    type="date"
+                    value={matchForm.date}
+                    onChange={e => setMatchForm({ ...matchForm, date: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Waktu Kick-Off</label>
+                  <input
+                    type="time"
+                    value={matchForm.time}
+                    onChange={e => setMatchForm({ ...matchForm, time: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Lokasi Lapangan / Venue</label>
+                  <input
+                    type="text"
+                    value={matchForm.pitch}
+                    onChange={e => setMatchForm({ ...matchForm, pitch: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+              </div>
+
+              {/* MODAL FOOTER */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditMatchModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-slate-950 font-bold transition flex items-center space-x-2 shadow-lg shadow-red-900/40 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Perubahan Match</span>
                 </button>
               </div>
             </form>

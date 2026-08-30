@@ -15,7 +15,7 @@ import {
 export const LiveScoreSection: React.FC = () => {
   const { matches } = useTournament();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING'>('ALL');
 
   const categories: { id: string; label: string }[] = [
     { id: 'ALL', label: 'Semua Kategori' },
@@ -27,12 +27,13 @@ export const LiveScoreSection: React.FC = () => {
     { id: 'DESA', label: 'Desa / Kel' },
   ];
 
-  // Find currently live matches
+  // Active / Upcoming matches only (FINISHED matches are archived to the bracket section)
+  const activeAndUpcomingMatches = matches.filter(m => m.status !== 'FINISHED');
   const liveMatches = matches.filter(m => m.status === 'LIVE');
   const activeLiveMatch = liveMatches[0] || null;
 
   // Filtered matches list
-  const filteredMatches = matches.filter(m => {
+  const filteredMatches = activeAndUpcomingMatches.filter(m => {
     const matchCat = selectedCategory === 'ALL' || m.category === selectedCategory;
     const matchStatus = statusFilter === 'ALL' || m.status === statusFilter;
     return matchCat && matchStatus;
@@ -52,11 +53,14 @@ export const LiveScoreSection: React.FC = () => {
             <h2 className="text-3xl sm:text-5xl font-heading font-bold uppercase tracking-tight text-slate-900 dark:text-white">
               LIVE SCORE & JADWAL MATCH
             </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Menampilkan pertandingan yang sedang berlangsung dan jadwal matchday mendatang.
+            </p>
           </div>
 
           {/* STATUS TABS */}
           <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-800 self-start md:self-auto overflow-x-auto max-w-full">
-            {(['ALL', 'LIVE', 'UPCOMING', 'FINISHED'] as const).map(st => (
+            {(['ALL', 'LIVE', 'UPCOMING'] as const).map(st => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
@@ -66,10 +70,9 @@ export const LiveScoreSection: React.FC = () => {
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                {st === 'ALL' && 'Semua'}
+                {st === 'ALL' && 'Semua Aktif'}
                 {st === 'LIVE' && `🔴 Sedang Tanding (${liveMatches.length})`}
                 {st === 'UPCOMING' && 'Akan Datang'}
-                {st === 'FINISHED' && 'Selesai'}
               </button>
             ))}
           </div>
@@ -101,8 +104,16 @@ export const LiveScoreSection: React.FC = () => {
                 
                 {/* TEAM A */}
                 <div className="flex-1 text-center sm:text-right">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:ml-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-bold shadow-inner mb-2">
-                    🛡️
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:ml-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shadow-inner mb-2 p-1.5">
+                    {activeLiveMatch.teamA.logo ? (
+                      <img
+                        src={activeLiveMatch.teamA.logo}
+                        alt={`Logo ${activeLiveMatch.teamA.name}`}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-2xl">🛡️</span>
+                    )}
                   </div>
                   <h4 className="text-base sm:text-xl font-bold text-white leading-tight">
                     {activeLiveMatch.teamA.name}
@@ -129,8 +140,16 @@ export const LiveScoreSection: React.FC = () => {
 
                 {/* TEAM B */}
                 <div className="flex-1 text-center sm:text-left">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:mr-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl font-bold shadow-inner mb-2">
-                    ⚽
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:mr-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shadow-inner mb-2 p-1.5">
+                    {activeLiveMatch.teamB.logo ? (
+                      <img
+                        src={activeLiveMatch.teamB.logo}
+                        alt={`Logo ${activeLiveMatch.teamB.name}`}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-2xl">⚽</span>
+                    )}
                   </div>
                   <h4 className="text-base sm:text-xl font-bold text-white leading-tight">
                     {activeLiveMatch.teamB.name}
@@ -187,16 +206,25 @@ export const LiveScoreSection: React.FC = () => {
 
         {/* MATCHES GRID */}
         {filteredMatches.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-8">
+          <div className="text-center py-12 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 space-y-3">
             <p className="text-slate-500 dark:text-slate-400 text-sm">
-              Tidak ada pertandingan pada filter kategori atau status yang dipilih.
+              Tidak ada pertandingan live atau jadwal aktif pada filter kategori yang dipilih.
             </p>
+            <p className="text-xs text-slate-400">
+              Pertandingan yang telah selesai (Finished) diarsipkan ke bagian Bagan & Hasil Pertandingan.
+            </p>
+            <a
+              href="#bagan"
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition"
+            >
+              <span>Lihat Bagan & Hasil Pertandingan</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </a>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredMatches.map(match => {
               const isLive = match.status === 'LIVE';
-              const isFinished = match.status === 'FINISHED';
 
               return (
                 <div
@@ -220,21 +248,14 @@ export const LiveScoreSection: React.FC = () => {
                     </div>
 
                     <div>
-                      {isLive && (
+                      {isLive ? (
                         <span className="inline-flex items-center space-x-1 text-red-500 dark:text-red-400 font-extrabold text-[11px] animate-pulse">
                           <span className="w-2 h-2 rounded-full bg-red-500"></span>
                           <span>LIVE {match.liveMinute || "35'"}</span>
                         </span>
-                      )}
-                      {isFinished && (
-                        <span className="inline-flex items-center space-x-1 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>FT (Selesai)</span>
-                        </span>
-                      )}
-                      {match.status === 'UPCOMING' && (
+                      ) : (
                         <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-blue-500" />
+                          <Clock className="w-3.5 h-3.5 text-blue-500" />
                           <span>{match.time} WIB</span>
                         </span>
                       )}
@@ -247,8 +268,16 @@ export const LiveScoreSection: React.FC = () => {
                     {/* TEAM A */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-sm shrink-0">
-                          🛡️
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden text-sm shrink-0 p-0.5">
+                          {match.teamA.logo ? (
+                            <img
+                              src={match.teamA.logo}
+                              alt={`Logo ${match.teamA.name}`}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          ) : (
+                            <span>🛡️</span>
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-sm truncate leading-tight">
@@ -260,7 +289,7 @@ export const LiveScoreSection: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        {(isLive || isFinished) && (
+                        {isLive && (
                           <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                             {match.teamA.score ?? 0}
                           </span>
@@ -271,8 +300,16 @@ export const LiveScoreSection: React.FC = () => {
                     {/* TEAM B */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-sm shrink-0">
-                          ⚽
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden text-sm shrink-0 p-0.5">
+                          {match.teamB.logo ? (
+                            <img
+                              src={match.teamB.logo}
+                              alt={`Logo ${match.teamB.name}`}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          ) : (
+                            <span>⚽</span>
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-sm truncate leading-tight">
@@ -284,7 +321,7 @@ export const LiveScoreSection: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        {(isLive || isFinished) && (
+                        {isLive && (
                           <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                             {match.teamB.score ?? 0}
                           </span>
@@ -311,6 +348,23 @@ export const LiveScoreSection: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* BOTTOM HELPER BANNER */}
+        <div className="mt-8 p-4 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-2.5 text-slate-600 dark:text-slate-400">
+            <span className="text-lg">🏆</span>
+            <span>
+              Seluruh skor hasil pertandingan yang telah <strong>selesai (Finished)</strong> dan skema lolos otomatis tersimpan di <strong>Bagan Knockout Bracket</strong>.
+            </span>
+          </div>
+          <a
+            href="#bagan"
+            className="px-3.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center space-x-1 transition shrink-0"
+          >
+            <span>Buka Bagan Bracket</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </a>
+        </div>
 
       </div>
     </section>

@@ -84,17 +84,17 @@ export const SponsorSection: React.FC = () => {
                         <div>
                           {/* LOGO CONTAINER */}
                           <div className="relative mb-4 flex items-center justify-between">
-                            <div className="w-full h-24 sm:h-28 rounded-xl bg-white dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 flex items-center justify-center p-3.5 overflow-hidden group-hover:border-red-500/50 shadow-inner transition">
+                            <div className="w-full h-28 sm:h-32 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800/90 flex items-center justify-center p-3.5 overflow-hidden group-hover:border-red-500/50 shadow-inner transition">
                               {hasValidImage ? (
                                 <img
                                   src={sponsor.logoUrl}
                                   alt={`Logo ${sponsor.name}`}
                                   referrerPolicy="no-referrer"
                                   onError={() => handleImageError(sponsor.id)}
-                                  className="w-full h-full object-contain object-center filter drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
+                                  className="max-w-full max-h-full w-auto h-auto object-contain object-center filter drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
                                 />
                               ) : (
-                                <div className="flex flex-col items-center justify-center space-y-1">
+                                <div className="flex flex-col items-center justify-center space-y-1.5 p-2">
                                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-blue-700 flex items-center justify-center font-bold text-lg text-white shadow-md">
                                     {(sponsor.logoText || sponsor.name).slice(0, 2).toUpperCase()}
                                   </div>

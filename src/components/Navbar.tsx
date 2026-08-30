@@ -31,7 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdmin,
   activeSection = 'beranda',
 }) => {
-  const { theme, toggleTheme, currentAdmin } = useTournament();
+  const { theme, toggleTheme, currentAdmin, config } = useTournament();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleRegisterClick = () => {
@@ -62,25 +62,57 @@ export const Navbar: React.FC<NavbarProps> = ({
             href="#beranda"
             className="flex items-center space-x-3 group text-left cursor-pointer"
           >
-            <div className="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-blue-900 shadow-md shadow-red-900/30 border border-red-500/40 group-hover:scale-105 transition-transform">
-              <span className="text-2xl select-none animate-float-ball">⚽</span>
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-950 flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+            {config.wabupLogoUrl ? (
+              <div className="relative flex items-center justify-center h-12 w-auto max-w-[56px] rounded-xl overflow-hidden group-hover:scale-105 transition-transform shrink-0">
+                <img
+                  src={config.wabupLogoUrl}
+                  alt="Logo WabupCup"
+                  className="max-h-12 w-auto object-contain"
+                />
               </div>
-            </div>
+            ) : (
+              <div className="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-blue-900 shadow-md shadow-red-900/30 border border-red-500/40 group-hover:scale-105 transition-transform shrink-0">
+                <span className="text-2xl select-none animate-float-ball">⚽</span>
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-950 flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                </div>
+              </div>
+            )}
+
             <div>
               <div className="flex items-center space-x-1.5">
                 <span className="text-2xl font-heading font-bold tracking-wider text-slate-900 dark:text-white uppercase leading-none">
-                  WABUP<span className="text-red-600">CUP</span>
+                  {config.name ? (
+                    config.name.toUpperCase().includes('WABUP') ? (
+                      <>
+                        {config.name.split(' ')[0]} <span className="text-red-600">{config.name.split(' ').slice(1).join(' ')}</span>
+                      </>
+                    ) : (
+                      config.name
+                    )
+                  ) : (
+                    <>WABUP<span className="text-red-600">CUP</span></>
+                  )}
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 text-[10px] font-bold tracking-widest border border-blue-300 dark:border-blue-700/50">
-                  2026
+                  {config.edition || '2026'}
                 </span>
               </div>
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Piala Wakil Bupati • Futsal & Sepakbola
+                {config.tagline || 'Piala Wakil Bupati • Futsal & Sepakbola'}
               </p>
             </div>
+
+            {config.panitiaLogoUrl && (
+              <div className="hidden sm:flex items-center pl-2 border-l border-slate-200 dark:border-slate-800">
+                <img
+                  src={config.panitiaLogoUrl}
+                  alt="Logo Panitia"
+                  className="max-h-10 max-w-[48px] object-contain"
+                  title="Penyelenggara Resmi"
+                />
+              </div>
+            )}
           </a>
 
           {/* DESKTOP NAV LINKS */}

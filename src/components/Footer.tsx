@@ -33,9 +33,19 @@ export const Footer: React.FC<FooterProps> = ({
           {/* BRAND & ABOUT (2 COLS) */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-red-800 flex items-center justify-center text-white shadow-lg shadow-red-900/50">
-                <Trophy className="w-5 h-5 text-amber-300" />
-              </div>
+              {config.wabupLogoUrl ? (
+                <div className="h-12 w-auto max-w-[56px] rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                  <img
+                    src={config.wabupLogoUrl}
+                    alt="Logo WabupCup"
+                    className="max-h-12 w-auto object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-red-800 flex items-center justify-center text-white shadow-lg shadow-red-900/50 shrink-0">
+                  <Trophy className="w-5 h-5 text-amber-300" />
+                </div>
+              )}
               <div className="leading-tight">
                 <span className="font-heading text-xl font-bold tracking-wider text-white uppercase block">
                   {config.name || 'WABUP CUP 2026'}
@@ -44,6 +54,16 @@ export const Footer: React.FC<FooterProps> = ({
                   {config.tagline || 'Turnamen Akbar Sepakbola & Futsal'}
                 </span>
               </div>
+              {config.panitiaLogoUrl && (
+                <div className="pl-3 border-l border-slate-800 flex items-center">
+                  <img
+                    src={config.panitiaLogoUrl}
+                    alt="Logo Panitia"
+                    className="max-h-9 max-w-[44px] object-contain opacity-90"
+                    title="Penyelenggara Resmi"
+                  />
+                </div>
+              )}
             </div>
 
             <p className="text-xs leading-relaxed text-slate-400 max-w-sm">

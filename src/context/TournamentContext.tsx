@@ -556,39 +556,40 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             return m;
           });
-        } else {
-          // Dynamic propagation by round hierarchy in the same category
-          const catMatches = newMatchesList.filter(m => m.category === matchWithWinner.category);
-          const roundName = matchWithWinner.round.toLowerCase();
-
-          // Semifinal -> Grand Final
-          if (roundName.includes('semifinal 1') || roundName.includes('semi final 1') || (roundName.includes('semifinal') && matchWithWinner.matchNumber % 2 === 1)) {
-            const finalMatch = catMatches.find(m => m.round.toLowerCase().includes('final') && !m.round.toLowerCase().includes('semi') && !m.round.toLowerCase().includes('perempat'));
-            if (finalMatch) {
-              newMatchesList = newMatchesList.map(m => m.id === finalMatch.id ? { ...m, teamA: { ...m.teamA, name: winningTeam.name, institution: winningTeam.institution, logo: winningTeam.logo } } : m);
-            }
-          } else if (roundName.includes('semifinal 2') || roundName.includes('semi final 2') || (roundName.includes('semifinal') && matchWithWinner.matchNumber % 2 === 0)) {
-            const finalMatch = catMatches.find(m => m.round.toLowerCase().includes('final') && !m.round.toLowerCase().includes('semi') && !m.round.toLowerCase().includes('perempat'));
-            if (finalMatch) {
-              newMatchesList = newMatchesList.map(m => m.id === finalMatch.id ? { ...m, teamB: { ...m.teamB, name: winningTeam.name, institution: winningTeam.institution, logo: winningTeam.logo } } : m);
-            }
-          }
-          // Quarter Finals -> Semifinals
-          else if (roundName.includes('perempat') || roundName.includes('8 besar') || roundName.includes('quarter')) {
-            const semi1 = catMatches.find(m => m.round.toLowerCase().includes('semifinal 1') || (m.round.toLowerCase().includes('semifinal') && m.matchNumber % 2 === 1));
-            const semi2 = catMatches.find(m => m.round.toLowerCase().includes('semifinal 2') || (m.round.toLowerCase().includes('semifinal') && m.matchNumber % 2 === 0));
-
-            if (roundName.includes('1') && semi1) {
-              newMatchesList = newMatchesList.map(m => m.id === semi1.id ? { ...m, teamA: { ...m.teamA, name: winningTeam.name, institution: winningTeam.institution, logo: winningTeam.logo } } : m);
-            } else if (roundName.includes('2') && semi1) {
-              newMatchesList = newMatchesList.map(m => m.id === semi1.id ? { ...m, teamB: { ...m.teamB, name: winningTeam.name, institution: winningTeam.institution, logo: winningTeam.logo } } : m);
-            } else if (roundName.includes('3') && semi2) {
-              newMatchesList = newMatchesList.map(m => m.id === semi2.id ? { ...m, teamA: { ...m.teamA, name: winningTeam.name, institution: winningTeam.institution, logo: winningTeam.logo } } : m);
-            } else if (roundName.includes('4') && semi2) {
-              newMatchesList = newMatchesList.map(m => m.id === semi2.id ? { ...m, teamB: { ...m.teamB, name: winningTeam.name, institution: winningTeam.institution, logo: winningTeam.logo } } : m);
-            }
-          }
         }
+      } else if (matchWithWinner.status !== 'FINISHED' && matchWithWinner.nextMatchId) {
+        // If reverted from FINISHED, clear slot in next match
+        const placeholderName = `Pemenang Match ${matchWithWinner.matchNumber}`;
+        newMatchesList = newMatchesList.map(m => {
+          if (m.id === matchWithWinner.nextMatchId) {
+            if (matchWithWinner.nextMatchSlot === 'B') {
+              return {
+                ...m,
+                teamB: {
+                  ...m.teamB,
+                  name: placeholderName,
+                  institution: 'TBD',
+                  logo: undefined,
+                  score: undefined,
+                  penalties: undefined,
+                },
+              };
+            } else {
+              return {
+                ...m,
+                teamA: {
+                  ...m.teamA,
+                  name: placeholderName,
+                  institution: 'TBD',
+                  logo: undefined,
+                  score: undefined,
+                  penalties: undefined,
+                },
+              };
+            }
+          }
+          return m;
+        });
       }
 
       return newMatchesList;
@@ -664,22 +665,39 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     // Determine tournament bracket structure
-    const targetTeams = stageOption === 'SEMIFINAL' || teamsToDraw.length <= 4
-      ? teamsToDraw.slice(0, 4)
-      : stageOption === '16_BESAR' && teamsToDraw.length >= 16
-      ? teamsToDraw.slice(0, 16)
-      : teamsToDraw.slice(0, 8); // Default 8 besar (Perempat final)
+    let chosenStructure: '16_BESAR' | '8_BESAR' | 'SEMIFINAL' = '8_BESAR';
 
-    const is16Besar = targetTeams.length === 16;
-    const is8Besar = targetTeams.length === 8;
-    const isSemiOnly = targetTeams.length === 4;
+    if (stageOption === '16_BESAR' || stageOption === 'PENYISIHAN') {
+      chosenStructure = '16_BESAR';
+    } else if (stageOption === '8_BESAR') {
+      chosenStructure = '8_BESAR';
+    } else if (stageOption === 'SEMIFINAL') {
+      chosenStructure = 'SEMIFINAL';
+    } else {
+      // AUTO
+      if (teamsToDraw.length >= 12) {
+        chosenStructure = '16_BESAR';
+      } else if (teamsToDraw.length >= 6) {
+        chosenStructure = '8_BESAR';
+      } else {
+        chosenStructure = 'SEMIFINAL';
+      }
+    }
 
+    // Ensure enough teams for chosen structure
+    const requiredCount = chosenStructure === '16_BESAR' ? 16 : chosenStructure === '8_BESAR' ? 8 : 4;
+    while (teamsToDraw.length < requiredCount) {
+      const dummy = defaultDummies[teamsToDraw.length % defaultDummies.length];
+      teamsToDraw.push({ ...dummy, name: `${dummy.name} ${teamsToDraw.length + 1}` });
+    }
+
+    const targetTeams = teamsToDraw.slice(0, requiredCount);
     const kickoffTimes = ['08:00', '09:15', '10:30', '13:30', '15:00', '16:15', '19:00', '20:15'];
     const pitches = ['Lapangan 1 - Utama', 'Lapangan 2 - Futsal A', 'Lapangan 3 - Futsal B'];
     let matchCounter = 1;
     const newGeneratedMatches: MatchItem[] = [];
 
-    // Grand Final Match ID
+    // Grand Final Match ID & Semifinal IDs
     const grandFinalId = `match-${category.toLowerCase()}-final-${Date.now()}`;
     const semi1Id = `match-${category.toLowerCase()}-sf1-${Date.now()}`;
     const semi2Id = `match-${category.toLowerCase()}-sf2-${Date.now()}`;
@@ -692,7 +710,121 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       `match-${category.toLowerCase()}-qf4-${Date.now()}`,
     ];
 
-    if (is8Besar) {
+    // Babak 16 Besar IDs
+    const r16Ids = [
+      `match-${category.toLowerCase()}-r16-1-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-2-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-3-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-4-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-5-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-6-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-7-${Date.now()}`,
+      `match-${category.toLowerCase()}-r16-8-${Date.now()}`,
+    ];
+
+    if (chosenStructure === '16_BESAR') {
+      // 1. 8 MATCHES IN BABAK 16 BESAR (Penyisihan 1-8)
+      for (let i = 0; i < 8; i++) {
+        const teamA = targetTeams[i * 2];
+        const teamB = targetTeams[i * 2 + 1];
+        const assignedQfId = qfIds[Math.floor(i / 2)];
+        const assignedQfSlot: 'A' | 'B' = i % 2 === 0 ? 'A' : 'B';
+
+        newGeneratedMatches.push({
+          id: r16Ids[i],
+          matchNumber: matchCounter++,
+          category: category,
+          round: `Babak 16 Besar - Match ${i + 1}`,
+          roundIndex: 2,
+          teamA: {
+            name: teamA.name,
+            institution: teamA.institution,
+            logo: teamA.logo,
+          },
+          teamB: {
+            name: teamB.name,
+            institution: teamB.institution,
+            logo: teamB.logo,
+          },
+          date: '2026-10-25',
+          time: kickoffTimes[i % kickoffTimes.length],
+          pitch: pitches[i % pitches.length],
+          status: 'UPCOMING',
+          nextMatchId: assignedQfId,
+          nextMatchSlot: assignedQfSlot,
+        });
+      }
+
+      // 2. 4 QUARTER FINAL MATCHES (Perempat Final 1-4)
+      for (let i = 0; i < 4; i++) {
+        const assignedNextId = i < 2 ? semi1Id : semi2Id;
+        const assignedNextSlot: 'A' | 'B' = i % 2 === 0 ? 'A' : 'B';
+
+        newGeneratedMatches.push({
+          id: qfIds[i],
+          matchNumber: matchCounter++,
+          category: category,
+          round: `Perempat Final ${i + 1} (8 Besar)`,
+          roundIndex: 3,
+          teamA: { name: `Pemenang Match ${i * 2 + 1}`, institution: 'TBD' },
+          teamB: { name: `Pemenang Match ${i * 2 + 2}`, institution: 'TBD' },
+          date: '2026-10-27',
+          time: kickoffTimes[i % kickoffTimes.length],
+          pitch: pitches[i % pitches.length],
+          status: 'UPCOMING',
+          nextMatchId: assignedNextId,
+          nextMatchSlot: assignedNextSlot,
+        });
+      }
+
+      // 3. 2 SEMIFINALS
+      newGeneratedMatches.push({
+        id: semi1Id,
+        matchNumber: matchCounter++,
+        category: category,
+        round: 'Semifinal 1',
+        roundIndex: 4,
+        teamA: { name: 'Pemenang Perempat Final 1', institution: 'TBD' },
+        teamB: { name: 'Pemenang Perempat Final 2', institution: 'TBD' },
+        date: '2026-10-29',
+        time: '16:00',
+        pitch: 'Lapangan 1 - Utama',
+        status: 'UPCOMING',
+        nextMatchId: grandFinalId,
+        nextMatchSlot: 'A',
+      });
+
+      newGeneratedMatches.push({
+        id: semi2Id,
+        matchNumber: matchCounter++,
+        category: category,
+        round: 'Semifinal 2',
+        roundIndex: 4,
+        teamA: { name: 'Pemenang Perempat Final 3', institution: 'TBD' },
+        teamB: { name: 'Pemenang Perempat Final 4', institution: 'TBD' },
+        date: '2026-10-29',
+        time: '19:30',
+        pitch: 'Lapangan 1 - Utama',
+        status: 'UPCOMING',
+        nextMatchId: grandFinalId,
+        nextMatchSlot: 'B',
+      });
+
+      // 4. GRAND FINAL
+      newGeneratedMatches.push({
+        id: grandFinalId,
+        matchNumber: matchCounter++,
+        category: category,
+        round: 'GRAND FINAL WABUP CUP 2026',
+        roundIndex: 5,
+        teamA: { name: 'Pemenang Semifinal 1', institution: 'TBD' },
+        teamB: { name: 'Pemenang Semifinal 2', institution: 'TBD' },
+        date: '2026-10-31',
+        time: '19:00',
+        pitch: 'Stadion Utama Gelora Wijaya',
+        status: 'UPCOMING',
+      });
+    } else if (chosenStructure === '8_BESAR') {
       // 4 QUARTER FINAL MATCHES (Babak 8 Besar)
       for (let i = 0; i < 4; i++) {
         const teamA = targetTeams[i * 2];
