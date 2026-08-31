@@ -180,7 +180,7 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
       try {
         // Parse DATABASE_URL for fine-tuned PoolOptions with guaranteed SSL handling
         const parsedUrl = new URL(dbUrl);
-        const urlDbName = parsedUrl.pathname.replace(/^\//, '') || database;
+        const urlDbName = parsedUrl.pathname.replace(/^\/+/, '') || database;
         const urlPort = parsedUrl.port ? parseInt(parsedUrl.port, 10) : (isTidb ? 4000 : 3306);
         poolOptions = {
           host: parsedUrl.hostname,
