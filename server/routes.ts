@@ -1,11 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection } from './db';
+import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection, ensureDbConnected } from './db';
 import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem } from '../src/types';
 
 export const apiRouter = Router();
 
 // 1. Health & Database Status
 apiRouter.get('/health', async (req: Request, res: Response) => {
+  await ensureDbConnected();
   const status = getMySqlStatus();
   res.json({
     status: 'online',

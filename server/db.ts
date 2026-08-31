@@ -100,6 +100,26 @@ export interface CustomDbConfig {
   ssl?: boolean;
 }
 
+let dbInitPromise: Promise<boolean> | null = null;
+
+export async function ensureDbConnected(): Promise<boolean> {
+  if (isMySqlConnected && pool) {
+    return true;
+  }
+  const dbUrl = process.env.DATABASE_URL ? process.env.DATABASE_URL.trim() : undefined;
+  const host = process.env.MYSQL_HOST ? process.env.MYSQL_HOST.trim() : undefined;
+  if (!dbUrl && !host) {
+    return false;
+  }
+
+  if (!dbInitPromise) {
+    dbInitPromise = initDatabaseConnection().finally(() => {
+      dbInitPromise = null;
+    });
+  }
+  return dbInitPromise;
+}
+
 export async function initDatabaseConnection(customConfig?: CustomDbConfig): Promise<boolean> {
   // If customConfig provided, apply to process.env and memory
   if (customConfig) {
@@ -446,6 +466,7 @@ export async function runFullSchemaInit() {
 export const Database = {
   // Config
   async getConfig(): Promise<TournamentConfig> {
+    await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT config_value FROM tournament_config WHERE config_key = ?', ['main_config']);
@@ -460,6 +481,7 @@ export const Database = {
   },
 
   async updateConfig(newConfig: Partial<TournamentConfig>): Promise<TournamentConfig> {
+    await ensureDbConnected();
     const updated = { ...memStore.config, ...newConfig };
     memStore.config = updated;
 
@@ -479,6 +501,7 @@ export const Database = {
 
   // Categories
   async getCategories(): Promise<CategoryDetail[]> {
+    await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM categories ORDER BY sort_order ASC, id ASC');
@@ -505,6 +528,7 @@ export const Database = {
   },
 
   async saveCategory(cat: CategoryDetail): Promise<CategoryDetail> {
+    await ensureDbConnected();
     const idx = memStore.categories.findIndex(c => c.id === cat.id);
     if (idx >= 0) {
       memStore.categories[idx] = cat;
@@ -531,6 +555,7 @@ export const Database = {
   },
 
   async deleteCategory(categoryId: string): Promise<boolean> {
+    await ensureDbConnected();
     memStore.categories = memStore.categories.filter(c => c.id !== categoryId);
     if (pool && isMySqlConnected) {
       try {
@@ -544,6 +569,7 @@ export const Database = {
 
   // Registrations
   async getRegistrations(): Promise<RegistrationItem[]> {
+    await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM registrations ORDER BY created_at DESC');
@@ -578,6 +604,7 @@ export const Database = {
   },
 
   async saveRegistration(item: RegistrationItem): Promise<RegistrationItem> {
+    await ensureDbConnected();
     const idx = memStore.registrations.findIndex(r => r.id === item.id);
     if (idx >= 0) {
       memStore.registrations[idx] = item;
@@ -604,6 +631,7 @@ export const Database = {
   },
 
   async deleteRegistration(id: string): Promise<boolean> {
+    await ensureDbConnected();
     memStore.registrations = memStore.registrations.filter(r => r.id !== id);
     if (pool && isMySqlConnected) {
       try {
@@ -617,6 +645,7 @@ export const Database = {
 
   // Matches
   async getMatches(): Promise<MatchItem[]> {
+    await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC');
@@ -661,6 +690,7 @@ export const Database = {
   },
 
   async saveMatch(match: MatchItem): Promise<MatchItem> {
+    await ensureDbConnected();
     const idx = memStore.matches.findIndex(m => m.id === match.id);
     if (idx >= 0) {
       memStore.matches[idx] = match;
@@ -687,6 +717,7 @@ export const Database = {
   },
 
   async deleteMatch(matchId: string): Promise<boolean> {
+    await ensureDbConnected();
     memStore.matches = memStore.matches.filter(m => m.id !== matchId);
     if (pool && isMySqlConnected) {
       try {
@@ -700,6 +731,7 @@ export const Database = {
 
   // Sponsors
   async getSponsors(): Promise<SponsorItem[]> {
+    await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM sponsors WHERE is_active = TRUE ORDER BY sort_order ASC');
@@ -722,6 +754,7 @@ export const Database = {
   },
 
   async saveSponsor(sponsor: SponsorItem): Promise<SponsorItem> {
+    await ensureDbConnected();
     const idx = memStore.sponsors.findIndex(s => s.id === sponsor.id);
     if (idx >= 0) {
       memStore.sponsors[idx] = sponsor;
@@ -748,6 +781,7 @@ export const Database = {
   },
 
   async deleteSponsor(id: string): Promise<boolean> {
+    await ensureDbConnected();
     memStore.sponsors = memStore.sponsors.filter(s => s.id !== id);
     if (pool && isMySqlConnected) {
       try {
@@ -761,6 +795,7 @@ export const Database = {
 
   // Admin Users
   async getAdmins(): Promise<AdminUser[]> {
+    await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users');
@@ -784,6 +819,7 @@ export const Database = {
   },
 
   async saveAdmin(admin: AdminUser, password?: string): Promise<AdminUser> {
+    await ensureDbConnected();
     const idx = memStore.adminUsers.findIndex(a => a.id === admin.id || a.username.toLowerCase() === admin.username.toLowerCase());
     if (idx >= 0) {
       memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
@@ -825,6 +861,7 @@ export const Database = {
   },
 
   async deleteAdmin(id: string): Promise<boolean> {
+    await ensureDbConnected();
     // Protect master superadmin from deletion
     const target = memStore.adminUsers.find(a => a.id === id);
     if (target && target.username.toLowerCase() === 'superadmin') {
@@ -843,6 +880,7 @@ export const Database = {
 
   // Generate complete SQL Export dump
   async exportFullSqlDump(): Promise<string> {
+    await ensureDbConnected();
     const categories = await this.getCategories();
     const registrations = await this.getRegistrations();
     const matches = await this.getMatches();

@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { apiRouter } from '../server/routes';
-import { initDatabaseConnection } from '../server/db';
+import { ensureDbConnected } from '../server/db';
 
 const app = express();
 
@@ -9,14 +9,13 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Lazy non-blocking DB initialization
-let isDbInitStarted = false;
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (!isDbInitStarted) {
-    isDbInitStarted = true;
-    initDatabaseConnection().catch(err => {
-      console.warn('[Vercel Serverless] DB init non-blocking note:', err?.message || err);
-    });
+// Automatic Database Connection Middleware
+// Ensures TiDB / MySQL is connected before route handlers execute
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await ensureDbConnected();
+  } catch (err: any) {
+    console.warn('[Vercel Serverless] Auto DB connection note:', err?.message || err);
   }
   next();
 });
