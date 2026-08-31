@@ -1292,11 +1292,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               />
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+            {/* <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
               <p className="font-bold text-slate-300">Akun Demo Panitia Tersedia:</p>
               <p>• Super Admin: <code className="text-red-400">superadmin</code> / <code className="text-slate-300">admin123</code></p>
               <p>• Sekretariat: <code className="text-blue-400">panitia</code> / <code className="text-slate-300">panitia2026</code></p>
-            </div>
+            </div> */}
 
             <button
               type="submit"
@@ -1558,7 +1558,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               </span>
             </button>
 
-            <button
+            {/* <button
               onClick={() => setActiveTab('GAS_EXPORT_GUIDE')}
               className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
                 activeTab === 'GAS_EXPORT_GUIDE'
@@ -1568,7 +1568,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             >
               <FileCode className="w-4 h-4" />
               <span>Google Sheets 3-File Hub</span>
-            </button>
+            </button> */}
           </div>
 
           {/* DATABASE SYNC STATUS WIDGET */}

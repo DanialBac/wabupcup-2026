@@ -10,7 +10,7 @@ import {
 export const INITIAL_TOURNAMENT_CONFIG: TournamentConfig = {
   name: 'WabupCup 2026',
   edition: '2026',
-  tagline: 'Turnamen Terakbar Futsal & Sepakbola Perebutan Piala Wakil Bupati',
+  tagline: 'Turnamen Futsal Bergengsi Perebutan Piala Wakil Bupati',
   registrationDeadline: '2026-10-15',
   tournamentStartDate: '2026-10-24',
   tournamentEndDate: '2026-11-08',

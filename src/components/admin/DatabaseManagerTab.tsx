@@ -379,7 +379,7 @@ USE \`wabupcup_db\`;
       </div>
 
       {/* EASY TIDB CLOUD & MYSQL CONNECT STUDIO */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/70 border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-5">
+      {/* <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/70 border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-lg">
@@ -419,7 +419,7 @@ USE \`wabupcup_db\`;
           </div>
         </div>
 
-        {/* CONNECTION MODE TOGGLE */}
+
         <div className="flex items-center space-x-2">
           <button
             type="button"
@@ -445,7 +445,7 @@ USE \`wabupcup_db\`;
           </button>
         </div>
 
-        {/* CONNECT FORM */}
+
         <form onSubmit={handleConnectLive} className="space-y-4">
           {connectMode === 'URI' ? (
             <div className="space-y-2">
@@ -546,7 +546,7 @@ USE \`wabupcup_db\`;
             </div>
           )}
 
-          {/* ACTION BUTTONS */}
+
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="submit"
@@ -568,7 +568,7 @@ USE \`wabupcup_db\`;
           </div>
         </form>
 
-        {/* QUICK TIDB CONNECTION TIPS */}
+
         <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-xl p-3.5 text-xs text-indigo-200/90 flex items-start space-x-3">
           <Shield className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
           <div className="space-y-1 text-[11px]">
@@ -583,15 +583,15 @@ USE \`wabupcup_db\`;
             </p>
           </div>
         </div>
-      </div>
+      </div> */}
 
-      {/* MAIN CONTENT SPLIT: DEPLOYMENT GUIDES & SQL SCRIPTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* LEFT COLUMN (2 COLS): DEPLOYMENT OPTIONS */}
+
         <div className="lg:col-span-2 space-y-6">
           
-          {/* DEPLOY TO VERCEL ACCORDION */}
+
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -643,7 +643,7 @@ USE \`wabupcup_db\`;
             </div>
           </div>
 
-          {/* DEPLOY TO VPS / UBUNTU */}
+
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-lg bg-indigo-900/50 border border-indigo-700 flex items-center justify-center text-indigo-300">
@@ -679,7 +679,7 @@ USE \`wabupcup_db\`;
           </div>
         </div>
 
-        {/* RIGHT COLUMN (1 COL): SQL & ENV EXPORT TABS */}
+
         <div className="space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col h-full">
             <div className="flex items-center justify-between mb-4">
@@ -691,7 +691,7 @@ USE \`wabupcup_db\`;
               </div>
             </div>
 
-            {/* TAB SELECTOR */}
+
             <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800 mb-4 text-xs font-semibold">
               <button
                 onClick={() => setActiveSchemaTab('SCHEMA_SQL')}
@@ -725,18 +725,18 @@ USE \`wabupcup_db\`;
               </button>
             </div>
 
-            {/* CODE PREVIEW BOX */}
+
             <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-[11px] text-slate-300 overflow-y-auto max-h-72 leading-relaxed whitespace-pre select-all">
               {activeSchemaTab === 'SCHEMA_SQL' && SAMPLE_SQL_SNIPPET}
               {activeSchemaTab === 'SEED_SQL' && `-- Data Demo Awal WabupCup 2026
--- Berisi 5 Kategori (SD, SMP, SMA, INSTANSI, UMUM)
--- Jadwal Pertandingan Resmi & Tim Terdaftar
--- Akun Panitia (superadmin / panitia / wasit)
--- Silakan import via phpMyAdmin atau CLI.`}
+                -- Berisi 5 Kategori (SD, SMP, SMA, INSTANSI, UMUM)
+                -- Jadwal Pertandingan Resmi & Tim Terdaftar
+                -- Akun Panitia (superadmin / panitia / wasit)
+                -- Silakan import via phpMyAdmin atau CLI.`}
               {activeSchemaTab === 'ENV_CONFIG' && SAMPLE_ENV}
             </div>
 
-            {/* COPY & DOWNLOAD ACTION BUTTONS */}
+
             <div className="grid grid-cols-2 gap-2.5 mt-4 pt-2 border-t border-slate-800">
               <button
                 onClick={() =>
@@ -763,7 +763,7 @@ USE \`wabupcup_db\`;
           </div>
         </div>
 
-      </div>
+      </div> */}
     </div>
   );
 };
