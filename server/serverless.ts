@@ -1,7 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import { apiRouter } from '../server/routes';
-import { ensureDbConnected } from '../server/db';
+import { apiRouter } from './routes';
+import { ensureDbConnected } from './db';
 
 const app = express();
 
@@ -50,4 +50,3 @@ if (typeof process !== 'undefined') {
 
 // Export Express app directly for Vercel Node.js Serverless runtime
 export default app;
-
