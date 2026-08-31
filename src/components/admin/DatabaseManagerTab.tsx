@@ -282,6 +282,36 @@ USE \`wabupcup_db\`;
         </div>
       )}
 
+      {/* DATABASE DIAGNOSTIC NOTICE (When in Fallback Mode) */}
+      {!dbStatus?.connected && (
+        <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-4 text-xs text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-amber-300 text-sm block">Aplikasi Sedang Menggunakan Mode Hybrid Fallback</span>
+              <p className="text-slate-300 text-xs mt-0.5 leading-relaxed">
+                {dbStatus?.error
+                  ? `Catatan error koneksi: ${dbStatus.error}`
+                  : 'Jika Anda baru saja menambahkan Environment Variables di Vercel: Vercel memerlukan "Redeploy" agar variabel baru terbaca.'}
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-amber-300">
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">1. Pastikan IP Access List TiDB: 0.0.0.0/0</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">2. Di Vercel: Klik Deployments &rarr; Redeploy</span>
+                <span className="px-2 py-0.5 rounded bg-indigo-500/30 border border-indigo-500/40 text-indigo-200">3. Atau klik tombol biru di bawah untuk tes langsung</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleReconnect}
+            disabled={loading}
+            className="shrink-0 px-3.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold transition text-xs flex items-center space-x-1.5 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Cek Ulang</span>
+          </button>
+        </div>
+      )}
+
       {/* METRICS & STATUS GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Connection Status */}
