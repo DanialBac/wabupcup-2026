@@ -102,7 +102,7 @@ export const SponsorSection: React.FC = () => {
           </h2>
           
           <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400">
-            Apresiasi dan penghormatan tertinggi kepada institusi, korporasi, dan mitra media yang menyatukan semangat dalam mewujudkan pesta olahraga sepakbola & futsal terbesar.
+            Apresiasi dan penghormatan tertinggi kepada institusi, korporasi, dan mitra media yang menyatukan semangat dalam mewujudkan pesta olahraga futsal terbesar.
           </p>
         </div>
 
@@ -258,7 +258,7 @@ export const SponsorSection: React.FC = () => {
             </h3>
             
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Tingkatkan visibilitas brand Anda di hadapan puluhan ribu suporter sepakbola & futsal secara langsung di stadion serta jutaan impresi media sosial dan liputan siaran resmi.
+              Tingkatkan visibilitas brand Anda di hadapan puluhan ribu suporter  & futsal secara langsung di stadion serta jutaan impresi media sosial dan liputan siaran resmi.
             </p>
           </div>
 

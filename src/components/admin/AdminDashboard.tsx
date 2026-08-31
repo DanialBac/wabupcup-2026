@@ -1552,7 +1552,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               }`}
             >
               <Database className="w-4 h-4 text-emerald-400" />
-              <span className="flex-1 text-left">Database MySQL & Vercel</span>
+              <span className="flex-1 text-left">Database</span>
               <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 PRO
               </span>
@@ -1605,8 +1605,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               <option value="SPONSORS">🤝 Sponsorship</option>
               <option value="SETTINGS">⚙️ Pengaturan & Berkas (Settings)</option>
               <option value="ADMIN_USERS">🛡️ Kelola Admin Users</option>
-              <option value="MYSQL_DATABASE_MANAGER">🗄️ Database MySQL & Hosting Vercel</option>
-              <option value="GAS_EXPORT_GUIDE">📁 Google Sheets 3-File Hub</option>
+              <option value="MYSQL_DATABASE_MANAGER">🗄️ Database </option>
+              {/* <option value="GAS_EXPORT_GUIDE">📁 Google Sheets 3-File Hub</option> */}
             </select>
           </div>
 

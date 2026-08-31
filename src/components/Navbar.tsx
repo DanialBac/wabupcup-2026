@@ -110,7 +110,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </div>
               <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                {config.tagline || 'Piala Wakil Bupati • Futsal & Sepakbola'}
+                {config.tagline || 'Piala Wakil Bupati • Futsal'}
               </p>
             </div>
 

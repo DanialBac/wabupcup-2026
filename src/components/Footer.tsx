@@ -51,7 +51,7 @@ export const Footer: React.FC<FooterProps> = ({
                   {config.name || 'WABUP CUP 2026'}
                 </span>
                 <span className="text-[10px] font-bold text-red-500 tracking-widest uppercase block">
-                  {config.tagline || 'Turnamen Akbar Sepakbola & Futsal'}
+                  {config.tagline || 'Turnamen Akbar Futsal'}
                 </span>
               </div>
               {config.panitiaLogoUrl && (
@@ -67,7 +67,7 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
 
             <p className="text-xs leading-relaxed text-slate-400 max-w-sm">
-              Ajang bergengsi kejuaraan sepakbola & futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'} dengan total hadiah ratusan juta rupiah untuk 6 kategori kompetisi.
+              Ajang bergengsi kejuaraan futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'} dengan total hadiah ratusan juta rupiah untuk 6 kategori kompetisi.
             </p>
 
             <div className="pt-2 text-xs space-y-2 text-slate-400">
@@ -264,10 +264,10 @@ export const Footer: React.FC<FooterProps> = ({
 
         {/* BOTTOM COPYRIGHT */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4">
-          <p>© 2026 Panitia Pelaksana Turnamen Akbar WabupCup. All rights reserved.</p>
+          <p>© 2026 Panitia Pelaksana Turnamen WabupCup. All rights reserved.</p>
           <div className="flex items-center space-x-4">
             <span className="inline-flex items-center space-x-1">
-              <span>Didukung Penuh Pemerintah Daerah & KONI</span>
+              <span>Didukung Penuh Infinity Organizer</span>
             </span>
           </div>
         </div>
