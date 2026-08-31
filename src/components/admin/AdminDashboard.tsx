@@ -1916,23 +1916,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                 <td className="py-3.5 px-4 text-center">
                                   <div className="flex items-center justify-center space-x-1.5">
                                     
-                                    {/* Setujui / Approve */}
-                                    <button
-                                      onClick={() => updateRegistrationStatus(item.id, 'APPROVED')}
-                                      className="p-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-800 text-emerald-300 border border-emerald-700"
-                                      title="Setujui Berkas Tim Ini"
-                                    >
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    </button>
+                                    {/* Setujui / Approve - Sembunyikan jika sudah disetujui (APPROVED) */}
+                                    {item.status !== 'APPROVED' && (
+                                      <button
+                                        onClick={() => updateRegistrationStatus(item.id, 'APPROVED')}
+                                        className="p-1.5 rounded-lg bg-emerald-950 hover:bg-emerald-800 text-emerald-300 border border-emerald-700 cursor-pointer transition shadow-sm"
+                                        title="Setujui Berkas Tim Ini"
+                                      >
+                                        <CheckCircle2 className="w-4 h-4" />
+                                      </button>
+                                    )}
 
-                                    {/* Tolak / Reject */}
-                                    <button
-                                      onClick={() => handleOpenReject(item)}
-                                      className="p-1.5 rounded-lg bg-rose-950 hover:bg-rose-800 text-rose-300 border border-rose-700"
-                                      title="Tolak / Minta Perbaikan Berkas"
-                                    >
-                                      <XCircle className="w-4 h-4" />
-                                    </button>
+                                    {/* Tolak / Reject - Sembunyikan jika sudah ditolak (REJECTED) */}
+                                    {item.status !== 'REJECTED' && (
+                                      <button
+                                        onClick={() => handleOpenReject(item)}
+                                        className="p-1.5 rounded-lg bg-rose-950 hover:bg-rose-800 text-rose-300 border border-rose-700 cursor-pointer transition shadow-sm"
+                                        title="Tolak / Minta Perbaikan Berkas"
+                                      >
+                                        <XCircle className="w-4 h-4" />
+                                      </button>
+                                    )}
 
                                     {/* Kirim WhatsApp Otomatis */}
                                     <a

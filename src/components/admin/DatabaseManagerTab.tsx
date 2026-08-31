@@ -16,15 +16,28 @@ import {
   Terminal,
   Shield,
   Zap,
+  Sparkles,
 } from 'lucide-react';
 
 export const DatabaseManagerTab: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [connectingLive, setConnectingLive] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
+  const [copiedVercelEnv, setCopiedVercelEnv] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeSchemaTab, setActiveSchemaTab] = useState<'SCHEMA_SQL' | 'SEED_SQL' | 'ENV_CONFIG'>('SCHEMA_SQL');
+
+  // Interactive Connection Form State
+  const [connectMode, setConnectMode] = useState<'URI' | 'PARAMS'>('URI');
+  const [dbUrlInput, setDbUrlInput] = useState('mysql://G3R4PBkMaCJzYe3.root:GDuXYLDpS53iSAeD@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db');
+  const [hostInput, setHostInput] = useState('gateway01.ap-southeast-1.prod.aws.tidbcloud.com');
+  const [portInput, setPortInput] = useState(4000);
+  const [userInput, setUserInput] = useState('G3R4PBkMaCJzYe3.root');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [databaseInput, setDatabaseInput] = useState('wabupcup_db');
+  const [sslInput, setSslInput] = useState(true);
 
   const fetchStatus = async () => {
     setLoading(true);
@@ -43,13 +56,13 @@ export const DatabaseManagerTab: React.FC = () => {
   }, []);
 
   const handleInitDb = async () => {
-    if (!confirm('Jalankan inisialisasi / auto-migrate tabel ke database MySQL? Data default akan dipersiapkan.')) return;
+    if (!confirm('Jalankan inisialisasi / auto-migrate tabel ke database MySQL/TiDB? Data tabel akan dipersiapkan.')) return;
     setLoading(true);
     setActionMessage(null);
     try {
       const res = await ApiService.initDb();
       if (res.success) {
-        setActionMessage({ type: 'success', text: res.message || 'Tabel MySQL berhasil diinisialisasi!' });
+        setActionMessage({ type: 'success', text: res.message || 'Tabel MySQL/TiDB berhasil diinisialisasi!' });
         await fetchStatus();
       } else {
         setActionMessage({ type: 'error', text: res.error || 'Gagal inisialisasi database' });
@@ -67,7 +80,7 @@ export const DatabaseManagerTab: React.FC = () => {
     try {
       const res = await ApiService.reconnectDb();
       if (res.success) {
-        setActionMessage({ type: 'success', text: 'Koneksi ke server MySQL berhasil terhubung!' });
+        setActionMessage({ type: 'success', text: 'Koneksi ke server MySQL/TiDB Cloud berhasil terhubung!' });
       } else {
         const errorDetail = res.error || res.status?.error || 'Periksa variabel .env di Vercel (DATABASE_URL atau MYSQL_HOST/USER/PASSWORD)';
         setActionMessage({
@@ -85,15 +98,94 @@ export const DatabaseManagerTab: React.FC = () => {
     }
   };
 
-  const copyToClipboard = (text: string, type: 'env' | 'sql') => {
+  const handleConnectLive = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setConnectingLive(true);
+    setActionMessage(null);
+
+    const payload =
+      connectMode === 'URI'
+        ? { databaseUrl: dbUrlInput.trim() }
+        : {
+            host: hostInput.trim(),
+            port: portInput,
+            user: userInput.trim(),
+            password: passwordInput,
+            database: databaseInput.trim(),
+            ssl: sslInput,
+          };
+
+    try {
+      const res = await ApiService.connectDb(payload);
+      if (res.success) {
+        setActionMessage({
+          type: 'success',
+          text: res.message || 'Koneksi ke TiDB Cloud berhasil terhubung dan tabel telah tersinkronisasi!',
+        });
+        if (res.status) {
+          setDbStatus(res.status);
+        }
+      } else {
+        setActionMessage({
+          type: 'error',
+          text: `Gagal koneksi ke TiDB/MySQL: ${res.error || 'Periksa kembali URI, User, Password, atau Port.'}`,
+        });
+      }
+    } catch (err: any) {
+      setActionMessage({
+        type: 'error',
+        text: err.message || 'Terjadi kesalahan saat menghubungkan ke TiDB Cloud.',
+      });
+    } finally {
+      setConnectingLive(false);
+    }
+  };
+
+  const applyTidbPreset = () => {
+    setConnectMode('URI');
+    setHostInput('gateway01.ap-southeast-1.prod.aws.tidbcloud.com');
+    setPortInput(4000);
+    setDatabaseInput('wabupcup_db');
+    setSslInput(true);
+    setActionMessage({
+      type: 'success',
+      text: 'Preset TiDB Cloud Serverless diaktifkan (Port 4000 & SSL TLS 1.2+ otomatis). Masukkan password Anda lalu klik Uji & Sambungkan.',
+    });
+  };
+
+  const applyLocalPreset = () => {
+    setConnectMode('PARAMS');
+    setHostInput('localhost');
+    setPortInput(3306);
+    setUserInput('root');
+    setPasswordInput('');
+    setDatabaseInput('wabupcup_db');
+    setSslInput(false);
+    setActionMessage({
+      type: 'success',
+      text: 'Preset Localhost / XAMPP diaktifkan (Port 3306 & SSL dimatikan).',
+    });
+  };
+
+  const copyToClipboard = (text: string, type: 'env' | 'sql' | 'vercel') => {
     navigator.clipboard.writeText(text);
     if (type === 'env') {
       setCopiedEnv(true);
       setTimeout(() => setCopiedEnv(false), 2000);
+    } else if (type === 'vercel') {
+      setCopiedVercelEnv(true);
+      setTimeout(() => setCopiedVercelEnv(false), 2000);
     } else {
       setCopiedSql(true);
       setTimeout(() => setCopiedSql(false), 2000);
     }
+  };
+
+  const getVercelEnvString = () => {
+    if (connectMode === 'URI') {
+      return `DATABASE_URL=${dbUrlInput}`;
+    }
+    return `MYSQL_HOST=${hostInput}\nMYSQL_PORT=${portInput}\nMYSQL_USER=${userInput}\nMYSQL_PASSWORD=${passwordInput}\nMYSQL_DATABASE=${databaseInput}\nMYSQL_SSL=${sslInput ? 'true' : 'false'}`;
   };
 
   const SAMPLE_ENV = `# Konfigurasi Database MySQL WabupCup 2026
@@ -205,7 +297,7 @@ USE \`wabupcup_db\`;
               }`}
             ></div>
             <span className="text-base font-bold text-white">
-              {dbStatus?.connected ? 'MySQL Terhubung' : 'Mode Hybrid Fallback'}
+              {dbStatus?.connected ? 'MySQL / TiDB Terhubung' : 'Mode Hybrid Fallback'}
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1 truncate">
@@ -232,10 +324,10 @@ USE \`wabupcup_db\`;
             <Layers className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-base font-bold text-emerald-400">
-            {dbStatus?.connected ? 'Real MySQL Server' : 'Memory + LocalStorage'}
+            {dbStatus?.connected ? 'Real TiDB / MySQL Server' : 'Memory + LocalStorage'}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            {dbStatus?.connected ? 'Sinkronisasi real-time aktif' : 'Auto-fallback aktif (Zero Crash)'}
+            {dbStatus?.connected ? 'Sinkronisasi cloud aktif' : 'Auto-fallback aktif (Zero Crash)'}
           </p>
         </div>
 
@@ -248,11 +340,218 @@ USE \`wabupcup_db\`;
           <button
             onClick={handleInitDb}
             disabled={loading}
-            className="w-full py-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition flex items-center justify-center space-x-1.5 mt-2"
+            className="w-full py-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition flex items-center justify-center space-x-1.5 mt-2 cursor-pointer"
           >
             <Zap className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Init / Migrate MySQL</span>
+            <span>Init / Migrate Tabel</span>
           </button>
+        </div>
+      </div>
+
+      {/* EASY TIDB CLOUD & MYSQL CONNECT STUDIO */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/70 border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-lg">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Koneksi Cepat TiDB Cloud & MySQL (Easy Connect Studio)
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Instant Link
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Hubungkan aplikasi ke cluster TiDB Cloud Serverless atau MySQL Server Anda secara langsung tanpa perlu restart.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={applyTidbPreset}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 text-xs font-semibold transition cursor-pointer flex items-center space-x-1"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Preset TiDB Cloud</span>
+            </button>
+            <button
+              type="button"
+              onClick={applyLocalPreset}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition cursor-pointer"
+            >
+              <span>Preset Localhost</span>
+            </button>
+          </div>
+        </div>
+
+        {/* CONNECTION MODE TOGGLE */}
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setConnectMode('URI')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              connectMode === 'URI'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            1. Opsi A: Connection URL (TiDB Cloud / DATABASE_URL)
+          </button>
+          <button
+            type="button"
+            onClick={() => setConnectMode('PARAMS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+              connectMode === 'PARAMS'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            2. Opsi B: Form Parameter (Host, Port, User, Password)
+          </button>
+        </div>
+
+        {/* CONNECT FORM */}
+        <form onSubmit={handleConnectLive} className="space-y-4">
+          {connectMode === 'URI' ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Database className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>TiDB Cloud Connection String (DATABASE_URL):</span>
+                </label>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Port 4000 & SSL TLS 1.2+ otomatis diatur
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={dbUrlInput}
+                  onChange={e => setDbUrlInput(e.target.value)}
+                  placeholder="mysql://username.root:password@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Tip: Cukup salin connection string dari <strong>TiDB Cloud Console</strong> &gt; cluster Anda &gt; tombol <strong>Connect</strong> &gt; pilih driver <em>Node.js / MySQL</em>.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Host / Endpoint</label>
+                <input
+                  type="text"
+                  value={hostInput}
+                  onChange={e => setHostInput(e.target.value)}
+                  placeholder="gateway01.ap-southeast-1.prod.aws.tidbcloud.com"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Port (4000 untuk TiDB / 3306 untuk MySQL)</label>
+                <input
+                  type="number"
+                  value={portInput}
+                  onChange={e => setPortInput(parseInt(e.target.value, 10) || 4000)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Database Name</label>
+                <input
+                  type="text"
+                  value={databaseInput}
+                  onChange={e => setDatabaseInput(e.target.value)}
+                  placeholder="wabupcup_db"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Username</label>
+                <input
+                  type="text"
+                  value={userInput}
+                  onChange={e => setUserInput(e.target.value)}
+                  placeholder="xxxxxx.root"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">Password</label>
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={e => setPasswordInput(e.target.value)}
+                  placeholder="Masukkan password TiDB / MySQL"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="space-y-1 flex flex-col justify-end">
+                <label className="flex items-center space-x-2 text-xs font-semibold text-slate-300 cursor-pointer bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={sslInput}
+                    onChange={e => setSslInput(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded bg-slate-900 border-slate-700"
+                  />
+                  <span>Gunakan SSL TLS 1.2+ (Wajib TiDB)</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* ACTION BUTTONS */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={connectingLive}
+              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-900/30 transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${connectingLive ? 'animate-spin' : ''}`} />
+              <span>{connectingLive ? 'Sedang Menghubungkan...' : 'Uji & Sambungkan TiDB / MySQL Sekarang'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => copyToClipboard(getVercelEnvString(), 'vercel')}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center space-x-2 cursor-pointer"
+            >
+              {copiedVercelEnv ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedVercelEnv ? 'Tersalin untuk Vercel!' : 'Salin Konfigurasi untuk Vercel .env'}</span>
+            </button>
+          </div>
+        </form>
+
+        {/* QUICK TIDB CONNECTION TIPS */}
+        <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-xl p-3.5 text-xs text-indigo-200/90 flex items-start space-x-3">
+          <Shield className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-[11px]">
+            <p className="font-bold text-indigo-300">
+              Panduan Menghubungkan TiDB Cloud Serverless:
+            </p>
+            <p>
+              1. Buka <strong>TiDB Cloud Console</strong> &gt; Security &gt; pastikan IP Access List mengizinkan <code>0.0.0.0/0</code> agar Vercel & Web Server dapat terhubung.
+            </p>
+            <p>
+              2. TiDB Cloud selalu menggunakan port <strong>4000</strong> dan enkripsi <strong>TLS 1.2+</strong>.
+            </p>
+          </div>
         </div>
       </div>
 

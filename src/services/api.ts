@@ -92,6 +92,36 @@ export const ApiService = {
     }
   },
 
+  async connectDb(config: {
+    databaseUrl?: string;
+    host?: string;
+    port?: number;
+    user?: string;
+    password?: string;
+    database?: string;
+    ssl?: boolean;
+  }): Promise<{ success: boolean; message?: string; status?: any; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/database/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        return json;
+      } catch {
+        return {
+          success: false,
+          error: `Server Response Error (${res.status}): ${text.substring(0, 150)}`,
+        };
+      }
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal menghubungi backend database' };
+    }
+  },
+
   getExportSqlUrl() {
     return `${API_BASE}/database/export-sql`;
   },

@@ -35,6 +35,34 @@ apiRouter.post('/database/reconnect', async (req: Request, res: Response) => {
   }
 });
 
+// 3b. Configure & Connect Database dynamically (TiDB Cloud / Custom MySQL)
+apiRouter.post('/database/connect', async (req: Request, res: Response) => {
+  try {
+    const config = req.body;
+    const connected = await initDatabaseConnection(config);
+    const status = getMySqlStatus();
+    if (connected) {
+      res.json({
+        success: true,
+        message: 'Koneksi database MySQL/TiDB Cloud berhasil terhubung dan tabel telah tersinkronisasi!',
+        status,
+      });
+    } else {
+      res.json({
+        success: false,
+        error: status.error || 'Gagal terhubung ke MySQL dengan konfigurasi yang diberikan',
+        status,
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err?.message || 'Terjadi kesalahan saat menghubungkan database',
+      status: getMySqlStatus(),
+    });
+  }
+});
+
 // 4. Export Complete SQL Dump
 apiRouter.get('/database/export-sql', async (req: Request, res: Response) => {
   try {
