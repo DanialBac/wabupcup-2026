@@ -54,12 +54,48 @@ export function getMySqlStatus() {
   };
 }
 
+function resolveSslConfig(urlOrHost?: string, explicitSsl?: boolean): any {
+  // If explicitly disabled with false or 0
+  if (process.env.MYSQL_SSL === 'false' || process.env.MYSQL_SSL === '0') {
+    return undefined;
+  }
+
+  // Auto-detect cloud providers that strictly require SSL / TLS 1.2+
+  const isCloudHost =
+    urlOrHost &&
+    (urlOrHost.includes('tidbcloud.com') ||
+      urlOrHost.includes('psdb.cloud') ||
+      urlOrHost.includes('aivencloud.com') ||
+      urlOrHost.includes('railway.app') ||
+      urlOrHost.includes('amazonaws.com') ||
+      urlOrHost.includes('supabase.co') ||
+      urlOrHost.includes('cockroachlabs.cloud'));
+
+  const needsSsl =
+    explicitSsl ||
+    isCloudHost ||
+    process.env.MYSQL_SSL === 'true' ||
+    process.env.MYSQL_SSL === '1' ||
+    Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('ssl'));
+
+  if (needsSsl) {
+    const rejectUnauthorized =
+      process.env.MYSQL_SSL_REJECT_UNAUTHORIZED === 'false' ? false : true;
+    return {
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized,
+    };
+  }
+
+  return undefined;
+}
+
 export async function initDatabaseConnection(): Promise<boolean> {
   const dbUrl = process.env.DATABASE_URL;
-  const host = process.env.MYSQL_HOST;
-  const user = process.env.MYSQL_USER;
-  const password = process.env.MYSQL_PASSWORD;
-  const database = process.env.MYSQL_DATABASE || 'wabupcup_db';
+  const host = process.env.MYSQL_HOST ? process.env.MYSQL_HOST.trim() : undefined;
+  const user = process.env.MYSQL_USER ? process.env.MYSQL_USER.trim() : undefined;
+  const password = process.env.MYSQL_PASSWORD !== undefined ? process.env.MYSQL_PASSWORD : undefined;
+  const database = (process.env.MYSQL_DATABASE || 'wabupcup_db').trim();
   const port = parseInt(process.env.MYSQL_PORT || '3306', 10);
   const useSsl = process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1';
 
@@ -70,10 +106,38 @@ export async function initDatabaseConnection(): Promise<boolean> {
   }
 
   try {
+    let poolOptions: mysql.PoolOptions;
+
     if (dbUrl) {
-      pool = mysql.createPool(dbUrl);
+      const ssl = resolveSslConfig(dbUrl, useSsl);
+      try {
+        // Parse DATABASE_URL for fine-tuned PoolOptions with guaranteed SSL handling
+        const parsedUrl = new URL(dbUrl);
+        const urlDbName = parsedUrl.pathname.replace(/^\//, '') || database;
+        poolOptions = {
+          host: parsedUrl.hostname,
+          port: parsedUrl.port ? parseInt(parsedUrl.port, 10) : 3306,
+          user: decodeURIComponent(parsedUrl.username),
+          password: decodeURIComponent(parsedUrl.password),
+          database: urlDbName,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+          ssl: ssl || (parsedUrl.searchParams.has('ssl') ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : undefined),
+        };
+      } catch {
+        // If not a standard URL object, pass uri with ssl option
+        poolOptions = {
+          uri: dbUrl,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+          ssl,
+        };
+      }
     } else {
-      pool = mysql.createPool({
+      const ssl = resolveSslConfig(host, useSsl);
+      poolOptions = {
         host,
         user,
         password,
@@ -82,9 +146,11 @@ export async function initDatabaseConnection(): Promise<boolean> {
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        ssl: useSsl ? { rejectUnauthorized: false } : undefined,
-      });
+        ssl,
+      };
     }
+
+    pool = mysql.createPool(poolOptions);
 
     const connection = await pool.getConnection();
     await connection.ping();

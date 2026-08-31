@@ -69,14 +69,17 @@ export const DatabaseManagerTab: React.FC = () => {
       if (res.success) {
         setActionMessage({ type: 'success', text: 'Koneksi ke server MySQL berhasil terhubung!' });
       } else {
+        const errorDetail = res.error || res.status?.error || 'Periksa variabel .env di Vercel (DATABASE_URL atau MYSQL_HOST/USER/PASSWORD)';
         setActionMessage({
           type: 'error',
-          text: `Gagal terhubung ke MySQL: ${res.status?.error || 'Periksa variabel .env (MYSQL_HOST/DATABASE_URL)'}`,
+          text: `Gagal terhubung ke MySQL: ${errorDetail}`,
         });
       }
-      setDbStatus(res.status);
+      if (res.status) {
+        setDbStatus(res.status);
+      }
     } catch (err: any) {
-      setActionMessage({ type: 'error', text: err.message });
+      setActionMessage({ type: 'error', text: err.message || 'Terjadi kesalahan saat memeriksa koneksi' });
     } finally {
       setLoading(false);
     }
@@ -94,16 +97,18 @@ export const DatabaseManagerTab: React.FC = () => {
   };
 
   const SAMPLE_ENV = `# Konfigurasi Database MySQL WabupCup 2026
-# Opsi 1: Connection URI (PlanetScale, Railway, Aiven, TiDB)
-DATABASE_URL=mysql://user:password@host:3306/wabupcup_db
+# OPSI A: TiDB Cloud Serverless / PlanetScale / Railway
+# Format URI:
+DATABASE_URL=mysql://<username>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db?ssl={"rejectUnauthorized":true}
 
-# Opsi 2: Parameter Terpisah (cPanel / VPS / Localhost)
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=
+# OPSI B: Parameter Terpisah (TiDB Cloud / cPanel / VPS / Localhost)
+# TiDB Cloud Serverless wajib menggunakan port 4000 dan MYSQL_SSL=true
+MYSQL_HOST=gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+MYSQL_PORT=4000
+MYSQL_USER=xxxxxx.root
+MYSQL_PASSWORD=xxxxxx
 MYSQL_DATABASE=wabupcup_db
-MYSQL_SSL=false
+MYSQL_SSL=true
 
 PORT=3000
 NODE_ENV=production`;

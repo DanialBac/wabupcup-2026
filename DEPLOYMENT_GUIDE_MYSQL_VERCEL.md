@@ -25,9 +25,20 @@ Aplikasi **Wabup Cup 2026** dirancang dengan arsitektur **Full-Stack Hybrid** ya
 
 ### Langkah 1: Siapkan Database MySQL di Cloud
 Anda dapat menggunakan penyedia MySQL gratis atau murah berikut:
-1. **Aiven.io** (Gratis 1 bulan / tier murah): Buat instance MySQL > Dapatkan URI koneksi `mysql://...`
+1. **TiDB Cloud Serverless** (Gratis 5GB / Serverless):
+   - Buat cluster Serverless di [tidbcloud.com](https://tidbcloud.com).
+   - Klik **Connect** > Pilih **General** / **Node.js**.
+   - *Catatan Penting*: TiDB Cloud **mewajibkan enkripsi TLS / SSL**. Sistem backend WabupCup 2026 kini telah dilengkapi auto-detect TLS 1.2+ untuk TiDB Cloud.
+   - Contoh `DATABASE_URL`: `mysql://<user>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db?ssl={"rejectUnauthorized":true}`
+   - Atau jika menggunakan variabel terpisah:
+     - `MYSQL_HOST` = `gateway01.ap-southeast-1.prod.aws.tidbcloud.com`
+     - `MYSQL_PORT` = `4000`
+     - `MYSQL_USER` = `xxxxxx.root`
+     - `MYSQL_PASSWORD` = `PasswordTiDBAnda`
+     - `MYSQL_DATABASE` = `wabupcup_db`
+     - `MYSQL_SSL` = `true`
 2. **Railway.app** (Free credit): Buat project baru > Add MySQL Database > Salin `DATABASE_URL`.
-3. **TiDB Cloud** (Free Serverless Tier): Buat cluster gratis > Dapatkan koneksi MySQL.
+3. **Aiven.io** (Gratis tier murah): Buat instance MySQL > Dapatkan URI koneksi `mysql://...`
 4. **cPanel Hosting Anda**: Buat database `wabupcup_db` dan user di cPanel > Izinkan *Remote MySQL* (`%`).
 
 ### Langkah 2: Import Skrip Database MySQL

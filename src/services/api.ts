@@ -9,30 +9,87 @@ import {
 
 const API_BASE = '/api';
 
+async function safeJsonFetch<T>(url: string, options?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      return null;
+    }
+    const text = await res.text();
+    if (!text || text.trim() === '') return null;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 export const ApiService = {
   // Check Health & DB status
   async getHealth() {
     try {
       const res = await fetch(`${API_BASE}/health`);
-      if (!res.ok) throw new Error('Health check failed');
-      return await res.json();
-    } catch {
+      if (!res.ok) {
+        return {
+          status: 'local',
+          database: { connected: false, mode: 'CLIENT_STORAGE', error: `Server returned status ${res.status}` },
+        };
+      }
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return {
+          status: 'local',
+          database: { connected: false, mode: 'CLIENT_STORAGE', error: 'Invalid JSON response from server' },
+        };
+      }
+    } catch (err: any) {
       return {
         status: 'local',
-        database: { connected: false, mode: 'CLIENT_STORAGE' },
+        database: { connected: false, mode: 'CLIENT_STORAGE', error: err?.message },
       };
     }
   },
 
   // Database actions
-  async initDb() {
-    const res = await fetch(`${API_BASE}/database/init`, { method: 'POST' });
-    return await res.json();
+  async initDb(): Promise<{ success: boolean; message?: string; error?: string; status?: any }> {
+    try {
+      const res = await fetch(`${API_BASE}/database/init`, { method: 'POST' });
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        return json;
+      } catch {
+        return {
+          success: false,
+          error: `Server Response Error (${res.status}): ${text.substring(0, 100)}`,
+        };
+      }
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal menghubungi server' };
+    }
   },
 
-  async reconnectDb() {
-    const res = await fetch(`${API_BASE}/database/reconnect`, { method: 'POST' });
-    return await res.json();
+  async reconnectDb(): Promise<{ success: boolean; status?: any; error?: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/database/reconnect`, { method: 'POST' });
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        return json;
+      } catch {
+        return {
+          success: false,
+          error: `Server Response Error (${res.status}): ${text.substring(0, 100)}`,
+        };
+      }
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal menghubungi server' };
+    }
   },
 
   getExportSqlUrl() {
@@ -41,52 +98,28 @@ export const ApiService = {
 
   // Config
   async getConfig(): Promise<TournamentConfig | null> {
-    try {
-      const res = await fetch(`${API_BASE}/config`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<TournamentConfig>(`${API_BASE}/config`);
   },
 
   async updateConfig(config: Partial<TournamentConfig>): Promise<TournamentConfig | null> {
-    try {
-      const res = await fetch(`${API_BASE}/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<TournamentConfig>(`${API_BASE}/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
   },
 
   // Categories
   async getCategories(): Promise<CategoryDetail[] | null> {
-    try {
-      const res = await fetch(`${API_BASE}/categories`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<CategoryDetail[]>(`${API_BASE}/categories`);
   },
 
   async saveCategory(category: CategoryDetail): Promise<CategoryDetail | null> {
-    try {
-      const res = await fetch(`${API_BASE}/categories`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(category),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<CategoryDetail>(`${API_BASE}/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(category),
+    });
   },
 
   async deleteCategory(id: string): Promise<boolean> {
@@ -100,41 +133,23 @@ export const ApiService = {
 
   // Registrations
   async getRegistrations(): Promise<RegistrationItem[] | null> {
-    try {
-      const res = await fetch(`${API_BASE}/registrations`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<RegistrationItem[]>(`${API_BASE}/registrations`);
   },
 
   async createRegistration(data: Partial<RegistrationItem>): Promise<RegistrationItem | null> {
-    try {
-      const res = await fetch(`${API_BASE}/registrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<RegistrationItem>(`${API_BASE}/registrations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   },
 
   async updateRegistration(item: RegistrationItem): Promise<RegistrationItem | null> {
-    try {
-      const res = await fetch(`${API_BASE}/registrations/${item.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<RegistrationItem>(`${API_BASE}/registrations/${item.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item),
+    });
   },
 
   async updateRegistrationStatus(id: string, status: string, reason?: string, notes?: string): Promise<boolean> {
@@ -174,27 +189,15 @@ export const ApiService = {
 
   // Matches
   async getMatches(): Promise<MatchItem[] | null> {
-    try {
-      const res = await fetch(`${API_BASE}/matches`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<MatchItem[]>(`${API_BASE}/matches`);
   },
 
   async saveMatch(match: MatchItem): Promise<MatchItem | null> {
-    try {
-      const res = await fetch(`${API_BASE}/matches/${match.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(match),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<MatchItem>(`${API_BASE}/matches/${match.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(match),
+    });
   },
 
   async deleteMatch(id: string): Promise<boolean> {
@@ -208,27 +211,15 @@ export const ApiService = {
 
   // Sponsors
   async getSponsors(): Promise<SponsorItem[] | null> {
-    try {
-      const res = await fetch(`${API_BASE}/sponsors`);
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<SponsorItem[]>(`${API_BASE}/sponsors`);
   },
 
   async saveSponsor(sponsor: SponsorItem): Promise<SponsorItem | null> {
-    try {
-      const res = await fetch(`${API_BASE}/sponsors/${sponsor.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sponsor),
-      });
-      if (!res.ok) return null;
-      return await res.json();
-    } catch {
-      return null;
-    }
+    return safeJsonFetch<SponsorItem>(`${API_BASE}/sponsors/${sponsor.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sponsor),
+    });
   },
 
   async deleteSponsor(id: string): Promise<boolean> {
@@ -248,9 +239,15 @@ export const ApiService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password: pass }),
       });
-      return await res.json();
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: false };
+      }
     } catch {
       return { success: false };
     }
   },
 };
+
