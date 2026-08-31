@@ -197,6 +197,9 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
         try { await pool.end(); } catch {}
       }
       pool = mysql.createPool(poolOptions);
+      (pool as any).on?.('error', (poolErr: any) => {
+        console.warn('[MySQL Pool Non-fatal Event]', poolErr?.message || poolErr);
+      });
       const connection = await pool.getConnection();
       await connection.ping();
       connection.release();
@@ -212,11 +215,15 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
         try {
           const tempOptions = { ...poolOptions, database: isTidb ? 'test' : undefined };
           const tempConn = await mysql.createConnection(tempOptions as any);
+          (tempConn as any).on?.('error', (err: any) => console.warn('[MySQL Temp Connection Event]', err?.message));
           await tempConn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
           await tempConn.end();
 
           // Re-create pool with the now existing database
           pool = mysql.createPool(poolOptions);
+          (pool as any).on?.('error', (poolErr: any) => {
+            console.warn('[MySQL Pool Non-fatal Event]', poolErr?.message || poolErr);
+          });
           const connection = await pool.getConnection();
           await connection.ping();
           connection.release();
@@ -227,6 +234,9 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
           if (isTidb) {
             const fallbackOptions = { ...poolOptions, database: 'test' };
             pool = mysql.createPool(fallbackOptions);
+            (pool as any).on?.('error', (poolErr: any) => {
+              console.warn('[MySQL Pool Non-fatal Event]', poolErr?.message || poolErr);
+            });
             const connection = await pool.getConnection();
             await connection.ping();
             connection.release();
@@ -381,7 +391,7 @@ export async function runFullSchemaInit() {
     await pool.query(q);
   }
 
-  // Seed default data if empty
+  // Seed default categories if empty
   const [catRows]: any = await pool.query('SELECT COUNT(*) as count FROM categories');
   if (catRows[0].count === 0) {
     for (const cat of INITIAL_CATEGORIES) {
@@ -400,6 +410,27 @@ export async function runFullSchemaInit() {
           cat.description || '',
           JSON.stringify(cat.prizes),
           JSON.stringify(cat.rules),
+        ]
+      );
+    }
+  }
+
+  // Seed default admin users if empty
+  const [admRows]: any = await pool.query('SELECT COUNT(*) as count FROM admin_users');
+  if (admRows[0].count === 0) {
+    for (const adm of INITIAL_ADMIN_USERS) {
+      await pool.query(
+        `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          adm.id,
+          adm.username,
+          adm.password || 'admin123',
+          adm.fullName,
+          adm.role,
+          adm.email || '',
+          adm.phone || '',
+          adm.avatarColor || 'bg-red-600',
         ]
       );
     }
@@ -750,6 +781,64 @@ export const Database = {
       }
     }
     return memStore.adminUsers;
+  },
+
+  async saveAdmin(admin: AdminUser, password?: string): Promise<AdminUser> {
+    const idx = memStore.adminUsers.findIndex(a => a.id === admin.id || a.username.toLowerCase() === admin.username.toLowerCase());
+    if (idx >= 0) {
+      memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
+    } else {
+      memStore.adminUsers.push(admin);
+    }
+
+    if (pool && isMySqlConnected) {
+      try {
+        const passHash = password || admin.password || 'admin123';
+        await pool.query(
+          `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE full_name=?, role=?, email=?, phone=?, avatar_color=?, password_hash=COALESCE(?, password_hash)`,
+          [
+            admin.id,
+            admin.username,
+            passHash,
+            admin.fullName,
+            admin.role,
+            admin.email || null,
+            admin.phone || null,
+            admin.avatarColor || 'bg-red-600',
+            admin.createdAt ? new Date(admin.createdAt) : new Date(),
+            // Updates
+            admin.fullName,
+            admin.role,
+            admin.email || null,
+            admin.phone || null,
+            admin.avatarColor || 'bg-red-600',
+            password || null,
+          ]
+        );
+      } catch (err) {
+        console.error('Error saving admin user to MySQL:', err);
+      }
+    }
+    return admin;
+  },
+
+  async deleteAdmin(id: string): Promise<boolean> {
+    // Protect master superadmin from deletion
+    const target = memStore.adminUsers.find(a => a.id === id);
+    if (target && target.username.toLowerCase() === 'superadmin') {
+      return false;
+    }
+    memStore.adminUsers = memStore.adminUsers.filter(a => a.id !== id);
+    if (pool && isMySqlConnected) {
+      try {
+        await pool.query("DELETE FROM admin_users WHERE id = ? AND username != 'superadmin'", [id]);
+      } catch (err) {
+        console.error('Error deleting admin from MySQL:', err);
+      }
+    }
+    return true;
   },
 
   // Generate complete SQL Export dump

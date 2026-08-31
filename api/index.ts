@@ -42,6 +42,16 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
+// Prevent unhandled promise rejections or uncaught exceptions from killing the Vercel function
+if (typeof process !== 'undefined') {
+  process.on('unhandledRejection', (reason: any) => {
+    console.warn('[Vercel Serverless Non-Fatal Rejection]', reason?.message || reason);
+  });
+  process.on('uncaughtException', (err: any) => {
+    console.warn('[Vercel Serverless Non-Fatal Exception]', err?.message || err);
+  });
+}
+
 // Export both standard handler function and Express app for Vercel Node.js runtime
 export default function handler(req: any, res: any) {
   try {

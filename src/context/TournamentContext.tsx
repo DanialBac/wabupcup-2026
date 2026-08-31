@@ -87,7 +87,8 @@ interface TournamentContextType {
   currentAdmin: AdminUser | null;
   loginAdmin: (username: string, pass: string) => boolean;
   logoutAdmin: () => void;
-  addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'>) => void;
+  addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => void;
+  updateAdminUser: (user: AdminUser & { password?: string }) => void;
   deleteAdminUser: (id: string) => void;
   resetAllDataToDefaults: () => void;
   getWhatsAppNotificationUrl: (item: RegistrationItem, type: 'CONFIRMATION' | 'APPROVED' | 'REJECTED' | 'PAYMENT_REMINDER') => string;
@@ -163,13 +164,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const refreshDataFromServer = useCallback(async () => {
     try {
       setIsSyncingWithServer(true);
-      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors] =
+      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors, serverAdmins] =
         await Promise.all([
           ApiService.getConfig(),
           ApiService.getCategories(),
           ApiService.getRegistrations(),
           ApiService.getMatches(),
           ApiService.getSponsors(),
+          ApiService.getAdmins(),
         ]);
 
       if (serverConfig) {
@@ -217,6 +219,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (serverSponsors && Array.isArray(serverSponsors) && serverSponsors.length > 0) {
         setSponsors(serverSponsors);
         localStorage.setItem('wabupcup_sponsors', JSON.stringify(serverSponsors));
+      }
+
+      if (serverAdmins && Array.isArray(serverAdmins) && serverAdmins.length > 0) {
+        setAdminUsers(serverAdmins);
+        localStorage.setItem('wabupcup_admins', JSON.stringify(serverAdmins));
       }
     } catch (err) {
       console.warn('Backend server synchronization encountered an error, running with local data:', err);
@@ -1263,8 +1270,16 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const found = adminUsers.find(
       u => u.username.toLowerCase() === username.trim().toLowerCase()
     );
-    // Simple demo password check (admin123 / panitia2026 / wasit123)
-    if (found && (pass === 'admin123' || pass === 'panitia2026' || pass === 'admin' || pass === '123456')) {
+    // Support custom password or standard default admin passwords
+    const isValid =
+      found &&
+      ((found.password && found.password === pass) ||
+        pass === 'admin123' ||
+        pass === 'panitia2026' ||
+        pass === 'admin' ||
+        pass === '123456');
+
+    if (isValid && found) {
       setCurrentAdmin(found);
       localStorage.setItem('wabupcup_current_admin', JSON.stringify(found));
       return true;
@@ -1277,7 +1292,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     localStorage.removeItem('wabupcup_current_admin');
   };
 
-  const addAdminUser = (user: Omit<AdminUser, 'id' | 'createdAt'>) => {
+  const addAdminUser = (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => {
     const newUser: AdminUser = {
       ...user,
       id: `adm-${Date.now()}`,
@@ -1288,6 +1303,24 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem('wabupcup_admins', JSON.stringify(next));
       return next;
     });
+    ApiService.createAdmin(user).catch(err =>
+      console.warn('Could not sync created admin to backend:', err)
+    );
+  };
+
+  const updateAdminUser = (updatedUser: AdminUser & { password?: string }) => {
+    setAdminUsers(prev => {
+      const next = prev.map(a => (a.id === updatedUser.id ? { ...a, ...updatedUser } : a));
+      localStorage.setItem('wabupcup_admins', JSON.stringify(next));
+      return next;
+    });
+    if (currentAdmin && currentAdmin.id === updatedUser.id) {
+      setCurrentAdmin(updatedUser);
+      localStorage.setItem('wabupcup_current_admin', JSON.stringify(updatedUser));
+    }
+    ApiService.updateAdmin(updatedUser.id, updatedUser).catch(err =>
+      console.warn('Could not sync updated admin to backend:', err)
+    );
   };
 
   const deleteAdminUser = (id: string) => {
@@ -1296,6 +1329,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem('wabupcup_admins', JSON.stringify(next));
       return next;
     });
+    ApiService.deleteAdmin(id).catch(err =>
+      console.warn('Could not delete admin from backend:', err)
+    );
   };
 
   const resetAllDataToDefaults = () => {
@@ -1387,6 +1423,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         loginAdmin,
         logoutAdmin,
         addAdminUser,
+        updateAdminUser,
         deleteAdminUser,
         resetAllDataToDefaults,
         getWhatsAppNotificationUrl,

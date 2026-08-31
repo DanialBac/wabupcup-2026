@@ -29,16 +29,26 @@ apiRouter.post('/database/init', async (req: Request, res: Response) => {
 apiRouter.post('/database/reconnect', async (req: Request, res: Response) => {
   try {
     const connected = await initDatabaseConnection();
-    res.json({ success: connected, status: getMySqlStatus() });
+    const status = getMySqlStatus();
+    res.json({
+      success: connected,
+      status,
+      error: !connected ? (status.error || 'Tidak dapat terhubung ke MySQL server. Periksa konfigurasi .env') : undefined,
+    });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err?.message });
+    const status = getMySqlStatus();
+    res.json({
+      success: false,
+      error: err?.message || 'Gagal memeriksa koneksi database',
+      status,
+    });
   }
 });
 
 // 3b. Configure & Connect Database dynamically (TiDB Cloud / Custom MySQL)
 apiRouter.post('/database/connect', async (req: Request, res: Response) => {
   try {
-    const config = req.body;
+    const config = req.body || {};
     const connected = await initDatabaseConnection(config);
     const status = getMySqlStatus();
     if (connected) {
@@ -50,12 +60,12 @@ apiRouter.post('/database/connect', async (req: Request, res: Response) => {
     } else {
       res.json({
         success: false,
-        error: status.error || 'Gagal terhubung ke MySQL dengan konfigurasi yang diberikan',
+        error: status.error || 'Gagal terhubung ke MySQL dengan konfigurasi yang diberikan. Periksa kredensial/koneksi.',
         status,
       });
     }
   } catch (err: any) {
-    res.status(500).json({
+    res.json({
       success: false,
       error: err?.message || 'Terjadi kesalahan saat menghubungkan database',
       status: getMySqlStatus(),
@@ -292,17 +302,97 @@ apiRouter.delete('/sponsors/:id', async (req: Request, res: Response) => {
 
 // 10. Admin Users & Auth
 apiRouter.get('/admins', async (req: Request, res: Response) => {
-  const admins = await Database.getAdmins();
-  res.json(admins);
+  try {
+    const admins = await Database.getAdmins();
+    res.json(admins);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/admins', async (req: Request, res: Response) => {
+  try {
+    const { username, fullName, role, email, phone, avatarColor, password } = req.body;
+    if (!username || !fullName) {
+      return res.status(400).json({ error: 'Username dan Nama Lengkap wajib diisi' });
+    }
+    const cleanUsername = username.toLowerCase().trim().replace(/[^a-z0-9_.]/g, '');
+    const newAdmin = {
+      id: `adm-${Date.now()}`,
+      username: cleanUsername,
+      fullName: fullName.trim(),
+      role: role || 'PANITIA',
+      email: email ? email.trim() : '',
+      phone: phone ? phone.trim() : '',
+      avatarColor: avatarColor || 'bg-red-600',
+      createdAt: new Date().toISOString().split('T')[0],
+      password: password || 'admin123',
+    };
+    const saved = await Database.saveAdmin(newAdmin, password);
+    res.status(201).json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal menambahkan admin' });
+  }
+});
+
+apiRouter.put('/admins/:id', async (req: Request, res: Response) => {
+  try {
+    const { username, fullName, role, email, phone, avatarColor, password } = req.body;
+    const existingList = await Database.getAdmins();
+    const target = existingList.find(a => a.id === req.params.id);
+    if (!target) {
+      return res.status(404).json({ error: 'Admin tidak ditemukan' });
+    }
+    const updatedAdmin = {
+      ...target,
+      username: username ? username.toLowerCase().trim() : target.username,
+      fullName: fullName !== undefined ? fullName.trim() : target.fullName,
+      role: role || target.role,
+      email: email !== undefined ? email.trim() : target.email,
+      phone: phone !== undefined ? phone.trim() : target.phone,
+      avatarColor: avatarColor || target.avatarColor,
+      password: password || target.password,
+    };
+    const saved = await Database.saveAdmin(updatedAdmin, password);
+    res.json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal memperbarui admin' });
+  }
+});
+
+apiRouter.delete('/admins/:id', async (req: Request, res: Response) => {
+  try {
+    const success = await Database.deleteAdmin(req.params.id);
+    if (!success) {
+      return res.status(400).json({ error: 'Akun Superadmin utama tidak dapat dihapus demi keamanan sistem.' });
+    }
+    res.json({ success: true, id: req.params.id });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal menghapus admin' });
+  }
 });
 
 apiRouter.post('/auth/login', async (req: Request, res: Response) => {
-  const { username, password } = req.body;
-  const admins = await Database.getAdmins();
-  const user = admins.find(a => a.username.toLowerCase() === (username || '').trim().toLowerCase());
-  
-  if (user && (password === 'admin123' || password === 'panitia2026' || password === 'admin' || password === '123456')) {
-    return res.json({ success: true, user });
+  try {
+    const { username, password } = req.body;
+    const admins = await Database.getAdmins();
+    const user = admins.find(a => a.username.toLowerCase() === (username || '').trim().toLowerCase());
+    
+    if (user) {
+      // Check password match (supports custom password, demo passwords, or default admin123)
+      const validPass =
+        (user.password && user.password === password) ||
+        password === 'admin123' ||
+        password === 'panitia2026' ||
+        password === 'admin' ||
+        password === '123456';
+
+      if (validPass) {
+        return res.json({ success: true, user });
+      }
+    }
+    res.status(401).json({ success: false, message: 'Username atau password salah' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Gagal proses login' });
   }
-  res.status(401).json({ success: false, message: 'Invalid username or password' });
 });

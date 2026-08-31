@@ -262,6 +262,35 @@ export const ApiService = {
   },
 
   // Admins & Auth
+  async getAdmins(): Promise<AdminUser[] | null> {
+    return safeJsonFetch<AdminUser[]>(`${API_BASE}/admins`);
+  },
+
+  async createAdmin(admin: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }): Promise<AdminUser | null> {
+    return safeJsonFetch<AdminUser>(`${API_BASE}/admins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(admin),
+    });
+  },
+
+  async updateAdmin(id: string, admin: Partial<AdminUser> & { password?: string }): Promise<AdminUser | null> {
+    return safeJsonFetch<AdminUser>(`${API_BASE}/admins/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(admin),
+    });
+  },
+
+  async deleteAdmin(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/admins/${id}`, { method: 'DELETE' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   async loginAdmin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser }> {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {

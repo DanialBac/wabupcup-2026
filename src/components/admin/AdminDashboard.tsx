@@ -21,6 +21,7 @@ import {
 } from '../../types';
 import { PdfViewerModal } from './PdfViewerModal';
 import { DatabaseManagerTab } from './DatabaseManagerTab';
+import { AdminUsersManagerTab } from './AdminUsersManagerTab';
 import {
   SETUP_GS_CODE,
   CODE_GS_CODE,
@@ -2649,84 +2650,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* TAB 10: KELOLA ADMIN USERS (REQ #6) */}
+          {/* TAB 10: KELOLA ADMIN USERS (FULL CRUD) */}
           {activeTab === 'ADMIN_USERS' && (
-            <div className="space-y-6 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide">
-                    KELOLA ADMIN & OPERATOR SISTEM
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Daftar akun panitia yang memiliki akses ke dashboard CMS WabupCup 2026.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    const u = prompt('Masukkan Username Admin Baru:');
-                    if (u) {
-                      addAdminUser({
-                        username: u.toLowerCase().trim(),
-                        fullName: `Panitia ${u}`,
-                        role: 'PANITIA',
-                        email: `${u}@wabupcup2026.id`,
-                        phone: '081234567890',
-                        avatarColor: 'bg-blue-600',
-                      });
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center space-x-1.5 transition"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Tambah Admin</span>
-                </button>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800">
-                      <th className="py-3.5 px-4">Nama & Username</th>
-                      <th className="py-3.5 px-4">Role Akses</th>
-                      <th className="py-3.5 px-4">Email</th>
-                      <th className="py-3.5 px-4">No. HP</th>
-                      <th className="py-3.5 px-4 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {adminUsers.map(adm => (
-                      <tr key={adm.id} className="hover:bg-slate-800/60">
-                        <td className="py-3.5 px-4">
-                          <span className="font-bold text-white block">{adm.fullName}</span>
-                          <span className="font-mono text-red-400 text-[11px]">@{adm.username}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-950 text-slate-300 font-bold border border-slate-800">
-                            {adm.role}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-400">{adm.email}</td>
-                        <td className="py-3.5 px-4 text-slate-400">{adm.phone}</td>
-                        <td className="py-3.5 px-4 text-center">
-                          {adm.username !== 'superadmin' && (
-                            <button
-                              onClick={() => {
-                                if (confirm(`Hapus admin @${adm.username}?`)) {
-                                  deleteAdminUser(adm.id);
-                                }
-                              }}
-                              className="text-red-400 hover:text-red-300 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <AdminUsersManagerTab />
           )}
 
           {/* TAB: DATABASE MYSQL & HOSTING VERCEL */}

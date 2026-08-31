@@ -135,7 +135,7 @@ export interface SponsorItem {
   description?: string;
 }
 
-export type AdminRole = 'SUPERADMIN' | 'PANITIA' | 'WASIT';
+export type AdminRole = 'SUPERADMIN' | 'PANITIA' | 'WASIT' | 'OPERATOR';
 
 export interface AdminUser {
   id: string;
@@ -146,6 +146,7 @@ export interface AdminUser {
   phone: string;
   createdAt: string;
   avatarColor: string;
+  password?: string;
 }
 
 export interface DownloadableDoc {
