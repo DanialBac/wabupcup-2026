@@ -73,7 +73,7 @@ function resolveSslConfig(urlOrHost?: string, explicitSsl?: boolean): any {
 
   const needsSsl =
     explicitSsl ||
-    isCloudHost ||
+    Boolean(isCloudHost) ||
     process.env.MYSQL_SSL === 'true' ||
     process.env.MYSQL_SSL === '1' ||
     Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('ssl'));
@@ -131,9 +131,10 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
   const user = process.env.MYSQL_USER ? process.env.MYSQL_USER.trim() : undefined;
   const password = process.env.MYSQL_PASSWORD !== undefined ? process.env.MYSQL_PASSWORD : undefined;
   const database = (process.env.MYSQL_DATABASE || 'wabupcup_db').trim();
-  const defaultPort = host && host.includes('tidbcloud.com') ? 4000 : 3306;
+  const isTidb = Boolean((dbUrl && dbUrl.includes('tidbcloud.com')) || (host && host.includes('tidbcloud.com')));
+  const defaultPort = isTidb ? 4000 : 3306;
   const port = parseInt(process.env.MYSQL_PORT || String(defaultPort), 10);
-  const useSsl = process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1' || (host && host.includes('tidbcloud.com'));
+  const useSsl = process.env.MYSQL_SSL === 'true' || process.env.MYSQL_SSL === '1' || isTidb;
 
   if (!dbUrl && !host) {
     console.log('[Database] No MySQL host or DATABASE_URL provided. Operating with in-memory persistence layer.');
@@ -145,7 +146,6 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
     let poolOptions: mysql.PoolOptions;
 
     if (dbUrl) {
-      const isTidb = dbUrl.includes('tidbcloud.com');
       const ssl = resolveSslConfig(dbUrl, useSsl || isTidb);
       try {
         // Parse DATABASE_URL for fine-tuned PoolOptions with guaranteed SSL handling
@@ -159,7 +159,8 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
           password: decodeURIComponent(parsedUrl.password),
           database: urlDbName,
           waitForConnections: true,
-          connectionLimit: 10,
+          connectionLimit: 5,
+          connectTimeout: 8000,
           queueLimit: 0,
           ssl: ssl || (isTidb ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : (parsedUrl.searchParams.has('ssl') ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : undefined)),
         };
@@ -168,13 +169,13 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
         poolOptions = {
           uri: dbUrl,
           waitForConnections: true,
-          connectionLimit: 10,
+          connectionLimit: 5,
+          connectTimeout: 8000,
           queueLimit: 0,
           ssl,
         };
       }
     } else {
-      const isTidb = host ? host.includes('tidbcloud.com') : false;
       const ssl = resolveSslConfig(host, useSsl || isTidb);
       poolOptions = {
         host,
@@ -183,7 +184,8 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
         database,
         port: port || (isTidb ? 4000 : 3306),
         waitForConnections: true,
-        connectionLimit: 10,
+        connectionLimit: 5,
+        connectTimeout: 8000,
         queueLimit: 0,
         ssl: ssl || (isTidb ? { minVersion: 'TLSv1.2', rejectUnauthorized: true } : undefined),
       };
@@ -199,7 +201,7 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
       await connection.ping();
       connection.release();
     } catch (connErr: any) {
-      // If error is Unknown database (ER_BAD_DB_ERROR / 1049), try to create it automatically
+      // If error is Unknown database (ER_BAD_DB_ERROR / 1049), try connecting to default 'test' and creating db
       const isBadDb =
         connErr?.code === 'ER_BAD_DB_ERROR' ||
         connErr?.errno === 1049 ||
@@ -207,17 +209,31 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
 
       if (isBadDb) {
         console.log(`[MySQL] Database "${database}" does not exist yet. Attempting to create automatically...`);
-        const tempOptions = { ...poolOptions, database: undefined };
-        const tempConn = await mysql.createConnection(tempOptions as any);
-        await tempConn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
-        await tempConn.end();
+        try {
+          const tempOptions = { ...poolOptions, database: isTidb ? 'test' : undefined };
+          const tempConn = await mysql.createConnection(tempOptions as any);
+          await tempConn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
+          await tempConn.end();
 
-        // Re-create pool with the now existing database
-        pool = mysql.createPool(poolOptions);
-        const connection = await pool.getConnection();
-        await connection.ping();
-        connection.release();
-        console.log(`[MySQL] Database "${database}" created and connected successfully.`);
+          // Re-create pool with the now existing database
+          pool = mysql.createPool(poolOptions);
+          const connection = await pool.getConnection();
+          await connection.ping();
+          connection.release();
+          console.log(`[MySQL] Database "${database}" created and connected successfully.`);
+        } catch (createErr: any) {
+          console.warn('[MySQL] Auto-create database fallback warning:', createErr?.message);
+          // If CREATE DATABASE failed, connect using 'test' database in TiDB
+          if (isTidb) {
+            const fallbackOptions = { ...poolOptions, database: 'test' };
+            pool = mysql.createPool(fallbackOptions);
+            const connection = await pool.getConnection();
+            await connection.ping();
+            connection.release();
+          } else {
+            throw connErr;
+          }
+        }
       } else {
         throw connErr;
       }
