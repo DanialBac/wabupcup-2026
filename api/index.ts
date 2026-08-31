@@ -9,14 +9,11 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Automatic Database Connection Middleware
-// Ensures TiDB / MySQL is connected before route handlers execute
-app.use(async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    await ensureDbConnected();
-  } catch (err: any) {
-    console.warn('[Vercel Serverless] Auto DB connection note:', err?.message || err);
-  }
+// Non-blocking auto DB connection trigger for serverless cold-starts
+app.use((req: Request, res: Response, next: NextFunction) => {
+  ensureDbConnected().catch((err: any) => {
+    console.warn('[Vercel Serverless Auto-DB]', err?.message || err);
+  });
   next();
 });
 
@@ -41,7 +38,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// Prevent unhandled promise rejections or uncaught exceptions from killing the Vercel function
+// Prevent unhandled promise rejections from terminating the process
 if (typeof process !== 'undefined') {
   process.on('unhandledRejection', (reason: any) => {
     console.warn('[Vercel Serverless Non-Fatal Rejection]', reason?.message || reason);
@@ -51,19 +48,6 @@ if (typeof process !== 'undefined') {
   });
 }
 
-// Export both standard handler function and Express app for Vercel Node.js runtime
-export default function handler(req: any, res: any) {
-  try {
-    return app(req, res);
-  } catch (err: any) {
-    console.error('[Vercel Handler Fatal Error]', err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(
-      JSON.stringify({
-        success: false,
-        error: err?.message || 'Fatal Serverless Handler Error',
-      })
-    );
-  }
-}
+// Export Express app directly for Vercel Node.js Serverless runtime
+export default app;
+
