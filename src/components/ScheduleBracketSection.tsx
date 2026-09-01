@@ -45,117 +45,15 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
     );
   });
 
-  // Group matches by round for bracket representation
+  // Group matches by round for bracket representation strictly from database
   const round16Matches = catMatches.filter(m => m.round.includes('16 Besar'));
   const quarterMatches = catMatches.filter(m => m.round.includes('Perempat') || m.round.includes('8 Besar'));
   const semiMatches = catMatches.filter(m => m.round.includes('Semifinal'));
   const finalMatches = catMatches.filter(m => m.round.includes('Final') && !m.round.includes('Perempat') && !m.round.includes('Semi'));
 
-  // Synthetic bracket generation if empty for a newly switched category
-  const displayQuarters = quarterMatches.length > 0 ? quarterMatches : [
-    {
-      id: 'q1',
-      matchNumber: 1,
-      category: selectedCat,
-      round: 'Perempat Final 1',
-      roundIndex: 3,
-      teamA: { name: `Tim Juara Grup A (${selectedCat})`, score: 3 },
-      teamB: { name: `Runner-up Grup B (${selectedCat})`, score: 1 },
-      date: '2026-10-27',
-      time: '08:30',
-      pitch: 'Lapangan 1',
-      status: 'FINISHED',
-      winnerId: 'A',
-    },
-    {
-      id: 'q2',
-      matchNumber: 2,
-      category: selectedCat,
-      round: 'Perempat Final 2',
-      roundIndex: 3,
-      teamA: { name: `Tim Juara Grup C (${selectedCat})`, score: 2 },
-      teamB: { name: `Runner-up Grup D (${selectedCat})`, score: 0 },
-      date: '2026-10-27',
-      time: '10:00',
-      pitch: 'Lapangan 1',
-      status: 'FINISHED',
-      winnerId: 'A',
-    },
-    {
-      id: 'q3',
-      matchNumber: 3,
-      category: selectedCat,
-      round: 'Perempat Final 3',
-      roundIndex: 3,
-      teamA: { name: `Tim Juara Grup B (${selectedCat})`, score: 1 },
-      teamB: { name: `Runner-up Grup A (${selectedCat})`, score: 2 },
-      date: '2026-10-27',
-      time: '13:30',
-      pitch: 'Lapangan 1',
-      status: 'FINISHED',
-      winnerId: 'B',
-    },
-    {
-      id: 'q4',
-      matchNumber: 4,
-      category: selectedCat,
-      round: 'Perempat Final 4',
-      roundIndex: 3,
-      teamA: { name: `Tim Juara Grup D (${selectedCat})`, score: 4 },
-      teamB: { name: `Runner-up Grup C (${selectedCat})`, score: 3 },
-      date: '2026-10-27',
-      time: '15:00',
-      pitch: 'Lapangan 1',
-      status: 'FINISHED',
-      winnerId: 'A',
-    },
-  ];
-
-  const displaySemis = semiMatches.length > 0 ? semiMatches : [
-    {
-      id: 's1',
-      matchNumber: 5,
-      category: selectedCat,
-      round: 'Semifinal 1',
-      roundIndex: 4,
-      teamA: { name: `Pemenang QF 1`, score: 3 },
-      teamB: { name: `Pemenang QF 2`, score: 2 },
-      date: '2026-10-29',
-      time: '16:00',
-      pitch: 'Lapangan Utama',
-      status: 'LIVE',
-      liveMinute: "38'",
-    },
-    {
-      id: 's2',
-      matchNumber: 6,
-      category: selectedCat,
-      round: 'Semifinal 2',
-      roundIndex: 4,
-      teamA: { name: `Pemenang QF 3`, score: undefined },
-      teamB: { name: `Pemenang QF 4`, score: undefined },
-      date: '2026-10-29',
-      time: '19:30',
-      pitch: 'Lapangan Utama',
-      status: 'UPCOMING' as const,
-    },
-  ];
-
-  const displayFinals = finalMatches.length > 0 ? finalMatches : [
-    {
-      id: 'f1',
-      matchNumber: 7,
-      category: selectedCat,
-      round: 'GRAND FINAL WABUP CUP 2026',
-      roundIndex: 5,
-      teamA: { name: `Finalis Semifinal 1`, score: undefined },
-      teamB: { name: `Finalis Semifinal 2`, score: undefined },
-      date: '2026-11-01',
-      time: '19:00',
-      pitch: 'Stadion Utama Gelora Wijaya',
-      status: 'UPCOMING' as const,
-    },
-  ];
+  const displayQuarters = quarterMatches;
+  const displaySemis = semiMatches;
+  const displayFinals = finalMatches;
 
   const currentCatDetail = categories.find(c => c.id === selectedCat);
 
@@ -177,7 +75,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
               BAGAN BRACKET & DAFTAR TIM
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Bagan gugur otomatis diperbarui secara real-time dari hasil pertandingan dan data tim terverifikasi.
+              Bagan gugur otomatis diperbarui secara real-time dari database hasil pertandingan resmi.
             </p>
           </div>
 
@@ -204,7 +102,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" />
-                <span>Tabel Jadwal</span>
+                <span>Tabel Jadwal ({catMatches.length})</span>
               </button>
               <button
                 onClick={() => setViewMode('TEAMS')}
@@ -243,6 +141,29 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
 
         {/* VIEW 1: INTERACTIVE TOURNAMENT BRACKET */}
         {viewMode === 'BRACKET' && (
+          catMatches.length === 0 ? (
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-10 sm:p-14 text-center shadow-2xl text-white space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-red-950/60 border border-red-800/60 text-red-400 flex items-center justify-center mx-auto text-2xl shadow-lg">
+                <Layers className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-heading font-bold uppercase tracking-wider text-white">
+                Bagan Pertandingan Kategori {selectedCat} Belum Dirilis
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+                Jadwal dan bagan pertandingan resmi untuk kategori <strong className="text-white">{selectedCat}</strong> akan ditampilkan secara otomatis setelah panitia melakukan proses undian (Drawing) di sistem CMS.
+              </p>
+              {onOpenRegister && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => onOpenRegister(selectedCat)}
+                    className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-950/50 transition cursor-pointer"
+                  >
+                    Daftarkan Tim {selectedCat} Sekarang
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 lg:p-8 overflow-x-auto shadow-2xl text-white">
             <div className={`min-w-[${round16Matches.length > 0 ? '1200px' : '900px'}]`}>
               
@@ -250,17 +171,17 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
               <div className={`grid ${round16Matches.length > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-6 mb-6 text-center`}>
                 {round16Matches.length > 0 && (
                   <div className="py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    ⚡ Babak 16 Besar (Penyisihan)
+                    ⚡ Babak 16 Besar ({round16Matches.length} Match)
                   </div>
                 )}
                 <div className="py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  🏟️ Perempat Final (8 Besar)
+                  🏟️ Perempat Final ({displayQuarters.length} Match)
                 </div>
                 <div className="py-2 rounded-xl bg-blue-950/80 border border-blue-800/80 text-xs font-bold text-blue-300 uppercase tracking-wider">
-                  🔥 Semifinal
+                  🔥 Semifinal ({displaySemis.length} Match)
                 </div>
                 <div className="py-2 rounded-xl bg-red-950/80 border border-red-800/80 text-xs font-bold text-red-300 uppercase tracking-wider">
-                  🏆 Grand Final & Juara
+                  🏆 Grand Final ({displayFinals.length} Match)
                 </div>
               </div>
 
@@ -335,225 +256,243 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                   </div>
                 )}
 
-                {/* COLUMN 1: QUARTER FINALS (4 MATCHES) */}
+                {/* COLUMN 1: QUARTER FINALS */}
                 <div className={round16Matches.length > 0 ? 'space-y-10' : 'space-y-6'}>
-                  {displayQuarters.slice(0, 4).map((qf, i) => {
-                    const isFinished = qf.status === 'FINISHED';
-                    const isLive = qf.status === 'LIVE';
-                    const winA = isFinished && qf.winnerId === 'A';
-                    const winB = isFinished && qf.winnerId === 'B';
+                  {displayQuarters.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-center text-xs text-slate-500">
+                      Belum ada match perempat final
+                    </div>
+                  ) : (
+                    displayQuarters.slice(0, 4).map((qf, i) => {
+                      const isFinished = qf.status === 'FINISHED';
+                      const isLive = qf.status === 'LIVE';
+                      const winA = isFinished && qf.winnerId === 'A';
+                      const winB = isFinished && qf.winnerId === 'B';
 
-                    return (
-                      <div
-                        key={qf.id || i}
-                        className={`bg-slate-900/90 border rounded-xl p-3 shadow-md transition ${
-                          isLive ? 'border-red-500 shadow-red-950/50' : 'border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 pb-1.5 border-b border-slate-800 mb-2">
-                          <span className="font-semibold">{qf.round || `Perempat Final ${i + 1}`}</span>
-                          {isLive ? (
-                            <span className="text-red-400 font-bold animate-pulse">🔴 LIVE</span>
-                          ) : isFinished ? (
-                            <span className="text-emerald-400 font-bold">FT</span>
-                          ) : (
-                            <span>{qf.time || '09:00'} WIB</span>
-                          )}
-                        </div>
-
-                        {/* Team A */}
-                        <div className={`flex items-center justify-between py-1 px-2 rounded-lg mb-1 ${winA ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
-                          <div className="flex items-center space-x-1.5 min-w-0 pr-1">
-                            {qf.teamA.logo ? (
-                              <img src={qf.teamA.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                      return (
+                        <div
+                          key={qf.id || i}
+                          className={`bg-slate-900/90 border rounded-xl p-3 shadow-md transition ${
+                            isLive ? 'border-red-500 shadow-red-950/50' : 'border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 pb-1.5 border-b border-slate-800 mb-2">
+                            <span className="font-semibold">{qf.round || `Perempat Final ${i + 1}`}</span>
+                            {isLive ? (
+                              <span className="text-red-400 font-bold animate-pulse">🔴 LIVE</span>
+                            ) : isFinished ? (
+                              <span className="text-emerald-400 font-bold">FT</span>
                             ) : (
-                              <span className="text-[10px]">🛡️</span>
-                            )}
-                            <span className="text-xs truncate max-w-[150px]">{qf.teamA.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 shrink-0">
-                            <span className="text-xs font-bold font-mono">{qf.teamA.score ?? '-'}</span>
-                            {qf.teamA.penalties !== undefined && (
-                              <span className="text-[9px] text-amber-400 font-mono">({qf.teamA.penalties})</span>
+                              <span>{qf.time || '09:00'} WIB</span>
                             )}
                           </div>
-                        </div>
 
-                        {/* Team B */}
-                        <div className={`flex items-center justify-between py-1 px-2 rounded-lg ${winB ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
-                          <div className="flex items-center space-x-1.5 min-w-0 pr-1">
-                            {qf.teamB.logo ? (
-                              <img src={qf.teamB.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
-                            ) : (
-                              <span className="text-[10px]">⚽</span>
-                            )}
-                            <span className="text-xs truncate max-w-[150px]">{qf.teamB.name}</span>
+                          {/* Team A */}
+                          <div className={`flex items-center justify-between py-1 px-2 rounded-lg mb-1 ${winA ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
+                            <div className="flex items-center space-x-1.5 min-w-0 pr-1">
+                              {qf.teamA.logo ? (
+                                <img src={qf.teamA.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                              ) : (
+                                <span className="text-[10px]">🛡️</span>
+                              )}
+                              <span className="text-xs truncate max-w-[150px]">{qf.teamA.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <span className="text-xs font-bold font-mono">{qf.teamA.score ?? '-'}</span>
+                              {qf.teamA.penalties !== undefined && (
+                                <span className="text-[9px] text-amber-400 font-mono">({qf.teamA.penalties})</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-1 shrink-0">
-                            <span className="text-xs font-bold font-mono">{qf.teamB.score ?? '-'}</span>
-                            {qf.teamB.penalties !== undefined && (
-                              <span className="text-[9px] text-amber-400 font-mono">({qf.teamB.penalties})</span>
-                            )}
+
+                          {/* Team B */}
+                          <div className={`flex items-center justify-between py-1 px-2 rounded-lg ${winB ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
+                            <div className="flex items-center space-x-1.5 min-w-0 pr-1">
+                              {qf.teamB.logo ? (
+                                <img src={qf.teamB.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                              ) : (
+                                <span className="text-[10px]">⚽</span>
+                              )}
+                              <span className="text-xs truncate max-w-[150px]">{qf.teamB.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <span className="text-xs font-bold font-mono">{qf.teamB.score ?? '-'}</span>
+                              {qf.teamB.penalties !== undefined && (
+                                <span className="text-[9px] text-amber-400 font-mono">({qf.teamB.penalties})</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
 
-                {/* COLUMN 2: SEMIFINALS (2 MATCHES) */}
+                {/* COLUMN 2: SEMIFINALS */}
                 <div className={round16Matches.length > 0 ? 'space-y-24' : 'space-y-16'}>
-                  {displaySemis.slice(0, 2).map((sf, i) => {
-                    const isLive = sf.status === 'LIVE';
-                    const isFinished = sf.status === 'FINISHED';
-                    const winA = isFinished && sf.winnerId === 'A';
-                    const winB = isFinished && sf.winnerId === 'B';
+                  {displaySemis.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-center text-xs text-slate-500">
+                      Belum ada match semifinal
+                    </div>
+                  ) : (
+                    displaySemis.slice(0, 2).map((sf, i) => {
+                      const isLive = sf.status === 'LIVE';
+                      const isFinished = sf.status === 'FINISHED';
+                      const winA = isFinished && sf.winnerId === 'A';
+                      const winB = isFinished && sf.winnerId === 'B';
 
-                    return (
-                      <div
-                        key={sf.id || i}
-                        className={`rounded-xl p-4 shadow-xl transition ${
-                          isLive
-                            ? 'bg-gradient-to-br from-slate-900 to-red-950 border-2 border-red-500'
-                            : 'bg-slate-900/90 border border-slate-800'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800 mb-2.5">
-                          <span className="font-bold text-blue-400">{sf.round}</span>
-                          {isLive ? (
-                            <span className="text-red-400 font-bold animate-pulse">🔴 LIVE {sf.liveMinute}</span>
-                          ) : isFinished ? (
-                            <span className="text-emerald-400 font-bold">FT (Selesai)</span>
-                          ) : (
-                            <span>{sf.date}</span>
-                          )}
-                        </div>
-
-                        {/* Team A */}
-                        <div className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg mb-1.5 ${winA ? 'bg-emerald-950/80 border border-emerald-500/50 text-white font-bold' : 'bg-slate-950/80 text-slate-200'}`}>
-                          <div className="flex items-center space-x-2 min-w-0 pr-1">
-                            {sf.teamA.logo ? (
-                              <img src={sf.teamA.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                      return (
+                        <div
+                          key={sf.id || i}
+                          className={`rounded-xl p-4 shadow-xl transition ${
+                            isLive
+                              ? 'bg-gradient-to-br from-slate-900 to-red-950 border-2 border-red-500'
+                              : 'bg-slate-900/90 border border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2 border-b border-slate-800 mb-2.5">
+                            <span className="font-bold text-blue-400">{sf.round}</span>
+                            {isLive ? (
+                              <span className="text-red-400 font-bold animate-pulse">🔴 LIVE {sf.liveMinute}</span>
+                            ) : isFinished ? (
+                              <span className="text-emerald-400 font-bold">FT (Selesai)</span>
                             ) : (
-                              <span>🛡️</span>
-                            )}
-                            <span className="text-xs font-bold truncate max-w-[150px]">
-                              {sf.teamA.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-1.5 shrink-0">
-                            <span className="text-sm font-bold font-mono text-red-400">
-                              {sf.teamA.score ?? '-'}
-                            </span>
-                            {sf.teamA.penalties !== undefined && (
-                              <span className="text-[10px] text-amber-400 font-mono">({sf.teamA.penalties})</span>
+                              <span>{sf.date}</span>
                             )}
                           </div>
-                        </div>
 
-                        {/* Team B */}
-                        <div className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg ${winB ? 'bg-emerald-950/80 border border-emerald-500/50 text-white font-bold' : 'bg-slate-950/80 text-slate-200'}`}>
-                          <div className="flex items-center space-x-2 min-w-0 pr-1">
-                            {sf.teamB.logo ? (
-                              <img src={sf.teamB.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
-                            ) : (
-                              <span>⚽</span>
-                            )}
-                            <span className="text-xs font-bold truncate max-w-[150px]">
-                              {sf.teamB.name}
-                            </span>
+                          {/* Team A */}
+                          <div className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg mb-1.5 ${winA ? 'bg-emerald-950/80 border border-emerald-500/50 text-white font-bold' : 'bg-slate-950/80 text-slate-200'}`}>
+                            <div className="flex items-center space-x-2 min-w-0 pr-1">
+                              {sf.teamA.logo ? (
+                                <img src={sf.teamA.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                              ) : (
+                                <span>🛡️</span>
+                              )}
+                              <span className="text-xs font-bold truncate max-w-[150px]">
+                                {sf.teamA.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              <span className="text-sm font-bold font-mono text-red-400">
+                                {sf.teamA.score ?? '-'}
+                              </span>
+                              {sf.teamA.penalties !== undefined && (
+                                <span className="text-[10px] text-amber-400 font-mono">({sf.teamA.penalties})</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-1.5 shrink-0">
-                            <span className="text-sm font-bold font-mono text-blue-400">
-                              {sf.teamB.score ?? '-'}
-                            </span>
-                            {sf.teamB.penalties !== undefined && (
-                              <span className="text-[10px] text-amber-400 font-mono">({sf.teamB.penalties})</span>
-                            )}
+
+                          {/* Team B */}
+                          <div className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg ${winB ? 'bg-emerald-950/80 border border-emerald-500/50 text-white font-bold' : 'bg-slate-950/80 text-slate-200'}`}>
+                            <div className="flex items-center space-x-2 min-w-0 pr-1">
+                              {sf.teamB.logo ? (
+                                <img src={sf.teamB.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                              ) : (
+                                <span>⚽</span>
+                              )}
+                              <span className="text-xs font-bold truncate max-w-[150px]">
+                                {sf.teamB.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              <span className="text-sm font-bold font-mono text-blue-400">
+                                {sf.teamB.score ?? '-'}
+                              </span>
+                              {sf.teamB.penalties !== undefined && (
+                                <span className="text-[10px] text-amber-400 font-mono">({sf.teamB.penalties})</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
 
                 {/* COLUMN 3: GRAND FINAL */}
                 <div className="space-y-6">
-                  {displayFinals.slice(0, 1).map((fn, i) => {
-                    const isFinished = fn.status === 'FINISHED';
-                    const winA = isFinished && fn.winnerId === 'A';
-                    const winB = isFinished && fn.winnerId === 'B';
+                  {displayFinals.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-center text-xs text-slate-500">
+                      Belum ada match final
+                    </div>
+                  ) : (
+                    displayFinals.slice(0, 1).map((fn, i) => {
+                      const isFinished = fn.status === 'FINISHED';
+                      const winA = isFinished && fn.winnerId === 'A';
+                      const winB = isFinished && fn.winnerId === 'B';
 
-                    return (
-                      <div
-                        key={fn.id || i}
-                        className="bg-gradient-to-b from-slate-900 via-red-950/50 to-slate-900 border-2 border-red-500/80 rounded-2xl p-5 shadow-2xl text-center relative overflow-hidden"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-600 mx-auto flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30 mb-3 animate-bounce">
-                          🏆
-                        </div>
+                      return (
+                        <div
+                          key={fn.id || i}
+                          className="bg-gradient-to-b from-slate-900 via-red-950/50 to-slate-900 border-2 border-red-500/80 rounded-2xl p-5 shadow-2xl text-center relative overflow-hidden"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-600 mx-auto flex items-center justify-center text-2xl shadow-lg shadow-amber-500/30 mb-3 animate-bounce">
+                            🏆
+                          </div>
 
-                        <span className="text-xs font-extrabold uppercase tracking-widest text-amber-400 block mb-1">
-                          PARTAI PUNCAK FINAL
-                        </span>
-                        <h4 className="text-base font-bold text-white mb-4">
-                          Kategori {selectedCat} 2026
-                        </h4>
+                          <span className="text-xs font-extrabold uppercase tracking-widest text-amber-400 block mb-1">
+                            PARTAI PUNCAK FINAL
+                          </span>
+                          <h4 className="text-base font-bold text-white mb-4">
+                            Kategori {selectedCat} 2026
+                          </h4>
 
-                        <div className="space-y-2 text-left mb-4">
-                          {/* Final Team A */}
-                          <div className={`flex items-center justify-between p-2.5 rounded-xl border ${winA ? 'bg-amber-950/80 border-amber-400 text-amber-200 font-bold' : 'bg-slate-950/90 border-slate-800'}`}>
-                            <div className="flex items-center space-x-2 min-w-0 pr-1">
-                              {fn.teamA.logo ? (
-                                <img src={fn.teamA.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
-                              ) : (
-                                <span>🛡️</span>
-                              )}
-                              <span className="text-xs font-bold truncate max-w-[140px]">{fn.teamA.name}</span>
+                          <div className="space-y-2 text-left mb-4">
+                            {/* Final Team A */}
+                            <div className={`flex items-center justify-between p-2.5 rounded-xl border ${winA ? 'bg-amber-950/80 border-amber-400 text-amber-200 font-bold' : 'bg-slate-950/90 border-slate-800'}`}>
+                              <div className="flex items-center space-x-2 min-w-0 pr-1">
+                                {fn.teamA.logo ? (
+                                  <img src={fn.teamA.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                                ) : (
+                                  <span>🛡️</span>
+                                )}
+                                <span className="text-xs font-bold truncate max-w-[140px]">{fn.teamA.name}</span>
+                              </div>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                <span className="text-sm font-bold text-amber-400">{fn.teamA.score ?? '-'}</span>
+                                {fn.teamA.penalties !== undefined && (
+                                  <span className="text-[10px] text-amber-300 font-mono">({fn.teamA.penalties})</span>
+                                )}
+                                {winA && <span className="text-xs">👑 Juara 1</span>}
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-1.5 shrink-0">
-                              <span className="text-sm font-bold text-amber-400">{fn.teamA.score ?? '-'}</span>
-                              {fn.teamA.penalties !== undefined && (
-                                <span className="text-[10px] text-amber-300 font-mono">({fn.teamA.penalties})</span>
-                              )}
-                              {winA && <span className="text-xs">👑 Juara 1</span>}
+
+                            {/* Final Team B */}
+                            <div className={`flex items-center justify-between p-2.5 rounded-xl border ${winB ? 'bg-amber-950/80 border-amber-400 text-amber-200 font-bold' : 'bg-slate-950/90 border-slate-800'}`}>
+                              <div className="flex items-center space-x-2 min-w-0 pr-1">
+                                {fn.teamB.logo ? (
+                                  <img src={fn.teamB.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                                ) : (
+                                  <span>⚽</span>
+                                )}
+                                <span className="text-xs font-bold truncate max-w-[140px]">{fn.teamB.name}</span>
+                              </div>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                <span className="text-sm font-bold text-amber-400">{fn.teamB.score ?? '-'}</span>
+                                {fn.teamB.penalties !== undefined && (
+                                  <span className="text-[10px] text-amber-300 font-mono">({fn.teamB.penalties})</span>
+                                )}
+                                {winB && <span className="text-xs">👑 Juara 1</span>}
+                              </div>
                             </div>
                           </div>
 
-                          {/* Final Team B */}
-                          <div className={`flex items-center justify-between p-2.5 rounded-xl border ${winB ? 'bg-amber-950/80 border-amber-400 text-amber-200 font-bold' : 'bg-slate-950/90 border-slate-800'}`}>
-                            <div className="flex items-center space-x-2 min-w-0 pr-1">
-                              {fn.teamB.logo ? (
-                                <img src={fn.teamB.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
-                              ) : (
-                                <span>⚽</span>
-                              )}
-                              <span className="text-xs font-bold truncate max-w-[140px]">{fn.teamB.name}</span>
-                            </div>
-                            <div className="flex items-center space-x-1.5 shrink-0">
-                              <span className="text-sm font-bold text-amber-400">{fn.teamB.score ?? '-'}</span>
-                              {fn.teamB.penalties !== undefined && (
-                                <span className="text-[10px] text-amber-300 font-mono">({fn.teamB.penalties})</span>
-                              )}
-                              {winB && <span className="text-xs">👑 Juara 1</span>}
-                            </div>
+                          <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-center space-x-1">
+                            <MapPin className="w-3.5 h-3.5 text-red-500" />
+                            <span>{fn.pitch || 'Stadion Utama Gelora Wijaya'}</span>
                           </div>
                         </div>
-
-                        <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-center space-x-1">
-                          <MapPin className="w-3.5 h-3.5 text-red-500" />
-                          <span>{fn.pitch || 'Stadion Utama Gelora Wijaya'}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
 
               </div>
 
             </div>
           </div>
-        )}
+        ))}
 
         {/* VIEW 2: FULL SCHEDULE TABLE */}
         {viewMode === 'TABLE' && (

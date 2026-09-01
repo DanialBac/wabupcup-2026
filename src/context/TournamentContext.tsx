@@ -206,12 +206,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         localStorage.setItem('wabupcup_categories', JSON.stringify(serverCategories));
       }
 
-      if (serverRegistrations && Array.isArray(serverRegistrations) && serverRegistrations.length > 0) {
+      if (serverRegistrations && Array.isArray(serverRegistrations)) {
         setRegistrations(serverRegistrations);
         localStorage.setItem('wabupcup_registrations', JSON.stringify(serverRegistrations));
       }
 
-      if (serverMatches && Array.isArray(serverMatches) && serverMatches.length > 0) {
+      if (serverMatches && Array.isArray(serverMatches)) {
         setMatches(serverMatches);
         localStorage.setItem('wabupcup_matches', JSON.stringify(serverMatches));
       }
@@ -1291,41 +1291,39 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const loginAdmin = async (username: string, pass: string): Promise<{ success: boolean; message?: string; admin?: AdminUser }> => {
-    // 1. Authenticate with real database / server backend
+    const cleanUser = username.trim();
+    if (!cleanUser || !pass) {
+      return { success: false, message: 'Username dan kata sandi wajib diisi.' };
+    }
+
+    // 1. Authenticate with real database backend
     try {
-      const res = await ApiService.loginAdmin(username.trim(), pass);
+      const res = await ApiService.loginAdmin(cleanUser, pass);
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
         localStorage.setItem('wabupcup_current_admin', JSON.stringify(res.user));
         return { success: true, admin: res.user };
       }
-    } catch (err) {
-      console.warn('Backend login check error, attempting local credentials match:', err);
+      if (res && res.message) {
+        return { success: false, message: res.message };
+      }
+    } catch (err: any) {
+      console.warn('Backend login check error, checking database accounts:', err);
     }
 
-    // 2. Fallback to local admin user list with password matching
+    // 2. Exact credential check against stored database admin accounts
     const found = adminUsers.find(
-      u => u.username.toLowerCase() === username.trim().toLowerCase()
+      u => u.username.toLowerCase() === cleanUser.toLowerCase()
     );
     if (found) {
-      const match =
-        (found.password && found.password === pass) ||
-        (!found.password && (
-          (found.username === 'superadmin' && pass === 'admin123') ||
-          (found.username === 'panitia' && pass === 'panitia2026') ||
-          (found.username === 'wasit_utama' && pass === 'wasit123') ||
-          (found.role === 'WASIT' && pass === 'wasit123') ||
-          (found.role === 'OPERATOR' && pass === 'operator123')
-        ));
-
-      if (match) {
+      if (found.password && found.password === pass) {
         setCurrentAdmin(found);
         localStorage.setItem('wabupcup_current_admin', JSON.stringify(found));
         return { success: true, admin: found };
       }
-      return { success: false, message: 'Kata sandi (password) tidak sesuai dengan database akun.' };
+      return { success: false, message: 'Password salah! Kata sandi tidak sesuai dengan database akun.' };
     }
-    return { success: false, message: 'Username tidak ditemukan dalam database akun.' };
+    return { success: false, message: 'Username tidak ditemukan dalam database akun resmi!' };
   };
 
   const logoutAdmin = () => {

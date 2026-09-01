@@ -583,7 +583,7 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM registrations ORDER BY created_at DESC');
-        if (rows.length > 0) {
+        if (Array.isArray(rows)) {
           return rows.map((r: any) => ({
             id: r.id,
             regCode: r.reg_code,
@@ -659,7 +659,7 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC');
-        if (rows.length > 0) {
+        if (Array.isArray(rows)) {
           return rows.map((r: any) => ({
             id: r.id,
             matchNumber: r.match_number,

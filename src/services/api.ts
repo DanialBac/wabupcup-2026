@@ -291,7 +291,7 @@ export const ApiService = {
     }
   },
 
-  async loginAdmin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser }> {
+  async loginAdmin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser; message?: string }> {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -302,10 +302,10 @@ export const ApiService = {
       try {
         return JSON.parse(text);
       } catch {
-        return { success: false };
+        return { success: false, message: 'Invalid response from server' };
       }
-    } catch {
-      return { success: false };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Network error during login' };
     }
   },
 };

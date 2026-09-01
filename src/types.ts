@@ -14,11 +14,13 @@ export interface UploadedDoc {
 }
 
 export interface RegistrationDocuments {
-  suratKeterangan?: UploadedDoc; // Sekolah / Instansi / Desa
+  suratKeterangan?: UploadedDoc; // Sekolah / Instansi / Desa / Rekomendasi
   suratPernyataan?: UploadedDoc; // Bermaterai
-  formulirPemain?: UploadedDoc; // Daftar Pemain
+  formulirPemain?: UploadedDoc; // Daftar Pemain & Official
   aktaKelahiran?: UploadedDoc; // Max 2014 (Khusus SD)
   raportKartuPelajar?: UploadedDoc; // Raport / Kartu Pelajar
+  ktpGabungan?: UploadedDoc; // File KTP Pemain & Official digabung 1 PDF (Khusus Desa/Kelurahan & Umum)
+  bpjsKetenagakerjaan?: UploadedDoc; // File BPJS Ketenagakerjaan digabung 1 PDF (Khusus Instansi)
   buktiPembayaran?: UploadedDoc; // Bukti Transfer
   logoTim?: UploadedDoc; // Logo Tim / Klub
 }

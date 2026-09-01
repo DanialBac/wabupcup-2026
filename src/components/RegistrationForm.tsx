@@ -42,8 +42,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   // Helper to calculate real-time registered count for a category
   const getCategoryCount = (catId: TournamentCategory) => {
     const activeRegs = registrations.filter(r => r.category === catId && r.status !== 'REJECTED');
-    const catObj = categories.find(c => c.id === catId);
-    return Math.max(activeRegs.length, catObj?.registeredTeamsCount || 0);
+    return activeRegs.length;
   };
 
   // Helper to determine if a category's quota is full
@@ -104,7 +103,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const currentCatDetail = categories.find(c => c.id === category);
 
-  // File validator for max 1MB (1024KB) PDF
+  // File validator for max 1MB (1024KB) PDF with Base64 encoding
   const handleFileUpload = (
     docKey: keyof RegistrationDocuments,
     file: File | null
@@ -142,18 +141,24 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       : (file.size / 1024).toFixed(0) + ' KB';
     const now = new Date().toISOString().split('T')[0];
 
-    const uploadedDoc: UploadedDoc = {
-      name: file.name,
-      size: sizeStr,
-      uploadDate: now,
-      type: 'application/pdf',
-      previewUrl: URL.createObjectURL(file),
-    };
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64Data = reader.result as string;
+      const uploadedDoc: UploadedDoc = {
+        name: file.name,
+        size: sizeStr,
+        uploadDate: now,
+        type: 'application/pdf',
+        previewUrl: base64Data,
+        fileData: base64Data,
+      };
 
-    setDocs(prev => ({
-      ...prev,
-      [docKey]: uploadedDoc,
-    }));
+      setDocs(prev => ({
+        ...prev,
+        [docKey]: uploadedDoc,
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   // Logo uploader (PNG, JPG, SVG, WebP)
@@ -196,6 +201,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     const isSchool = category === 'SD' || category === 'SMP' || category === 'SMA';
     const isInstansi = category === 'INSTANSI';
     const isDesa = category === 'DESA';
+    const isUmum = category === 'UMUM';
 
     if (!docs.suratPernyataan) {
       alert('Mohon lampirkan Surat Pernyataan Bermaterai (PDF)!');
@@ -214,6 +220,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
     if (category === 'SD' && !docs.aktaKelahiran) {
       alert('Khusus Kategori SD, wajib melampirkan file gabungan Akta Kelahiran (Kelahiran Maksimal 2014)!');
+      setIsSubmitting(false);
+      return;
+    }
+    if ((isDesa || isUmum) && !docs.ktpGabungan) {
+      alert(`Khusus Kategori ${category === 'DESA' ? 'Desa / Kelurahan' : 'Umum'}, wajib melampirkan File KTP Pemain & Official yang digabung menjadi 1 PDF!`);
+      setIsSubmitting(false);
+      return;
+    }
+    if (isInstansi && !docs.bpjsKetenagakerjaan) {
+      alert('Khusus Kategori Instansi / OPD / BUMN, wajib melampirkan File BPJS Ketenagakerjaan yang digabung menjadi 1 PDF!');
       setIsSubmitting(false);
       return;
     }
@@ -825,6 +841,63 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                         <CheckCircle2 className="w-3 h-3" />
                         <span>{docs.raportKartuPelajar.name} ({docs.raportKartuPelajar.size})</span>
                       </p>
+                    )}
+                    {uploadErrors.raportKartuPelajar && (
+                      <p className="text-[11px] text-red-500 font-medium mt-1">{uploadErrors.raportKartuPelajar}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* 6. KTP PEMAIN & OFFICIAL DIGABUNG 1 PDF (KHUSUS DESA/KELURAHAN & UMUM) */}
+                {(category === 'DESA' || category === 'UMUM') && (
+                  <div className="p-4 rounded-xl bg-amber-50/60 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800">
+                    <label className="block text-xs font-bold text-amber-950 dark:text-amber-300 mb-1">
+                      File KTP Pemain & Official Digabung 1 PDF <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-400 mb-2">
+                      Scan / foto KTP seluruh pemain dan official disatukan ke dalam 1 file PDF (Maks. 1MB).
+                    </p>
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={e => handleFileUpload('ktpGabungan', e.target.files?.[0] || null)}
+                      className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-red-600 file:text-white file:text-xs file:font-semibold hover:file:bg-red-700 cursor-pointer"
+                    />
+                    {docs.ktpGabungan && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center space-x-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>{docs.ktpGabungan.name} ({docs.ktpGabungan.size})</span>
+                      </p>
+                    )}
+                    {uploadErrors.ktpGabungan && (
+                      <p className="text-[11px] text-red-500 font-medium mt-1">{uploadErrors.ktpGabungan}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* 7. BPJS KETENAGAKERJAAN DIGABUNG 1 PDF (KHUSUS INSTANSI) */}
+                {category === 'INSTANSI' && (
+                  <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800">
+                    <label className="block text-xs font-bold text-emerald-950 dark:text-emerald-300 mb-1">
+                      File BPJS Ketenagakerjaan Digabung 1 PDF <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-400 mb-2">
+                      Scan kartu / bukti kepesertaan BPJS Ketenagakerjaan seluruh pemain digabung 1 file PDF (Maks. 1MB).
+                    </p>
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={e => handleFileUpload('bpjsKetenagakerjaan', e.target.files?.[0] || null)}
+                      className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-red-600 file:text-white file:text-xs file:font-semibold hover:file:bg-red-700 cursor-pointer"
+                    />
+                    {docs.bpjsKetenagakerjaan && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center space-x-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>{docs.bpjsKetenagakerjaan.name} ({docs.bpjsKetenagakerjaan.size})</span>
+                      </p>
+                    )}
+                    {uploadErrors.bpjsKetenagakerjaan && (
+                      <p className="text-[11px] text-red-500 font-medium mt-1">{uploadErrors.bpjsKetenagakerjaan}</p>
                     )}
                   </div>
                 )}

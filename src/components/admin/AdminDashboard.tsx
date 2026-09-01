@@ -23,6 +23,10 @@ import { PdfViewerModal } from './PdfViewerModal';
 import { DatabaseManagerTab } from './DatabaseManagerTab';
 import { AdminUsersManagerTab } from './AdminUsersManagerTab';
 import {
+  exportRegistrationsToExcel,
+  exportRegistrationsToPdf,
+} from '../../utils/exportUtils';
+import {
   SETUP_GS_CODE,
   CODE_GS_CODE,
   INDEX_HTML_STANDALONE_TEMPLATE,
@@ -137,8 +141,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   } = useTournament();
 
   // Login credentials state
-  const [username, setUsername] = useState('superadmin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -1107,12 +1111,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     try {
       const res = await loginAdmin(username, password);
       if (!res.success) {
-        setLoginError(res.message || 'Username atau password salah! Periksa kembali akun Anda.');
+        const errorMsg = res.message || 'Username atau password salah! Periksa kembali akun Anda.';
+        setLoginError(errorMsg);
+        alert(errorMsg);
       } else if (res.admin && (res.admin.role === 'WASIT' || res.admin.role === 'OPERATOR')) {
         setActiveTab('SCHEDULE_LIVESCORE');
       }
     } catch (err: any) {
-      setLoginError(err.message || 'Gagal login. Periksa koneksi jaringan.');
+      const errorMsg = err.message || 'Gagal login. Periksa koneksi jaringan atau database.';
+      setLoginError(errorMsg);
+      alert(errorMsg);
     } finally {
       setIsLoggingIn(false);
     }
@@ -1870,6 +1878,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     <option value="UMUM">Umum</option>
                     <option value="DESA">Desa</option>
                   </select>
+
+                  {/* TOMBOL UNDUH EXCEL & PDF RESMI */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const baseList =
+                          activeTab === 'ALL_REGISTRATIONS'
+                            ? registrations
+                            : activeTab === 'PENDING_PAYMENT'
+                            ? pendingList
+                            : activeTab === 'APPROVED_TEAMS'
+                            ? approvedList
+                            : rejectedList;
+                        const toExport = filterList(baseList);
+                        if (toExport.length === 0) {
+                          alert('Tidak ada data pendaftaran untuk diunduh.');
+                          return;
+                        }
+                        exportRegistrationsToExcel(toExport, config.name, categoryFilter);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1.5 shadow-md shadow-emerald-950/40 transition cursor-pointer"
+                      title="Download Rekap Data Pendaftar Format Excel (.xlsx)"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Unduh Excel</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const baseList =
+                          activeTab === 'ALL_REGISTRATIONS'
+                            ? registrations
+                            : activeTab === 'PENDING_PAYMENT'
+                            ? pendingList
+                            : activeTab === 'APPROVED_TEAMS'
+                            ? approvedList
+                            : rejectedList;
+                        const toExport = filterList(baseList);
+                        if (toExport.length === 0) {
+                          alert('Tidak ada data pendaftaran untuk diunduh.');
+                          return;
+                        }
+                        exportRegistrationsToPdf(toExport, config.name, categoryFilter);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center space-x-1.5 shadow-md shadow-red-950/40 transition cursor-pointer"
+                      title="Download Rekap Data Pendaftar Format Tabel PDF (.pdf)"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Unduh PDF</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2561,7 +2622,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {categories.map(c => {
                   const catRegs = registrations.filter(r => r.category === c.id && r.status !== 'REJECTED');
-                  const count = Math.max(catRegs.length, c.registeredTeamsCount || 0);
+                  const count = catRegs.length;
                   const isFull = count >= c.maxTeams;
                   const remaining = Math.max(0, c.maxTeams - count);
                   const percent = Math.min(100, Math.round((count / c.maxTeams) * 100));

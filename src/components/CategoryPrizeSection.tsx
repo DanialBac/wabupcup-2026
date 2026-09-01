@@ -71,7 +71,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
           {categories.map(cat => {
             const isExpanded = expandedCat === cat.id;
             const activeRegs = registrations.filter(r => r.category === cat.id && r.status !== 'REJECTED');
-            const registeredCount = Math.max(activeRegs.length, cat.registeredTeamsCount || 0);
+            const registeredCount = activeRegs.length;
             const isFull = registeredCount >= cat.maxTeams;
             const remainingSlots = Math.max(0, cat.maxTeams - registeredCount);
             const quotaPercent = Math.min(
