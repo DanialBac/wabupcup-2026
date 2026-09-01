@@ -85,7 +85,7 @@ interface TournamentContextType {
   deleteSponsor: (id: string) => void;
   adminUsers: AdminUser[];
   currentAdmin: AdminUser | null;
-  loginAdmin: (username: string, pass: string) => Promise<{ success: boolean; message?: string }>;
+  loginAdmin: (username: string, pass: string) => Promise<{ success: boolean; message?: string; admin?: AdminUser }>;
   logoutAdmin: () => void;
   addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => void;
   updateAdminUser: (user: AdminUser & { password?: string }) => void;
@@ -1290,14 +1290,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return saved ? JSON.parse(saved) : null;
   });
 
-  const loginAdmin = async (username: string, pass: string): Promise<{ success: boolean; message?: string }> => {
+  const loginAdmin = async (username: string, pass: string): Promise<{ success: boolean; message?: string; admin?: AdminUser }> => {
     // 1. Authenticate with real database / server backend
     try {
       const res = await ApiService.loginAdmin(username.trim(), pass);
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
         localStorage.setItem('wabupcup_current_admin', JSON.stringify(res.user));
-        return { success: true };
+        return { success: true, admin: res.user };
       }
     } catch (err) {
       console.warn('Backend login check error, attempting local credentials match:', err);
@@ -1321,7 +1321,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (match) {
         setCurrentAdmin(found);
         localStorage.setItem('wabupcup_current_admin', JSON.stringify(found));
-        return { success: true };
+        return { success: true, admin: found };
       }
       return { success: false, message: 'Kata sandi (password) tidak sesuai dengan database akun.' };
     }
