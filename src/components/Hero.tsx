@@ -88,7 +88,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
         {/* MAIN HEADLINE */}
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-5xl sm:text-7xl lg:text-8xl font-heading font-extrabold uppercase tracking-tight leading-[0.9] text-white">
-            TURNAMEN BERGENGSI <br />
+            TURNAMEN<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-white to-blue-400">
               WABUP CUP 2026
             </span>
@@ -177,7 +177,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             </div>
             <div>
               <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
-                Rp 175 JT
+                Rp 58 JT
               </span>
               <p className="text-xs text-slate-400 font-medium mt-1">Total Hadiah Tunai</p>
             </div>
@@ -213,7 +213,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             </div>
             <div>
               <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none truncate">
-                3 LAPANGAN
+                LAPANGAN
               </span>
               <p className="text-xs text-slate-400 font-medium mt-1 truncate">{config.venueName}</p>
             </div>

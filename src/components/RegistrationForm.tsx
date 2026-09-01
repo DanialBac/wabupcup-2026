@@ -104,7 +104,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const currentCatDetail = categories.find(c => c.id === category);
 
-  // File validator for max 3MB PDF
+  // File validator for max 1MB (1024KB) PDF
   const handleFileUpload = (
     docKey: keyof RegistrationDocuments,
     file: File | null
@@ -120,12 +120,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       return;
     }
 
-    // Validate size (max 3MB = 3 * 1024 * 1024 bytes)
-    const maxSize = 3 * 1024 * 1024;
+    // Validate size (max 1MB = 1024 * 1024 bytes)
+    const maxSize = 1024 * 1024;
     if (file.size > maxSize) {
       setUploadErrors(prev => ({
         ...prev,
-        [docKey]: `Ukuran file melebihi batas 3MB (File Anda: ${(file.size / (1024 * 1024)).toFixed(1)} MB)!`,
+        [docKey]: `Ukuran file melebihi batas 1MB / 1024 KB (File Anda: ${(file.size / 1024).toFixed(0)} KB)!`,
       }));
       return;
     }
@@ -137,7 +137,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       return copy;
     });
 
-    const sizeStr = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    const sizeStr = file.size >= 1024 * 1024 
+      ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' 
+      : (file.size / 1024).toFixed(0) + ' KB';
     const now = new Date().toISOString().split('T')[0];
 
     const uploadedDoc: UploadedDoc = {
@@ -274,7 +276,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 FORMULIR PENDAFTARAN TIM WABUPCUP 2026
               </h3>
               <p className="text-xs text-white/80 mt-1">
-                Lengkapi biodata dan unggah berkas persyaratan PDF resmi (Maks. 3MB)
+                Lengkapi biodata dan unggah berkas persyaratan PDF resmi (Maks. 1MB / 1024 KB)
               </p>
             </div>
           </div>
@@ -384,7 +386,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <a
                 id="btn-whatsapp-confirmation"
-                href={getWhatsAppNotificationUrl(submittedItem, 'CONFIRMATION')}
+                href={`https://wa.me/${formattedWa}?text=${encodeURIComponent(
+                  `Halo Panitia *${config.name || 'WABUPCUP 2026'}*, saya *${submittedItem.coachName}* dari tim *${submittedItem.teamName}* (Kategori: *${submittedItem.category}*).\n\nSaya telah berhasil melakukan pendaftaran resmi dengan:\n📌 *Kode Registrasi:* ${submittedItem.regCode}\n💰 *Nominal Biaya:* Rp ${submittedItem.paymentAmount.toLocaleString('id-ID')}\n\nMohon informasi verifikasi pembayaran dan berkas dokumen tim kami. Terima kasih!`
+                )}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition flex items-center justify-center space-x-2"
@@ -395,8 +399,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </a>
 
               <button
-                onClick={onClose}
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition"
+                onClick={() => {
+                  setSubmittedItem(null);
+                  onClose();
+                }}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition cursor-pointer"
               >
                 Selesai & Tutup
               </button>
@@ -515,12 +522,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Nama Tim <span className="text-red-500">*</span>
+                    Nama Team / Sekolah / Instansi / Desa <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: SMAN 1 Garudakusuma FC"
+                    placeholder="Contoh: SMAN 1 Garudakusuma FC / Dispora FC / Desa Sukamaju"
                     value={teamName}
                     onChange={e => setTeamName(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
@@ -531,7 +538,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Nama Sekolah / Instansi / Desa <span className="text-red-500">*</span>
+                    Nama Sekolah / Instansi / Desa Asal <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -670,7 +677,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
                 <div className="flex items-center space-x-2 text-sm font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
                   <FileText className="w-4 h-4" />
-                  <span>3. Unggah Berkas Persyaratan PDF (Maks. 3 MB)</span>
+                  <span>3. Unggah Berkas Persyaratan PDF (Maks. 1 MB / 1024 KB)</span>
                 </div>
                 {config.downloadableDocs && config.downloadableDocs.length > 0 ? (
                   <div className="flex items-center flex-wrap gap-2 text-xs">

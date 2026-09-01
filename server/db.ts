@@ -888,6 +888,51 @@ export const Database = {
     return true;
   },
 
+  async verifyAdminLogin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser; error?: string }> {
+    await ensureDbConnected();
+    const cleanUser = (username || '').trim().toLowerCase();
+
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.query('SELECT * FROM admin_users WHERE LOWER(username) = ?', [cleanUser]);
+        if (rows && rows.length > 0) {
+          const row = rows[0];
+          const passHash = row.password_hash;
+          if (passHash === pass) {
+            const userObj: AdminUser = {
+              id: row.id,
+              username: row.username,
+              fullName: row.full_name,
+              role: row.role,
+              email: row.email || '',
+              phone: row.phone || '',
+              avatarColor: row.avatar_color || 'bg-red-600',
+              createdAt: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-08-01',
+            };
+            return { success: true, user: userObj };
+          } else {
+            return { success: false, error: 'Password tidak sesuai dengan database' };
+          }
+        } else {
+          return { success: false, error: 'Akun username tidak ditemukan dalam tabel users' };
+        }
+      } catch (err) {
+        console.error('Error verifying admin login with MySQL:', err);
+      }
+    }
+
+    // Fallback to memStore
+    const found = memStore.adminUsers.find(a => a.username.toLowerCase() === cleanUser);
+    if (found) {
+      if (found.password === pass) {
+        const { password, ...userWithoutPass } = found;
+        return { success: true, user: userWithoutPass as AdminUser };
+      }
+      return { success: false, error: 'Password tidak sesuai' };
+    }
+    return { success: false, error: 'Akun username tidak ditemukan' };
+  },
+
   // Generate complete SQL Export dump
   async exportFullSqlDump(): Promise<string> {
     await ensureDbConnected();

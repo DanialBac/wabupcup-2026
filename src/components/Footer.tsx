@@ -67,7 +67,7 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
 
             <p className="text-xs leading-relaxed text-slate-400 max-w-sm">
-              Ajang bergengsi kejuaraan futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'} dengan total hadiah ratusan juta rupiah untuk 6 kategori kompetisi.
+              Ajang kejuaraan futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'} dengan total hadiah ratusan juta rupiah untuk 6 kategori kompetisi.
             </p>
 
             <div className="pt-2 text-xs space-y-2 text-slate-400">

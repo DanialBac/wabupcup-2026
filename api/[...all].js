@@ -10,19 +10,19 @@ import mysql from "mysql2/promise";
 
 // src/data/mockData.ts
 var INITIAL_TOURNAMENT_CONFIG = {
-  name: "WabupCup 2026",
+  name: "WabupCup ",
   edition: "2026",
-  tagline: "Turnamen Terakbar Futsal & Sepakbola Perebutan Piala Wakil Bupati",
+  tagline: "Turnamen Futsal Perebutan Piala Wakil Bupati",
   registrationDeadline: "2026-10-15",
   tournamentStartDate: "2026-10-24",
   tournamentEndDate: "2026-11-08",
-  venueName: "GOR & Stadion Utama Gelora Wijaya",
-  venueAddress: "Jl. Pemuda Olahraga No. 45, Kompleks Olahraga Terpadu",
-  venueCity: "Kabupaten Wijaya Raya",
-  googleMapsEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d126920.2858488812!2d106.77943!3d-6.22974!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f3e49fe3e32b%3A0x6b4474d2a138f888!2sGelora%20Bung%20Karno%20Main%20Stadium!5e0!3m2!1sen!2sid!4v1699999999999!5m2!1sen!2sid",
-  totalPrizePool: 175e6,
-  adminContactPhone: "6281234567890",
-  adminContactEmail: "panitia.wabupcup2026@gmail.com",
+  venueName: "Gedung Utama GOR Tawang Alun Banyuwangi",
+  venueAddress: "Jl. Wijaya Kusuma, Lingkungan Cuking Rw., Mojopanggung, Kec. Giri, Kabupaten Banyuwangi, Jawa Timur 68425, Kabupaten Banyuwangi",
+  venueCity: "Kabupaten Banyuwangi",
+  googleMapsEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3948.921835941096!2d114.34936872662414!3d-8.210615691821596!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dd14545d37030e3%3A0x3f601cc59d28c3c8!2sGedung%20Utama%20GOR%20Tawang%20Alun%20Banyuwangi!5e0!3m2!1sid!2sid!4v1788166952611!5m2!1sid!2sid",
+  totalPrizePool: 58000000,
+  adminContactPhone: "6285233909898",
+  adminContactEmail: "infinityorganizer01.22@gmail.com",
   bankAccount: {
     bankName: "Bank Nagari / Bank Mandiri",
     accountNumber: "102-00-9876543-2",
@@ -224,7 +224,7 @@ var INITIAL_CATEGORIES = [
     registeredTeamsCount: 30,
     registrationFee: 4e5,
     totalPrize: 3e7,
-    description: "Panggung bergengsi gengsi sekolah menengah atas, memperebutkan supremasi futsal pelajar.",
+    description: "Panggung sekolah menengah atas, memperebutkan supremasi futsal pelajar.",
     prizes: [
       { rank: "Juara 1", prizeMoney: 12e6, trophyText: "Piala Bergilir Wabup + Medali Emas" },
       { rank: "Juara 2", prizeMoney: 8e6, trophyText: "Piala Tetap + Medali Perak" },
@@ -269,7 +269,7 @@ var INITIAL_CATEGORIES = [
     registeredTeamsCount: 26,
     registrationFee: 6e5,
     totalPrize: 4e7,
-    description: "Kategori paling bergengsi dengan pemain-pemain bintang futsal/sepakbola kelas regional.",
+    description: "Kategori dengan pemain-pemain bintang futsal/sepakbola kelas regional.",
     prizes: [
       { rank: "Juara 1", prizeMoney: 18e6, trophyText: "Piala Utama WabupCup 2026 + Medali Emas" },
       { rank: "Juara 2", prizeMoney: 11e6, trophyText: "Piala Tetap + Medali Perak" },

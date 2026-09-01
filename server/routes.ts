@@ -376,24 +376,15 @@ apiRouter.delete('/admins/:id', async (req: Request, res: Response) => {
 apiRouter.post('/auth/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
-    const admins = await Database.getAdmins();
-    const user = admins.find(a => a.username.toLowerCase() === (username || '').trim().toLowerCase());
-    
-    if (user) {
-      // Check password match (supports custom password, demo passwords, or default admin123)
-      const validPass =
-        (user.password && user.password === password) ||
-        password === 'admin123' ||
-        password === 'panitia2026' ||
-        password === 'admin' ||
-        password === '123456';
-
-      if (validPass) {
-        return res.json({ success: true, user });
-      }
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
     }
-    res.status(401).json({ success: false, message: 'Username atau password salah' });
+    const result = await Database.verifyAdminLogin(username, password);
+    if (result.success && result.user) {
+      return res.json({ success: true, user: result.user });
+    }
+    res.status(401).json({ success: false, message: result.error || 'Username atau password salah' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err?.message || 'Gagal proses login' });
+    res.status(500).json({ success: false, message: err?.message || 'Gagal memproses login' });
   }
 });

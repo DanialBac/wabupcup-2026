@@ -8,19 +8,19 @@ import {
 } from '../types';
 
 export const INITIAL_TOURNAMENT_CONFIG: TournamentConfig = {
-  name: 'WabupCup 2026',
+  name: 'WabupCup',
   edition: '2026',
-  tagline: 'Turnamen Futsal Bergengsi Perebutan Piala Wakil Bupati',
+  tagline: 'Turnamen Futsal Perebutan Piala Wakil Bupati',
   registrationDeadline: '2026-10-15',
   tournamentStartDate: '2026-10-24',
   tournamentEndDate: '2026-11-08',
-  venueName: 'GOR & Stadion Utama Gelora Wijaya',
-  venueAddress: 'Jl. Pemuda Olahraga No. 45, Kompleks Olahraga Terpadu',
-  venueCity: 'Kabupaten Wijaya Raya',
-  googleMapsEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d126920.2858488812!2d106.77943!3d-6.22974!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f3e49fe3e32b%3A0x6b4474d2a138f888!2sGelora%20Bung%20Karno%20Main%20Stadium!5e0!3m2!1sen!2sid!4v1699999999999!5m2!1sen!2sid',
-  totalPrizePool: 175000000,
-  adminContactPhone: '6281234567890',
-  adminContactEmail: 'panitia.wabupcup2026@gmail.com',
+  venueName: 'Gedung Utama GOR Tawang Alun Banyuwangi',
+  venueAddress: "Jl. Wijaya Kusuma, Lingkungan Cuking Rw., Mojopanggung, Kec. Giri, Kabupaten Banyuwangi, Jawa Timur 68425, Kabupaten Banyuwangi",
+  venueCity: "Kabupaten Banyuwangi",
+  googleMapsEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3948.921835941096!2d114.34936872662414!3d-8.210615691821596!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dd14545d37030e3%3A0x3f601cc59d28c3c8!2sGedung%20Utama%20GOR%20Tawang%20Alun%20Banyuwangi!5e0!3m2!1sid!2sid!4v1788166952611!5m2!1sid!2sid",
+  totalPrizePool: 58000000,
+  adminContactPhone: "6285233909898",
+  adminContactEmail: "infinityorganizer01.22@gmail.com",
   bankAccount: {
     bankName: 'Bank Nagari / Bank Mandiri',
     accountNumber: '102-00-9876543-2',

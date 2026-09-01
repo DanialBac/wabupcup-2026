@@ -140,6 +140,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [username, setUsername] = useState('superadmin');
   const [password, setPassword] = useState('admin123');
   const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Active CMS Navigation Tab
   type CmsTab =
@@ -158,6 +159,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     | 'GAS_EXPORT_GUIDE';
 
   const [activeTab, setActiveTab] = useState<CmsTab>('OVERVIEW');
+
+  // Match Schedule Category Filter
+  const [selectedMatchCategory, setSelectedMatchCategory] = useState<string>('ALL');
+
+  // Auto-redirect WASIT & OPERATOR to SCHEDULE_LIVESCORE
+  useEffect(() => {
+    if (currentAdmin && (currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR')) {
+      setActiveTab('SCHEDULE_LIVESCORE');
+    }
+  }, [currentAdmin]);
 
   // Settings Sub-Tab State
   type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'GENERAL';
@@ -919,6 +930,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     winnerId: 'DRAW',
   });
 
+  const handleOpenAddMatch = (defaultCat?: string) => {
+    const chosenCategory = (defaultCat && defaultCat !== 'ALL' ? defaultCat : (categories[0]?.id || 'SMA')) as TournamentCategory;
+    const newPlaceholder: MatchItem = {
+      id: `match-${Date.now()}`,
+      matchNumber: matches.length + 1,
+      category: chosenCategory,
+      round: 'Babak Penyisihan',
+      roundIndex: 2,
+      teamA: { name: '' },
+      teamB: { name: '' },
+      date: '2026-10-25',
+      time: '14:00',
+      pitch: 'Lapangan 1 - Utama',
+      status: 'UPCOMING',
+    };
+    setEditingMatch(newPlaceholder);
+    setMatchForm({
+      id: newPlaceholder.id,
+      matchNumber: newPlaceholder.matchNumber,
+      category: chosenCategory,
+      round: 'Babak Penyisihan',
+      roundIndex: 2,
+      teamAName: '',
+      teamAInstitution: '',
+      teamALogo: '',
+      teamAScore: 0,
+      teamAPenalties: '',
+      teamBName: '',
+      teamBInstitution: '',
+      teamBLogo: '',
+      teamBScore: 0,
+      teamBPenalties: '',
+      date: '2026-10-25',
+      time: '14:00',
+      pitch: 'Lapangan 1 - Utama',
+      status: 'UPCOMING',
+      liveMinute: '0\'',
+      winnerId: 'DRAW',
+    });
+    setEditMatchModalOpen(true);
+  };
+
   const handleOpenEditMatch = (m: MatchItem) => {
     setEditingMatch(m);
     const pA = m.teamA.penalties !== undefined ? String(m.teamA.penalties) : '';
@@ -975,11 +1028,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       ...editingMatch,
       matchNumber: Number(matchForm.matchNumber) || editingMatch.matchNumber,
       category: matchForm.category,
-      round: matchForm.round.trim(),
-      roundIndex: Number(matchForm.roundIndex) || editingMatch.roundIndex,
+      round: matchForm.round.trim() || 'Babak Penyisihan',
+      roundIndex: Number(matchForm.roundIndex) || editingMatch.roundIndex || 2,
       teamA: {
         ...editingMatch.teamA,
-        name: matchForm.teamAName.trim(),
+        name: matchForm.teamAName.trim() || 'Tim A',
         institution: matchForm.teamAInstitution.trim() || undefined,
         logo: matchForm.teamALogo.trim() || undefined,
         score: Number(matchForm.teamAScore) || 0,
@@ -987,20 +1040,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       },
       teamB: {
         ...editingMatch.teamB,
-        name: matchForm.teamBName.trim(),
+        name: matchForm.teamBName.trim() || 'Tim B',
         institution: matchForm.teamBInstitution.trim() || undefined,
         logo: matchForm.teamBLogo.trim() || undefined,
         score: Number(matchForm.teamBScore) || 0,
         penalties: penB,
       },
-      date: matchForm.date.trim(),
-      time: matchForm.time.trim(),
-      pitch: matchForm.pitch.trim(),
+      date: matchForm.date.trim() || '2026-10-25',
+      time: matchForm.time.trim() || '14:00',
+      pitch: matchForm.pitch.trim() || 'Lapangan 1 - Utama',
       status: matchForm.status,
       liveMinute: matchForm.liveMinute.trim() || undefined,
       winnerId: finalWinnerId,
     };
-    updateMatch(updated);
+
+    const exists = matches.some(m => m.id === editingMatch.id);
+    if (exists) {
+      updateMatch(updated);
+    } else {
+      addMatch(updated);
+    }
     setEditMatchModalOpen(false);
     setEditingMatch(null);
   };
@@ -1040,13 +1099,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [gasActiveFile, setGasActiveFile] = useState<'setup.gs' | 'Code.gs' | 'Index.html' | 'Panduan_Deploy'>('setup.gs');
   const [copiedGas, setCopiedGas] = useState(false);
 
-  // AUTH SUBMISSION
-  const handleLogin = (e: React.FormEvent) => {
+  // AUTH SUBMISSION (ASYNC REAL DB / PERSISTED USERS)
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    const success = loginAdmin(username, password);
-    if (!success) {
-      setLoginError('Username atau password salah! (Coba: superadmin / admin123)');
+    setIsLoggingIn(true);
+    try {
+      const res = await loginAdmin(username, password);
+      if (!res.success) {
+        setLoginError(res.message || 'Username atau password salah! Periksa kembali akun Anda.');
+      } else if (res.admin && (res.admin.role === 'WASIT' || res.admin.role === 'OPERATOR')) {
+        setActiveTab('SCHEDULE_LIVESCORE');
+      }
+    } catch (err: any) {
+      setLoginError(err.message || 'Gagal login. Periksa koneksi jaringan.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1086,7 +1154,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     setIsDrawing(true);
     setTimeout(() => {
       const result = randomizeMatchesForCategory(drawCategory, drawStageOption);
-      if (result.matches) {
+      if (!result.success) {
+        alert(result.message);
+        setDrawResultMatches(null);
+      } else if (result.matches) {
         setDrawResultMatches(result.matches);
       }
       setIsDrawing(false);
@@ -1300,10 +1371,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/40 transition flex items-center justify-center space-x-2"
+              disabled={isLoggingIn}
+              className={`w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/40 transition flex items-center justify-center space-x-2 ${
+                isLoggingIn ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
             >
-              <Lock className="w-4 h-4" />
-              <span>Masuk ke Dashboard CMS</span>
+              {isLoggingIn ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Lock className="w-4 h-4" />
+              )}
+              <span>{isLoggingIn ? 'Memverifikasi Akun...' : 'Masuk ke Dashboard CMS'}</span>
             </button>
           </form>
         </div>
@@ -1376,199 +1454,231 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       {/* CMS MAIN CONTAINER WITH SIDEBAR & CONTENT */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* SIDEBAR NAVIGATION - PROFESSIONAL POLISH */}
+        {/* SIDEBAR NAVIGATION - PROFESSIONAL RBAC ENFORCED */}
         <aside className="w-64 bg-[#111827] border-r border-slate-800 p-4 flex flex-col shrink-0 overflow-y-auto hidden md:flex">
           <div className="space-y-1 mb-6">
-            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              Dashboard Menu
-            </p>
-
-            <button
-              onClick={() => setActiveTab('OVERVIEW')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'OVERVIEW'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Activity className="w-4 h-4" />
-              <span>Ringkasan & Statistik</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('ALL_REGISTRATIONS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'ALL_REGISTRATIONS'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Users className="w-4 h-4" />
-                <span>Pendaftaran</span>
+            
+            {/* ROLE BADGE NOTIFICATION */}
+            <div className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 mb-3 text-[11px]">
+              <span className="text-slate-400 block text-[10px] uppercase font-bold">Akses Login:</span>
+              <div className="flex items-center space-x-1.5 mt-0.5">
+                <span className={`w-2 h-2 rounded-full ${
+                  currentAdmin.role === 'SUPERADMIN' ? 'bg-red-500' :
+                  currentAdmin.role === 'PANITIA' ? 'bg-blue-500' : 'bg-emerald-500'
+                }`}></span>
+                <strong className="text-white font-bold">{currentAdmin.fullName || currentAdmin.username}</strong>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 font-mono border border-slate-700">
-                {registrations.length}
+              <span className="text-[10px] text-amber-400 font-semibold uppercase mt-0.5 block">
+                Role: {currentAdmin.role === 'SUPERADMIN' ? 'Super Administrator' :
+                       currentAdmin.role === 'PANITIA' ? 'Sekretariat Panitia' :
+                       currentAdmin.role === 'WASIT' ? 'Wasit Turnamen' : 'Operator Live Score'}
               </span>
-            </button>
+            </div>
 
-            <button
-              onClick={() => setActiveTab('PENDING_PAYMENT')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'PENDING_PAYMENT'
-                  ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Clock className="w-4 h-4 text-yellow-500" />
-                <span>Menunggu Bayar</span>
+            {/* WASIT / OPERATOR: ONLY JADWAL PERTANDINGAN */}
+            {(currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR') ? (
+              <div>
+                <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Menu Pertandingan
+                </p>
+                <button
+                  onClick={() => setActiveTab('SCHEDULE_LIVESCORE')}
+                  className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold bg-red-600 text-white shadow-lg shadow-red-900/20"
+                >
+                  <Calendar className="w-4 h-4 text-white" />
+                  <span>Jadwal & Live Score</span>
+                </button>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 font-mono border border-yellow-500/20">
-                {pendingList.length}
-              </span>
-            </button>
+            ) : (
+              <>
+                {/* MENU DASHBOARD & PENDAFTARAN (SUPERADMIN & PANITIA) */}
+                <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Dashboard Menu
+                </p>
 
-            <button
-              onClick={() => setActiveTab('APPROVED_TEAMS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'APPROVED_TEAMS'
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Disetujui (Approved)</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-mono border border-green-500/20">
-                {approvedList.length}
-              </span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('OVERVIEW')}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === 'OVERVIEW'
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Ringkasan & Statistik</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab('REJECTED_TEAMS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'REJECTED_TEAMS'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <XCircle className="w-4 h-4 text-red-400" />
-                <span>Ditolak (Rejected)</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 font-mono border border-red-500/20">
-                {rejectedList.length}
-              </span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('ALL_REGISTRATIONS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === 'ALL_REGISTRATIONS'
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Users className="w-4 h-4" />
+                    <span>Pendaftaran</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 font-mono border border-slate-700">
+                    {registrations.length}
+                  </span>
+                </button>
 
-            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
-              Manajemen Kompetisi
-            </p>
+                <button
+                  onClick={() => setActiveTab('PENDING_PAYMENT')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === 'PENDING_PAYMENT'
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Clock className="w-4 h-4 text-yellow-500" />
+                    <span>Menunggu Bayar</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 font-mono border border-yellow-500/20">
+                    {pendingList.length}
+                  </span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab('DRAWING_RANDOMIZER')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'DRAWING_RANDOMIZER'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Shuffle className="w-4 h-4 text-amber-400" />
-              <span>Sistem Acak & Bracket</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('APPROVED_TEAMS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === 'APPROVED_TEAMS'
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Disetujui (Approved)</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-mono border border-green-500/20">
+                    {approvedList.length}
+                  </span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab('SCHEDULE_LIVESCORE')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'SCHEDULE_LIVESCORE'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Calendar className="w-4 h-4 text-blue-400" />
-              <span>Jadwal Pertandingan</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('REJECTED_TEAMS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === 'REJECTED_TEAMS'
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <XCircle className="w-4 h-4 text-red-400" />
+                    <span>Ditolak (Rejected)</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 font-mono border border-red-500/20">
+                    {rejectedList.length}
+                  </span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab('CATEGORIES_PRIZES')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'CATEGORIES_PRIZES'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Trophy className="w-4 h-4 text-yellow-400" />
-              <span>Kategori & Hadiah</span>
-            </button>
+                <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                  Manajemen Kompetisi
+                </p>
 
-            <button
-              onClick={() => setActiveTab('SPONSORS')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'SPONSORS'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Users className="w-4 h-4 text-purple-400" />
-              <span>Sponsorship</span>
-            </button>
+                {currentAdmin.role === 'SUPERADMIN' && (
+                  <button
+                    onClick={() => setActiveTab('DRAWING_RANDOMIZER')}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                      activeTab === 'DRAWING_RANDOMIZER'
+                        ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <Shuffle className="w-4 h-4 text-amber-400" />
+                    <span>Sistem Acak & Bracket</span>
+                  </button>
+                )}
 
-            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
-              Sistem & Sinkronisasi
-            </p>
+                <button
+                  onClick={() => setActiveTab('SCHEDULE_LIVESCORE')}
+                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                    activeTab === 'SCHEDULE_LIVESCORE'
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 text-blue-400" />
+                  <span>Jadwal Pertandingan</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab('ADMIN_USERS')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'ADMIN_USERS'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <span>Kelola Admin Users</span>
-            </button>
+                {/* MENU KHUSUS SUPERADMIN */}
+                {currentAdmin.role === 'SUPERADMIN' && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('CATEGORIES_PRIZES')}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                        activeTab === 'CATEGORIES_PRIZES'
+                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Trophy className="w-4 h-4 text-yellow-400" />
+                      <span>Kategori & Hadiah</span>
+                    </button>
 
-            <button
-              onClick={() => setActiveTab('SETTINGS')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'SETTINGS'
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Settings className="w-4 h-4 text-cyan-400" />
-              <span>Pengaturan & Berkas</span>
-            </button>
+                    <button
+                      onClick={() => setActiveTab('SPONSORS')}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                        activeTab === 'SPONSORS'
+                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Users className="w-4 h-4 text-purple-400" />
+                      <span>Sponsorship</span>
+                    </button>
 
-            <button
-              onClick={() => setActiveTab('MYSQL_DATABASE_MANAGER')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'MYSQL_DATABASE_MANAGER'
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/30'
-                  : 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300'
-              }`}
-            >
-              <Database className="w-4 h-4 text-emerald-400" />
-              <span className="flex-1 text-left">Database</span>
-              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                PRO
-              </span>
-            </button>
+                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                      Sistem & Sinkronisasi
+                    </p>
 
-            {/* <button
-              onClick={() => setActiveTab('GAS_EXPORT_GUIDE')}
-              className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === 'GAS_EXPORT_GUIDE'
-                  ? 'bg-gradient-to-r from-red-600 to-blue-700 text-white shadow-lg shadow-red-900/20'
-                  : 'text-blue-400 hover:bg-slate-800 hover:text-blue-300'
-              }`}
-            >
-              <FileCode className="w-4 h-4" />
-              <span>Google Sheets 3-File Hub</span>
-            </button> */}
+                    <button
+                      onClick={() => setActiveTab('ADMIN_USERS')}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                        activeTab === 'ADMIN_USERS'
+                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                      <span>Kelola Admin Users</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('SETTINGS')}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                        activeTab === 'SETTINGS'
+                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Settings className="w-4 h-4 text-cyan-400" />
+                      <span>Pengaturan & Berkas</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('MYSQL_DATABASE_MANAGER')}
+                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                        activeTab === 'MYSQL_DATABASE_MANAGER'
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/30'
+                          : 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300'
+                      }`}
+                    >
+                      <Database className="w-4 h-4 text-emerald-400" />
+                      <span className="flex-1 text-left">Database</span>
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        PRO
+                      </span>
+                    </button>
+                  </>
+                )}
+              </>
+            )}
           </div>
 
           {/* DATABASE SYNC STATUS WIDGET */}
@@ -1577,7 +1687,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               <p className="text-xs font-medium text-slate-300">Database Engine</p>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
-            <p className="text-[10px] text-slate-400 mb-2">MySQL & In-Memory Fallback Active</p>
+            <p className="text-[10px] text-slate-400 mb-2">MySQL & Real-Time Sync Active</p>
             <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
               <div className="bg-emerald-500 w-full h-full rounded-full"></div>
             </div>
@@ -1587,26 +1697,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         {/* CMS CONTENT AREA */}
         <main className="flex-1 bg-[#0F172A] overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col space-y-6">
           
-          {/* MOBILE TABS SELECTOR */}
+          {/* MOBILE TABS SELECTOR - RBAC ENFORCED */}
           <div className="md:hidden mb-2">
             <select
               value={activeTab}
               onChange={e => setActiveTab(e.target.value as CmsTab)}
               className="w-full bg-[#1E293B] border border-slate-700 rounded-xl p-3 text-xs font-bold text-white focus:outline-none"
             >
-              <option value="OVERVIEW">📊 Ringkasan & Statistik</option>
-              <option value="ALL_REGISTRATIONS">📋 Semua Pendaftaran ({registrations.length})</option>
-              <option value="PENDING_PAYMENT">⏳ Menunggu Pembayaran ({pendingList.length})</option>
-              <option value="APPROVED_TEAMS">✅ Tim Disetujui ({approvedList.length})</option>
-              <option value="REJECTED_TEAMS">❌ Pendaftaran Ditolak ({rejectedList.length})</option>
-              <option value="DRAWING_RANDOMIZER">🎲 Sistem Acak & Bracket</option>
-              <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan</option>
-              <option value="CATEGORIES_PRIZES">🏆 Kategori & Hadiah</option>
-              <option value="SPONSORS">🤝 Sponsorship</option>
-              <option value="SETTINGS">⚙️ Pengaturan & Berkas (Settings)</option>
-              <option value="ADMIN_USERS">🛡️ Kelola Admin Users</option>
-              <option value="MYSQL_DATABASE_MANAGER">🗄️ Database </option>
-              {/* <option value="GAS_EXPORT_GUIDE">📁 Google Sheets 3-File Hub</option> */}
+              {(currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR') ? (
+                <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan & Live Score</option>
+              ) : (
+                <>
+                  <option value="OVERVIEW">📊 Ringkasan & Statistik</option>
+                  <option value="ALL_REGISTRATIONS">📋 Semua Pendaftaran ({registrations.length})</option>
+                  <option value="PENDING_PAYMENT">⏳ Menunggu Pembayaran ({pendingList.length})</option>
+                  <option value="APPROVED_TEAMS">✅ Tim Disetujui ({approvedList.length})</option>
+                  <option value="REJECTED_TEAMS">❌ Pendaftaran Ditolak ({rejectedList.length})</option>
+                  <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan</option>
+                  {currentAdmin.role === 'SUPERADMIN' && (
+                    <>
+                      <option value="DRAWING_RANDOMIZER">🎲 Sistem Acak & Bracket</option>
+                      <option value="CATEGORIES_PRIZES">🏆 Kategori & Hadiah</option>
+                      <option value="SPONSORS">🤝 Sponsorship</option>
+                      <option value="SETTINGS">⚙️ Pengaturan & Berkas (Settings)</option>
+                      <option value="ADMIN_USERS">🛡️ Kelola Admin Users</option>
+                      <option value="MYSQL_DATABASE_MANAGER">🗄️ Database</option>
+                    </>
+                  )}
+                </>
+              )}
             </select>
           </div>
 
@@ -2009,10 +2128,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               {/* DRAWING CONTROL PANEL */}
               {(() => {
                 const drawCheck = checkCanDrawNextRound(drawCategory);
-                const approvedCount = registrations.filter(r => r.category === drawCategory && (r.status === 'APPROVED' || r.status === 'PENDING_PAYMENT')).length;
+                const approvedCount = registrations.filter(r => r.category === drawCategory && r.status === 'APPROVED').length;
 
                 return (
                   <div className="space-y-4">
+                    {/* Warning if no approved teams in chosen category */}
+                    {approvedCount === 0 && (
+                      <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-600/50 flex items-start space-x-3 text-rose-200 animate-fadeIn">
+                        <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                        <div className="text-xs space-y-1">
+                          <p className="font-bold uppercase tracking-wider text-rose-300">
+                            Peringatan: Belum Ada Tim Approved di Kategori {drawCategory}
+                          </p>
+                          <p>
+                            Sistem acak hanya mengundi tim yang telah disetujui (Status: <strong className="text-white">APPROVED</strong>). Silakan verifikasi pendaftar di menu <strong>Data Pendaftar</strong> terlebih dahulu sebelum melakukan pengundian bagan.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Status Alert if ongoing matches */}
                     {!drawCheck.canDraw && (
                       <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-600/50 flex items-start space-x-3 text-amber-200">
@@ -2036,26 +2170,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                             1. Pilih Kategori Pertandingan:
                           </label>
                           <span className="text-xs text-slate-400">
-                            Tim Terdaftar ({drawCategory}): <strong className="text-emerald-400">{approvedCount} Tim</strong>
+                            Tim Approved ({drawCategory}):{' '}
+                            <strong className={approvedCount > 0 ? 'text-emerald-400 font-mono font-bold' : 'text-rose-400 font-mono font-bold'}>
+                              {approvedCount} Tim
+                            </strong>
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          {(['SD', 'SMP', 'SMA', 'INSTANSI', 'UMUM', 'DESA'] as TournamentCategory[]).map(c => (
-                            <button
-                              key={c}
-                              onClick={() => {
-                                setDrawCategory(c);
-                                setDrawResultMatches(null);
-                              }}
-                              className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                                drawCategory === c
-                                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                              }`}
-                            >
-                              {c}
-                            </button>
-                          ))}
+                          {categories.map(c => {
+                            const catApproved = registrations.filter(r => r.category === c.id && r.status === 'APPROVED').length;
+                            const isSelected = drawCategory === c.id;
+
+                            return (
+                              <button
+                                key={c.id}
+                                onClick={() => {
+                                  setDrawCategory(c.id as TournamentCategory);
+                                  setDrawResultMatches(null);
+                                }}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-2 ${
+                                  isSelected
+                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                                }`}
+                              >
+                                <span>{c.name} ({c.id})</span>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                                  catApproved > 0 ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-slate-500'
+                                }`}>
+                                  {catApproved}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
@@ -2151,66 +2298,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           {/* TAB 7: KELOLA JADWAL & LIVE SCORE (REQ #9) */}
           {activeTab === 'SCHEDULE_LIVESCORE' && (
             <div className="space-y-6 animate-fadeIn">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800">
                 <div>
-                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide">
-                    KELOLA JADWAL & LIVE SCORE CONTROLLER
+                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide text-white flex items-center space-x-2">
+                    <Calendar className="w-6 h-6 text-red-500" />
+                    <span>KELOLA JADWAL & LIVE SCORE PER KATEGORI</span>
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    Update skor langsung, menit pertandingan, kartu kuning/merah, atau tambah jadwal manual.
+                  <p className="text-xs text-slate-400 mt-1">
+                    Jadwal terpisah per kategori turnamen. Atur skor langsung, status, menit bertanding, dan nama tim approved.
                   </p>
                 </div>
 
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    onClick={() => handleOpenAddMatch(selectedMatchCategory)}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold transition flex items-center space-x-2 shadow-lg shadow-red-950/50 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>
+                      {selectedMatchCategory === 'ALL'
+                        ? 'Tambah Pertandingan Baru'
+                        : `Tambah Match (${selectedMatchCategory})`}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* CATEGORY FILTER TABS */}
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1">
                 <button
-                  onClick={() => {
-                    const newM: MatchItem = {
-                      id: `match-new-${Date.now()}`,
-                      matchNumber: matches.length + 1,
-                      category: 'SMA',
-                      round: 'Babak Penyisihan',
-                      roundIndex: 2,
-                      teamA: { name: 'Tim A Baru' },
-                      teamB: { name: 'Tim B Baru' },
-                      date: '2026-10-26',
-                      time: '14:00',
-                      pitch: 'Lapangan 1 - Utama',
-                      status: 'UPCOMING',
-                    };
-                    addMatch(newM);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shrink-0"
+                  onClick={() => setSelectedMatchCategory('ALL')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
+                    selectedMatchCategory === 'ALL'
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-950/50'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Tambah Pertandingan Baru</span>
+                  <span>Semua Kategori</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-950 font-mono">
+                    {matches.length}
+                  </span>
                 </button>
+
+                {categories.map(c => {
+                  const catMatchCount = matches.filter(m => m.category === c.id).length;
+                  const isSelected = selectedMatchCategory === c.id;
+
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedMatchCategory(c.id)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
+                        isSelected
+                          ? 'bg-red-600 text-white shadow-lg shadow-red-950/50'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      <span>{c.name} ({c.id})</span>
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-950 font-mono">
+                        {catMatchCount}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* MATCHES LIST FOR ADMIN */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {matches.map(m => {
-                  const isLive = m.status === 'LIVE';
+              {(() => {
+                const displayedMatches = selectedMatchCategory === 'ALL'
+                  ? matches
+                  : matches.filter(m => m.category === selectedMatchCategory);
 
+                if (displayedMatches.length === 0) {
                   return (
-                    <div
-                      key={m.id}
-                      className={`p-5 rounded-2xl border transition shadow-lg ${
-                        isLive
-                          ? 'bg-gradient-to-b from-slate-900 to-red-950/40 border-red-500'
-                          : 'bg-slate-900 border-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800 mb-3">
-                        <span className="font-bold text-red-400">{m.category} • {m.round}</span>
-                        <select
-                          value={m.status}
-                          onChange={e => updateMatch({ ...m, status: e.target.value as MatchStatus })}
-                          className="bg-slate-950 text-[10px] font-bold text-white rounded px-2 py-0.5 border border-slate-700"
-                        >
-                          <option value="UPCOMING">UPCOMING</option>
-                          <option value="LIVE">🔴 LIVE</option>
-                          <option value="FINISHED">FINISHED</option>
-                        </select>
+                    <div className="p-10 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                        <Calendar className="w-7 h-7" />
                       </div>
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-white text-base">Belum Ada Pertandingan Terjadwal</h4>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          {selectedMatchCategory === 'ALL'
+                            ? 'Belum ada jadwal pertandingan yang dibuat atau diundi.'
+                            : `Belum ada jadwal pertandingan untuk kategori ${selectedMatchCategory}. Gunakan tombol di bawah untuk menambah jadwal baru atau undi di Sistem Acak.`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleOpenAddMatch(selectedMatchCategory)}
+                        className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition inline-flex items-center space-x-2 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Tambah Pertandingan Kategori {selectedMatchCategory === 'ALL' ? 'Pertama' : selectedMatchCategory}</span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {displayedMatches.map(m => {
+                      const isLive = m.status === 'LIVE';
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`p-5 rounded-2xl border transition shadow-lg ${
+                            isLive
+                              ? 'bg-gradient-to-b from-slate-900 to-red-950/40 border-red-500'
+                              : 'bg-slate-900 border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800 mb-3">
+                            <span className="font-bold text-red-400">Match #{m.matchNumber} • {m.category} • {m.round}</span>
+                            <select
+                              value={m.status}
+                              onChange={e => updateMatch({ ...m, status: e.target.value as MatchStatus })}
+                              className="bg-slate-950 text-[10px] font-bold text-white rounded px-2 py-0.5 border border-slate-700"
+                            >
+                              <option value="UPCOMING">UPCOMING</option>
+                              <option value="LIVE">🔴 LIVE</option>
+                              <option value="FINISHED">FINISHED</option>
+                            </select>
+                          </div>
 
                       {/* TEAMS AND SCORE INPUT */}
                       <div className="space-y-2 mb-4">
@@ -2321,8 +2530,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   );
                 })}
               </div>
-            </div>
-          )}
+            );
+          })()}
+        </div>
+      )}
 
           {/* TAB 8: KELOLA KATEGORI & TOTAL HADIAH (CRUD LENGKAP) */}
           {activeTab === 'CATEGORIES_PRIZES' && (
@@ -5226,8 +5437,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             </div>
 
             <form onSubmit={handleSaveEditMatch} className="space-y-6 text-xs">
-              {/* STATUS & ROUND */}
+              {/* KATEGORI, STATUS & ROUND */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Kategori Turnamen</label>
+                  <select
+                    value={matchForm.category}
+                    onChange={e => setMatchForm({ ...matchForm, category: e.target.value as TournamentCategory })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="space-y-1">
                   <label className="font-bold text-slate-300">Status Match</label>
                   <select
@@ -5251,13 +5477,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-300">Babak Pertandingan</label>
                   <input
                     type="text"
                     value={matchForm.round}
                     onChange={e => setMatchForm({ ...matchForm, round: e.target.value })}
+                    placeholder="Babak Penyisihan, 16 Besar, Perempat Final, Final"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-300">Nomor Pertandingan (Match #)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={matchForm.matchNumber}
+                    onChange={e => setMatchForm({ ...matchForm, matchNumber: Number(e.target.value) || 1 })}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
@@ -5266,21 +5505,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               {/* SCORE BOARD & PENALTIES */}
               <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
                 <h5 className="font-bold text-amber-400 uppercase tracking-wider text-center text-xs">
-                  Papan Skor & Adu Penalti
+                  Papan Skor, Pilihan Tim Approved & Adu Penalti
                 </h5>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                   {/* TIM A */}
                   <div className="space-y-3 p-4 rounded-xl bg-slate-900 border border-slate-800">
-                    <label className="font-bold text-red-400 uppercase block">Tim A (Tuan Rumah)</label>
-                    <input
-                      type="text"
-                      required
-                      value={matchForm.teamAName}
-                      onChange={e => setMatchForm({ ...matchForm, teamAName: e.target.value })}
-                      placeholder="Nama Tim A"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-red-400 uppercase block">Tim A (Tuan Rumah)</label>
+                      <span className="text-[10px] text-slate-400">Kategori: {matchForm.category}</span>
+                    </div>
+
+                    {/* SELECTOR DARI TIM APPROVED */}
+                    {approvedList.filter(t => t.category === matchForm.category).length > 0 && (
+                      <div className="space-y-1 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
+                        <label className="text-[10px] text-emerald-400 font-bold block flex items-center space-x-1">
+                          <CheckCircle2 className="w-3 h-3 inline" />
+                          <span>Pilih dari Tim Terverifikasi (Approved):</span>
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            const found = approvedList.find(t => t.id === e.target.value);
+                            if (found) {
+                              setMatchForm(prev => ({
+                                ...prev,
+                                teamAName: found.teamName,
+                                teamAInstitution: found.institutionName || '',
+                                teamALogo: found.teamLogo || '',
+                              }));
+                            }
+                          }}
+                          defaultValue=""
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                        >
+                          <option value="" disabled>-- Pilih Tim A ({matchForm.category}) --</option>
+                          {approvedList
+                            .filter(t => t.category === matchForm.category)
+                            .map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.teamName} ({t.institutionName})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-bold block">Nama Tim A (Manual/Kustom):</label>
+                      <input
+                        type="text"
+                        required
+                        value={matchForm.teamAName}
+                        onChange={e => setMatchForm({ ...matchForm, teamAName: e.target.value })}
+                        placeholder="Nama Tim A"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                      />
+                    </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -5309,15 +5589,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
                   {/* TIM B */}
                   <div className="space-y-3 p-4 rounded-xl bg-slate-900 border border-slate-800">
-                    <label className="font-bold text-blue-400 uppercase block">Tim B (Tamu)</label>
-                    <input
-                      type="text"
-                      required
-                      value={matchForm.teamBName}
-                      onChange={e => setMatchForm({ ...matchForm, teamBName: e.target.value })}
-                      placeholder="Nama Tim B"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-blue-400 uppercase block">Tim B (Tamu)</label>
+                      <span className="text-[10px] text-slate-400">Kategori: {matchForm.category}</span>
+                    </div>
+
+                    {/* SELECTOR DARI TIM APPROVED */}
+                    {approvedList.filter(t => t.category === matchForm.category).length > 0 && (
+                      <div className="space-y-1 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
+                        <label className="text-[10px] text-emerald-400 font-bold block flex items-center space-x-1">
+                          <CheckCircle2 className="w-3 h-3 inline" />
+                          <span>Pilih dari Tim Terverifikasi (Approved):</span>
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            const found = approvedList.find(t => t.id === e.target.value);
+                            if (found) {
+                              setMatchForm(prev => ({
+                                ...prev,
+                                teamBName: found.teamName,
+                                teamBInstitution: found.institutionName || '',
+                                teamBLogo: found.teamLogo || '',
+                              }));
+                            }
+                          }}
+                          defaultValue=""
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white"
+                        >
+                          <option value="" disabled>-- Pilih Tim B ({matchForm.category}) --</option>
+                          {approvedList
+                            .filter(t => t.category === matchForm.category)
+                            .map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.teamName} ({t.institutionName})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-400 font-bold block">Nama Tim B (Manual/Kustom):</label>
+                      <input
+                        type="text"
+                        required
+                        value={matchForm.teamBName}
+                        onChange={e => setMatchForm({ ...matchForm, teamBName: e.target.value })}
+                        placeholder="Nama Tim B"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold"
+                      />
+                    </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>

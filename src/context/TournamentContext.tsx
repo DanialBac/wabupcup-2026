@@ -85,7 +85,7 @@ interface TournamentContextType {
   deleteSponsor: (id: string) => void;
   adminUsers: AdminUser[];
   currentAdmin: AdminUser | null;
-  loginAdmin: (username: string, pass: string) => boolean;
+  loginAdmin: (username: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   logoutAdmin: () => void;
   addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => void;
   updateAdminUser: (user: AdminUser & { password?: string }) => void;
@@ -875,46 +875,43 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   };
 
-  // ADVANCED DRAWING & BRACKET GENERATOR (Sistem Acak Berjenjang)
+  // ADVANCED DRAWING & BRACKET GENERATOR (Sistem Acak Berjenjang Sinkron Tim Approved)
   const randomizeMatchesForCategory = (
     category: TournamentCategory,
     stageOption?: 'AUTO' | 'PENYISIHAN' | '16_BESAR' | '8_BESAR' | 'SEMIFINAL'
   ): { success: boolean; message: string; matches?: MatchItem[] } => {
-    // 1. Get approved/active registered teams for this category
-    const activeTeams = registrations
-      .filter(r => r.category === category && (r.status === 'APPROVED' || r.status === 'PENDING_PAYMENT'))
+    // 1. Get ONLY APPROVED registered teams for this specific category
+    const approvedTeams = registrations
+      .filter(r => r.category === category && r.status === 'APPROVED')
       .map(r => ({
         name: r.teamName,
         institution: r.institutionName,
         logo: r.teamLogo,
       }));
 
-    // If fewer than 4 teams, provide default challenger pool
-    const teamsToDraw = [...activeTeams];
-    const defaultDummies = [
-      { name: `${category} Bintang Wijaya FC`, institution: `Klub Unggulan ${category}` },
-      { name: `${category} Garuda Muda`, institution: `Akademi ${category}` },
-      { name: `${category} Satria Perkasa`, institution: `Persatuan Olahraga ${category}` },
-      { name: `${category} Putra Wijaya FC`, institution: `Klub Juara ${category}` },
-      { name: `${category} Tunas Bangsa`, institution: `Diklat ${category}` },
-      { name: `${category} Gelora Perkasa`, institution: `Persatuan ${category}` },
-      { name: `${category} Singa Wijaya`, institution: `Sentra Pembinaan ${category}` },
-      { name: `${category} Elang Putih FC`, institution: `Pusat Pelatihan ${category}` },
-    ];
-
-    while (teamsToDraw.length < 8) {
-      const dummy = defaultDummies[teamsToDraw.length % defaultDummies.length];
-      teamsToDraw.push({ ...dummy, name: `${dummy.name} ${teamsToDraw.length + 1}` });
+    if (approvedTeams.length === 0) {
+      return {
+        success: false,
+        message: `Kategori "${category}" belum memiliki tim pendaftar yang berstatus APPROVED (Disetujui). Silakan verifikasi dan setujui tim terdaftar terlebih dahulu di menu Pendaftaran sebelum melakukan pengacakan bagan.`,
+      };
     }
 
-    // 2. Fisher-Yates Random Shuffle
+    if (approvedTeams.length < 2) {
+      return {
+        success: false,
+        message: `Kategori "${category}" baru memiliki ${approvedTeams.length} tim yang disetujui (Approved). Minimal diperlukan 2 tim untuk melakukan pengacakan jadwal dan bagan pertandingan.`,
+      };
+    }
+
+    // 2. Fisher-Yates Random Shuffle strictly on real approved teams
+    const teamsToDraw = [...approvedTeams];
     for (let i = teamsToDraw.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [teamsToDraw[i], teamsToDraw[j]] = [teamsToDraw[j], teamsToDraw[i]];
     }
 
     // Determine tournament bracket structure
-    let chosenStructure: '16_BESAR' | '8_BESAR' | 'SEMIFINAL' = '8_BESAR';
+    let chosenStructure: '16_BESAR' | '8_BESAR' | 'SEMIFINAL' | 'FINAL_ONLY' = '8_BESAR';
 
     if (stageOption === '16_BESAR' || stageOption === 'PENYISIHAN') {
       chosenStructure = '16_BESAR';
@@ -923,24 +920,18 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (stageOption === 'SEMIFINAL') {
       chosenStructure = 'SEMIFINAL';
     } else {
-      // AUTO
-      if (teamsToDraw.length >= 12) {
+      // AUTO based on approved teams count
+      if (teamsToDraw.length >= 9) {
         chosenStructure = '16_BESAR';
-      } else if (teamsToDraw.length >= 6) {
+      } else if (teamsToDraw.length >= 5) {
         chosenStructure = '8_BESAR';
-      } else {
+      } else if (teamsToDraw.length >= 3) {
         chosenStructure = 'SEMIFINAL';
+      } else {
+        chosenStructure = 'FINAL_ONLY';
       }
     }
 
-    // Ensure enough teams for chosen structure
-    const requiredCount = chosenStructure === '16_BESAR' ? 16 : chosenStructure === '8_BESAR' ? 8 : 4;
-    while (teamsToDraw.length < requiredCount) {
-      const dummy = defaultDummies[teamsToDraw.length % defaultDummies.length];
-      teamsToDraw.push({ ...dummy, name: `${dummy.name} ${teamsToDraw.length + 1}` });
-    }
-
-    const targetTeams = teamsToDraw.slice(0, requiredCount);
     const kickoffTimes = ['08:00', '09:15', '10:30', '13:30', '15:00', '16:15', '19:00', '20:15'];
     const pitches = ['Lapangan 1 - Utama', 'Lapangan 2 - Futsal A', 'Lapangan 3 - Futsal B'];
     let matchCounter = 1;
@@ -971,7 +962,29 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       `match-${category.toLowerCase()}-r16-8-${Date.now()}`,
     ];
 
-    if (chosenStructure === '16_BESAR') {
+    if (chosenStructure === 'FINAL_ONLY') {
+      const teamA = teamsToDraw[0];
+      const teamB = teamsToDraw[1];
+      newGeneratedMatches.push({
+        id: grandFinalId,
+        matchNumber: matchCounter++,
+        category: category,
+        round: 'GRAND FINAL WABUP CUP 2026',
+        roundIndex: 5,
+        teamA: { name: teamA.name, institution: teamA.institution, logo: teamA.logo },
+        teamB: { name: teamB.name, institution: teamB.institution, logo: teamB.logo },
+        date: '2026-10-31',
+        time: '19:00',
+        pitch: 'Stadion Utama Gelora Wijaya',
+        status: 'UPCOMING',
+      });
+    } else if (chosenStructure === '16_BESAR') {
+      // Pad missing slots with BYE
+      const targetTeams = [...teamsToDraw];
+      while (targetTeams.length < 16) {
+        targetTeams.push({ name: 'BYE (Lolos Otomatis)', institution: '-' });
+      }
+
       // 1. 8 MATCHES IN BABAK 16 BESAR (Penyisihan 1-8)
       for (let i = 0; i < 8; i++) {
         const teamA = targetTeams[i * 2];
@@ -1074,6 +1087,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         status: 'UPCOMING',
       });
     } else if (chosenStructure === '8_BESAR') {
+      // Pad missing slots with BYE
+      const targetTeams = [...teamsToDraw];
+      while (targetTeams.length < 8) {
+        targetTeams.push({ name: 'BYE (Lolos Otomatis)', institution: '-' });
+      }
+
       // 4 QUARTER FINAL MATCHES (Babak 8 Besar)
       for (let i = 0; i < 4; i++) {
         const teamA = targetTeams[i * 2];
@@ -1154,11 +1173,16 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         status: 'UPCOMING',
       });
     } else {
-      // 2 SEMIFINALS + FINAL
+      // SEMIFINALS (3-4 Teams)
+      const targetTeams = [...teamsToDraw];
+      while (targetTeams.length < 4) {
+        targetTeams.push({ name: 'BYE (Lolos Otomatis)', institution: '-' });
+      }
+
       const teamA1 = targetTeams[0];
       const teamB1 = targetTeams[1];
       const teamA2 = targetTeams[2];
-      const teamB2 = targetTeams[3] || { name: 'BYE (Lolos Otomatis)', institution: '-' };
+      const teamB2 = targetTeams[3];
 
       newGeneratedMatches.push({
         id: semi1Id,
@@ -1215,7 +1239,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     return {
       success: true,
-      message: `Bagan sistem gugur resmi kategori ${category} berhasil diacak (${targetTeams.length} Tim).`,
+      message: `Bagan sistem gugur resmi kategori ${category} berhasil diacak (${approvedTeams.length} Tim Disetujui).`,
       matches: newGeneratedMatches,
     };
   };
@@ -1266,25 +1290,42 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return saved ? JSON.parse(saved) : null;
   });
 
-  const loginAdmin = (username: string, pass: string): boolean => {
+  const loginAdmin = async (username: string, pass: string): Promise<{ success: boolean; message?: string }> => {
+    // 1. Authenticate with real database / server backend
+    try {
+      const res = await ApiService.loginAdmin(username.trim(), pass);
+      if (res && res.success && res.user) {
+        setCurrentAdmin(res.user);
+        localStorage.setItem('wabupcup_current_admin', JSON.stringify(res.user));
+        return { success: true };
+      }
+    } catch (err) {
+      console.warn('Backend login check error, attempting local credentials match:', err);
+    }
+
+    // 2. Fallback to local admin user list with password matching
     const found = adminUsers.find(
       u => u.username.toLowerCase() === username.trim().toLowerCase()
     );
-    // Support custom password or standard default admin passwords
-    const isValid =
-      found &&
-      ((found.password && found.password === pass) ||
-        pass === 'admin123' ||
-        pass === 'panitia2026' ||
-        pass === 'admin' ||
-        pass === '123456');
+    if (found) {
+      const match =
+        (found.password && found.password === pass) ||
+        (!found.password && (
+          (found.username === 'superadmin' && pass === 'admin123') ||
+          (found.username === 'panitia' && pass === 'panitia2026') ||
+          (found.username === 'wasit_utama' && pass === 'wasit123') ||
+          (found.role === 'WASIT' && pass === 'wasit123') ||
+          (found.role === 'OPERATOR' && pass === 'operator123')
+        ));
 
-    if (isValid && found) {
-      setCurrentAdmin(found);
-      localStorage.setItem('wabupcup_current_admin', JSON.stringify(found));
-      return true;
+      if (match) {
+        setCurrentAdmin(found);
+        localStorage.setItem('wabupcup_current_admin', JSON.stringify(found));
+        return { success: true };
+      }
+      return { success: false, message: 'Kata sandi (password) tidak sesuai dengan database akun.' };
     }
-    return false;
+    return { success: false, message: 'Username tidak ditemukan dalam database akun.' };
   };
 
   const logoutAdmin = () => {
