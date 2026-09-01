@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { useTournament } from '../context/TournamentContext';
 import {
@@ -84,7 +84,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   }, [isOpen, preselectedCategory, categories, registrations]);
 
   const [teamName, setTeamName] = useState('');
-  const [institutionName, setInstitutionName] = useState('');
   const [coachName, setCoachName] = useState('');
   const [coachPhone, setCoachPhone] = useState('');
   const [coachEmail, setCoachEmail] = useState('');
@@ -96,6 +95,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [docs, setDocs] = useState<RegistrationDocuments>({});
   const [uploadErrors, setUploadErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -188,79 +188,102 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+
+    // Prevent double submission
+    if (submittingRef.current || isSubmitting) {
+      return;
+    }
 
     // Check if category has reached its maximum quota
     if (isCategoryFull(category)) {
       alert(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh! Silakan pilih kategori lain yang masih tersedia atau hubungi panitia.`);
-      setIsSubmitting(false);
       return;
     }
 
-    // Validate required documents
+    // Validate required documents and logo
     const isSchool = category === 'SD' || category === 'SMP' || category === 'SMA';
     const isInstansi = category === 'INSTANSI';
     const isDesa = category === 'DESA';
     const isUmum = category === 'UMUM';
 
+    if (!teamLogo) {
+      alert('Mohon unggah Logo Tim / Klub resmi! (Wajib)');
+      return;
+    }
+    if (!docs.suratKeterangan) {
+      const keteranganLabel = isSchool
+        ? 'Surat Keterangan / Izin Sekolah (PDF)'
+        : isInstansi
+        ? 'Surat Tugas / Keterangan Instansi (PDF)'
+        : isDesa
+        ? 'Surat Keterangan Kepala Desa / Lurah (PDF)'
+        : 'Surat Rekomendasi / Keterangan Klub (PDF)';
+      alert(`Mohon lampirkan ${keteranganLabel}! (Wajib)`);
+      return;
+    }
     if (!docs.suratPernyataan) {
-      alert('Mohon lampirkan Surat Pernyataan Bermaterai (PDF)!');
-      setIsSubmitting(false);
+      alert('Mohon lampirkan Surat Pernyataan Bermaterai (PDF)! (Wajib)');
       return;
     }
     if (!docs.formulirPemain) {
-      alert('Mohon lampirkan Formulir Susunan Pemain & Official (PDF)!');
-      setIsSubmitting(false);
-      return;
-    }
-    if ((isSchool || isInstansi || isDesa) && !docs.suratKeterangan) {
-      alert(`Mohon lampirkan Surat Keterangan / Rekomendasi resmi untuk kategori ${category}!`);
-      setIsSubmitting(false);
+      alert('Mohon lampirkan Formulir Susunan Pemain & Official (PDF)! (Wajib)');
       return;
     }
     if (category === 'SD' && !docs.aktaKelahiran) {
-      alert('Khusus Kategori SD, wajib melampirkan file gabungan Akta Kelahiran (Kelahiran Maksimal 2014)!');
-      setIsSubmitting(false);
+      alert('Khusus Kategori SD, wajib melampirkan file gabungan Akta Kelahiran (Kelahiran Maksimal 2014)! (Wajib)');
+      return;
+    }
+    if (isSchool && !docs.raportKartuPelajar) {
+      alert(`Khusus Kategori ${category}, wajib melampirkan Raport Terakhir / Kartu Pelajar yang digabung dalam 1 file PDF! (Wajib)`);
       return;
     }
     if ((isDesa || isUmum) && !docs.ktpGabungan) {
-      alert(`Khusus Kategori ${category === 'DESA' ? 'Desa / Kelurahan' : 'Umum'}, wajib melampirkan File KTP Pemain & Official yang digabung menjadi 1 PDF!`);
-      setIsSubmitting(false);
+      alert(`Khusus Kategori ${category === 'DESA' ? 'Desa / Kelurahan' : 'Umum'}, wajib melampirkan File KTP Pemain & Official yang digabung menjadi 1 PDF! (Wajib)`);
       return;
     }
     if (isInstansi && !docs.bpjsKetenagakerjaan) {
-      alert('Khusus Kategori Instansi / OPD / BUMN, wajib melampirkan File BPJS Ketenagakerjaan yang digabung menjadi 1 PDF!');
-      setIsSubmitting(false);
+      alert('Khusus Kategori Instansi / OPD / BUMN / Perbankan, wajib melampirkan File BPJS Ketenagakerjaan yang digabung menjadi 1 PDF! (Wajib)');
       return;
     }
 
-    const regFee = currentCatDetail?.registrationFee || 350000;
+    submittingRef.current = true;
+    setIsSubmitting(true);
 
-    const newRegistration = submitNewRegistration({
-      category,
-      teamName: teamName.trim(),
-      teamLogo: teamLogo || undefined,
-      institutionName: institutionName.trim() || teamName.trim(),
-      coachName: coachName.trim(),
-      coachPhone: coachPhone.trim(),
-      coachEmail: coachEmail.trim(),
-      playerCount,
-      officialCount,
-      paymentAmount: regFee,
-      documents: docs,
-    });
-
-    // Launch celebratory confetti
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    } catch (err) {}
+      const regFee = currentCatDetail?.registrationFee || 350000;
+      const cleanTeamName = teamName.trim();
 
-    setIsSubmitting(false);
-    setSubmittedItem(newRegistration);
+      const newRegistration = submitNewRegistration({
+        category,
+        teamName: cleanTeamName,
+        teamLogo: teamLogo || undefined,
+        institutionName: cleanTeamName,
+        coachName: coachName.trim(),
+        coachPhone: coachPhone.trim(),
+        coachEmail: coachEmail.trim(),
+        playerCount,
+        officialCount,
+        paymentAmount: regFee,
+        documents: docs,
+      });
+
+      // Launch celebratory confetti
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch (err) {}
+
+      setSubmittedItem(newRegistration);
+    } catch (err) {
+      console.error('Registration submission error:', err);
+      alert('Terjadi kesalahan saat memproses pendaftaran. Silakan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+      submittingRef.current = false;
+    }
   };
 
   const handleCopyCode = () => {
@@ -551,37 +574,41 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Nama Sekolah / Instansi / Desa Asal <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: SMA Negeri 1 Garudakusuma"
-                    value={institutionName}
-                    onChange={e => setInstitutionName(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
-                  />
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Jumlah Pemain (Maks 12)
+                    Jumlah Pemain (Maksimal 12 Orang) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     min={7}
                     max={12}
+                    required
                     value={playerCount}
                     onChange={e => setPlayerCount(Number(e.target.value))}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
                   />
+                  <span className="text-[11px] text-slate-400 mt-1 block">Minimal 7 pemain, maksimal 12 pemain.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Jumlah Official / Pelatih (Maksimal 3 Orang) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3}
+                    required
+                    value={officialCount}
+                    onChange={e => setOfficialCount(Math.min(3, Math.max(1, Number(e.target.value))))}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">Minimal 1 official, maksimal 3 official.</span>
                 </div>
               </div>
 
-              {/* UPLOAD LOGO TIM (BARU) */}
+              {/* UPLOAD LOGO TIM (WAJIB) */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
@@ -597,10 +624,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
-                      Upload Logo Tim / Klub (Opsional / Dianjurkan)
+                      Upload Logo Tim / Instansi / Klub <span className="text-red-500">* (Wajib)</span>
                     </label>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Format PNG / JPG / SVG transparan. Logo akan tampil di live score & bagan turnamen.
+                      Format PNG / JPG / SVG / WEBP. Logo wajib diunggah untuk ditampilkan pada bagan turnamen dan live score.
                     </p>
                   </div>
                 </div>
@@ -608,7 +635,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 <div className="flex items-center space-x-2 shrink-0">
                   <label className="cursor-pointer px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-1.5">
                     <UploadCloud className="w-3.5 h-3.5" />
-                    <span>{teamLogo ? 'Ganti Logo' : 'Pilih Logo'}</span>
+                    <span>{teamLogo ? 'Ganti Logo' : 'Pilih Logo *'}</span>
                     <input
                       type="file"
                       accept="image/png, image/jpeg, image/webp, image/svg+xml"
@@ -824,12 +851,15 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                   </div>
                 )}
 
-                {/* 5. RAPORT TERAKHIR / KARTU PELAJAR */}
+                {/* 5. RAPORT TERAKHIR / KARTU PELAJAR (KHUSUS SD, SMP, SMA) */}
                 {(category === 'SD' || category === 'SMP' || category === 'SMA') && (
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                     <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
-                      Raport Terakhir / Kartu Pelajar Digabung 1 PDF
+                      Raport Terakhir / Kartu Pelajar Digabung 1 PDF <span className="text-red-500">*</span>
                     </label>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-2">
+                      Scan Raport terakhir / Kartu Pelajar seluruh pemain disatukan ke dalam 1 file PDF (Maks. 1MB).
+                    </p>
                     <input
                       type="file"
                       accept=".pdf,application/pdf"

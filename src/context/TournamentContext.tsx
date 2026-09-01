@@ -23,6 +23,15 @@ import {
   INITIAL_TOURNAMENT_CONFIG,
 } from '../data/mockData';
 import { ApiService } from '../services/api';
+import {
+  safeLocalStorageGet,
+  safeLocalStorageSet,
+  sanitizeRegistrationsForLocalStorage,
+  idbGetRegistrations,
+  idbSaveRegistrations,
+  idbSaveRegistration,
+  idbDeleteRegistration,
+} from '../utils/storage';
 
 interface TournamentContextType {
   theme: 'dark' | 'light';
@@ -99,12 +108,12 @@ const TournamentContext = createContext<TournamentContextType | undefined>(undef
 export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('wabupcup_theme');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('wabupcup_theme') : null;
     return saved === 'light' ? 'light' : 'dark';
   });
 
   useEffect(() => {
-    localStorage.setItem('wabupcup_theme', theme);
+    safeLocalStorageSet('wabupcup_theme', theme);
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
@@ -129,28 +138,20 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Tournament Config
   const [config, setConfig] = useState<TournamentConfig>(() => {
-    const saved = localStorage.getItem('wabupcup_config');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          ...INITIAL_TOURNAMENT_CONFIG,
-          ...parsed,
-          sectionsVisibility: {
-            ...DEFAULT_SECTIONS_VISIBILITY,
-            ...(parsed.sectionsVisibility || {}),
-          },
-          downloadableDocs: parsed.downloadableDocs && parsed.downloadableDocs.length > 0 ? parsed.downloadableDocs : INITIAL_TOURNAMENT_CONFIG.downloadableDocs,
-          committeeContacts: parsed.committeeContacts && parsed.committeeContacts.length > 0 ? parsed.committeeContacts : INITIAL_TOURNAMENT_CONFIG.committeeContacts,
-          committeeEmails: parsed.committeeEmails && parsed.committeeEmails.length > 0 ? parsed.committeeEmails : INITIAL_TOURNAMENT_CONFIG.committeeEmails,
-          bankAccounts: parsed.bankAccounts && parsed.bankAccounts.length > 0 ? parsed.bankAccounts : INITIAL_TOURNAMENT_CONFIG.bankAccounts,
-        };
-      } catch {
-        return {
-          ...INITIAL_TOURNAMENT_CONFIG,
-          sectionsVisibility: DEFAULT_SECTIONS_VISIBILITY,
-        };
-      }
+    const parsed = safeLocalStorageGet<Partial<TournamentConfig> | null>('wabupcup_config', null);
+    if (parsed) {
+      return {
+        ...INITIAL_TOURNAMENT_CONFIG,
+        ...parsed,
+        sectionsVisibility: {
+          ...DEFAULT_SECTIONS_VISIBILITY,
+          ...(parsed.sectionsVisibility || {}),
+        },
+        downloadableDocs: parsed.downloadableDocs && parsed.downloadableDocs.length > 0 ? parsed.downloadableDocs : INITIAL_TOURNAMENT_CONFIG.downloadableDocs,
+        committeeContacts: parsed.committeeContacts && parsed.committeeContacts.length > 0 ? parsed.committeeContacts : INITIAL_TOURNAMENT_CONFIG.committeeContacts,
+        committeeEmails: parsed.committeeEmails && parsed.committeeEmails.length > 0 ? parsed.committeeEmails : INITIAL_TOURNAMENT_CONFIG.committeeEmails,
+        bankAccounts: parsed.bankAccounts && parsed.bankAccounts.length > 0 ? parsed.bankAccounts : INITIAL_TOURNAMENT_CONFIG.bankAccounts,
+      };
     }
     return {
       ...INITIAL_TOURNAMENT_CONFIG,
@@ -203,27 +204,28 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       if (serverCategories && Array.isArray(serverCategories) && serverCategories.length > 0) {
         setCategories(serverCategories);
-        localStorage.setItem('wabupcup_categories', JSON.stringify(serverCategories));
+        safeLocalStorageSet('wabupcup_categories', JSON.stringify(serverCategories));
       }
 
       if (serverRegistrations && Array.isArray(serverRegistrations)) {
         setRegistrations(serverRegistrations);
-        localStorage.setItem('wabupcup_registrations', JSON.stringify(serverRegistrations));
+        idbSaveRegistrations(serverRegistrations).catch(() => {});
+        safeLocalStorageSet('wabupcup_registrations', JSON.stringify(sanitizeRegistrationsForLocalStorage(serverRegistrations)));
       }
 
       if (serverMatches && Array.isArray(serverMatches)) {
         setMatches(serverMatches);
-        localStorage.setItem('wabupcup_matches', JSON.stringify(serverMatches));
+        safeLocalStorageSet('wabupcup_matches', JSON.stringify(serverMatches));
       }
 
       if (serverSponsors && Array.isArray(serverSponsors) && serverSponsors.length > 0) {
         setSponsors(serverSponsors);
-        localStorage.setItem('wabupcup_sponsors', JSON.stringify(serverSponsors));
+        safeLocalStorageSet('wabupcup_sponsors', JSON.stringify(serverSponsors));
       }
 
       if (serverAdmins && Array.isArray(serverAdmins) && serverAdmins.length > 0) {
         setAdminUsers(serverAdmins);
-        localStorage.setItem('wabupcup_admins', JSON.stringify(serverAdmins));
+        safeLocalStorageSet('wabupcup_admins', JSON.stringify(serverAdmins));
       }
     } catch (err) {
       console.warn('Backend server synchronization encountered an error, running with local data:', err);
@@ -240,7 +242,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateConfig = (newConfig: Partial<TournamentConfig>) => {
     setConfig(prev => {
       const updated = { ...prev, ...newConfig };
-      localStorage.setItem('wabupcup_config', JSON.stringify(updated));
+      safeLocalStorageSet('wabupcup_config', JSON.stringify(updated));
       ApiService.updateConfig(updated).catch(err =>
         console.warn('Could not sync config update to backend API:', err)
       );
@@ -463,14 +465,13 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Categories & Prizes
   const [categories, setCategories] = useState<CategoryDetail[]>(() => {
-    const saved = localStorage.getItem('wabupcup_categories');
-    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
+    return safeLocalStorageGet<CategoryDetail[]>('wabupcup_categories', INITIAL_CATEGORIES);
   });
 
   const addCategory = (newCat: CategoryDetail) => {
     setCategories(prev => {
       const next = [...prev, newCat];
-      localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      safeLocalStorageSet('wabupcup_categories', JSON.stringify(next));
       ApiService.saveCategory(newCat).catch(err =>
         console.warn('Could not save category to backend:', err)
       );
@@ -481,7 +482,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateCategory = (updated: CategoryDetail) => {
     setCategories(prev => {
       const next = prev.map(c => (c.id === updated.id ? updated : c));
-      localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      safeLocalStorageSet('wabupcup_categories', JSON.stringify(next));
       ApiService.saveCategory(updated).catch(err =>
         console.warn('Could not update category on backend:', err)
       );
@@ -492,7 +493,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const deleteCategory = (categoryId: string) => {
     setCategories(prev => {
       const next = prev.filter(c => c.id !== categoryId);
-      localStorage.setItem('wabupcup_categories', JSON.stringify(next));
+      safeLocalStorageSet('wabupcup_categories', JSON.stringify(next));
       ApiService.deleteCategory(categoryId).catch(err =>
         console.warn('Could not delete category on backend:', err)
       );
@@ -500,14 +501,50 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // Registrations
+  // Registrations state
   const [registrations, setRegistrations] = useState<RegistrationItem[]>(() => {
-    const saved = localStorage.getItem('wabupcup_registrations');
-    return saved ? JSON.parse(saved) : INITIAL_REGISTRATIONS;
+    return safeLocalStorageGet<RegistrationItem[]>('wabupcup_registrations', INITIAL_REGISTRATIONS);
   });
 
+  // Load from IndexedDB on mount to recover full file data (PDF Base64)
   useEffect(() => {
-    localStorage.setItem('wabupcup_registrations', JSON.stringify(registrations));
+    let isMounted = true;
+    idbGetRegistrations().then(idbRegs => {
+      if (isMounted && idbRegs && idbRegs.length > 0) {
+        setRegistrations(prev => {
+          const map = new Map<string, RegistrationItem>();
+          for (const item of idbRegs) {
+            map.set(item.id, item);
+          }
+          for (const item of prev) {
+            const existing = map.get(item.id);
+            if (existing && existing.documents && Object.keys(existing.documents).length > 0) {
+              map.set(item.id, {
+                ...item,
+                documents: existing.documents,
+                teamLogo: item.teamLogo || existing.teamLogo,
+              });
+            } else {
+              map.set(item.id, item);
+            }
+          }
+          return Array.from(map.values());
+        });
+      }
+    }).catch(err => {
+      console.warn('[IDB] Initial load warning:', err);
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Save registrations to localStorage (sanitized) and IndexedDB (full)
+  useEffect(() => {
+    // 1. Save full copy to IndexedDB (asynchronous, supports huge files)
+    idbSaveRegistrations(registrations).catch(() => {});
+
+    // 2. Save lightweight sanitized version to localStorage without throwing QuotaExceededError
+    const sanitized = sanitizeRegistrationsForLocalStorage(registrations);
+    safeLocalStorageSet('wabupcup_registrations', JSON.stringify(sanitized));
   }, [registrations]);
 
   const submitNewRegistration = (
@@ -531,6 +568,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     setRegistrations(prev => [newReg, ...prev]);
+
+    // Save to IndexedDB immediately
+    idbSaveRegistration(newReg).catch(() => {});
 
     // Send to backend API
     ApiService.createRegistration(newReg).catch(err =>
@@ -563,6 +603,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       prev.map(item => (item.id === updatedItem.id ? fullUpdated : item))
     );
 
+    idbSaveRegistration(fullUpdated).catch(() => {});
+
     ApiService.updateRegistration(fullUpdated).catch(err =>
       console.warn('Could not sync registration update to backend:', err)
     );
@@ -580,13 +622,15 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setRegistrations(prev =>
       prev.map(item => {
         if (item.id === id) {
-          return {
+          const updated: RegistrationItem = {
             ...item,
             status,
             rejectionReason: reason !== undefined ? reason : item.rejectionReason,
             adminNotes: notes !== undefined ? notes : item.adminNotes,
             lastUpdated: formattedDate,
           };
+          idbSaveRegistration(updated).catch(() => {});
+          return updated;
         }
         return item;
       })
@@ -608,12 +652,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             paymentStatus === 'PAID' && item.status === 'PENDING_PAYMENT'
               ? 'APPROVED'
               : item.status;
-          return {
+          const updated: RegistrationItem = {
             ...item,
             paymentStatus,
             status: newStatus,
             lastUpdated: formattedDate,
           };
+          idbSaveRegistration(updated).catch(() => {});
+          return updated;
         }
         return item;
       })
@@ -626,6 +672,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const deleteRegistration = (id: string) => {
     setRegistrations(prev => prev.filter(item => item.id !== id));
+    idbDeleteRegistration(id).catch(() => {});
     ApiService.deleteRegistration(id).catch(err =>
       console.warn('Could not delete registration on backend:', err)
     );
@@ -633,12 +680,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Matches & Schedule
   const [matches, setMatches] = useState<MatchItem[]>(() => {
-    const saved = localStorage.getItem('wabupcup_matches');
-    return saved ? JSON.parse(saved) : INITIAL_MATCHES;
+    return safeLocalStorageGet<MatchItem[]>('wabupcup_matches', INITIAL_MATCHES);
   });
 
   useEffect(() => {
-    localStorage.setItem('wabupcup_matches', JSON.stringify(matches));
+    safeLocalStorageSet('wabupcup_matches', JSON.stringify(matches));
   }, [matches]);
 
   // Auto-transition matches from UPCOMING to LIVE and advance the live minute automatically
@@ -1246,12 +1292,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Sponsors
   const [sponsors, setSponsors] = useState<SponsorItem[]>(() => {
-    const saved = localStorage.getItem('wabupcup_sponsors');
-    return saved ? JSON.parse(saved) : INITIAL_SPONSORS;
+    return safeLocalStorageGet<SponsorItem[]>('wabupcup_sponsors', INITIAL_SPONSORS);
   });
 
   useEffect(() => {
-    localStorage.setItem('wabupcup_sponsors', JSON.stringify(sponsors));
+    safeLocalStorageSet('wabupcup_sponsors', JSON.stringify(sponsors));
   }, [sponsors]);
 
   const addSponsor = (sponsor: Omit<SponsorItem, 'id'>) => {
@@ -1281,13 +1326,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Admin Users & Auth
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>(() => {
-    const saved = localStorage.getItem('wabupcup_admins');
-    return saved ? JSON.parse(saved) : INITIAL_ADMIN_USERS;
+    return safeLocalStorageGet<AdminUser[]>('wabupcup_admins', INITIAL_ADMIN_USERS);
   });
 
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(() => {
-    const saved = localStorage.getItem('wabupcup_current_admin');
-    return saved ? JSON.parse(saved) : null;
+    return safeLocalStorageGet<AdminUser | null>('wabupcup_current_admin', null);
   });
 
   const loginAdmin = async (username: string, pass: string): Promise<{ success: boolean; message?: string; admin?: AdminUser }> => {
@@ -1301,7 +1344,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const res = await ApiService.loginAdmin(cleanUser, pass);
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
-        localStorage.setItem('wabupcup_current_admin', JSON.stringify(res.user));
+        safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(res.user));
         return { success: true, admin: res.user };
       }
       if (res && res.message) {
@@ -1318,7 +1361,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (found) {
       if (found.password && found.password === pass) {
         setCurrentAdmin(found);
-        localStorage.setItem('wabupcup_current_admin', JSON.stringify(found));
+        safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(found));
         return { success: true, admin: found };
       }
       return { success: false, message: 'Password salah! Kata sandi tidak sesuai dengan database akun.' };
@@ -1328,7 +1371,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const logoutAdmin = () => {
     setCurrentAdmin(null);
-    localStorage.removeItem('wabupcup_current_admin');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('wabupcup_current_admin');
+    }
   };
 
   const addAdminUser = (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => {
@@ -1339,7 +1384,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     setAdminUsers(prev => {
       const next = [...prev, newUser];
-      localStorage.setItem('wabupcup_admins', JSON.stringify(next));
+      safeLocalStorageSet('wabupcup_admins', JSON.stringify(next));
       return next;
     });
     ApiService.createAdmin(user).catch(err =>
@@ -1350,12 +1395,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateAdminUser = (updatedUser: AdminUser & { password?: string }) => {
     setAdminUsers(prev => {
       const next = prev.map(a => (a.id === updatedUser.id ? { ...a, ...updatedUser } : a));
-      localStorage.setItem('wabupcup_admins', JSON.stringify(next));
+      safeLocalStorageSet('wabupcup_admins', JSON.stringify(next));
       return next;
     });
     if (currentAdmin && currentAdmin.id === updatedUser.id) {
       setCurrentAdmin(updatedUser);
-      localStorage.setItem('wabupcup_current_admin', JSON.stringify(updatedUser));
+      safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(updatedUser));
     }
     ApiService.updateAdmin(updatedUser.id, updatedUser).catch(err =>
       console.warn('Could not sync updated admin to backend:', err)
@@ -1365,7 +1410,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const deleteAdminUser = (id: string) => {
     setAdminUsers(prev => {
       const next = prev.filter(a => a.id !== id);
-      localStorage.setItem('wabupcup_admins', JSON.stringify(next));
+      safeLocalStorageSet('wabupcup_admins', JSON.stringify(next));
       return next;
     });
     ApiService.deleteAdmin(id).catch(err =>

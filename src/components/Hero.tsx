@@ -95,7 +95,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
           </h1>
 
           <p className="mt-5 text-base sm:text-xl text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed">
-            Perebutan Piala bergilir Wakil Bupati dalam 6 kategori: <strong className="text-white">SD, SMP, SMA, Instansi/OPD, Umum,</strong> dan <strong className="text-white">Desa/Kelurahan</strong>.
+            Perebutan Piala bergilir Wakil Bupati dalam 6 kategori: <strong className="text-white">SD, SMP, SMA, Instansi/Perbankan, Umum,</strong> dan <strong className="text-white">Desa/Kelurahan</strong>.
           </p>
 
           {/* ACTION BUTTONS */}

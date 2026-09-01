@@ -3588,10 +3588,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     let fullCount = 0;
 
                     categories.forEach(c => {
-                      const count = Math.max(
-                        registrations.filter(r => r.category === c.id && r.status !== 'REJECTED').length,
-                        c.registeredTeamsCount || 0
-                      );
+                      const count = registrations.filter(r => r.category === c.id && r.status !== 'REJECTED').length;
                       totalMax += c.maxTeams;
                       totalReg += count;
                       if (count >= c.maxTeams) fullCount++;
@@ -3605,7 +3602,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Kuota Turnamen</span>
                           <p className="text-2xl font-black text-white font-mono">{totalMax} <span className="text-xs font-normal text-slate-400">Tim</span></p>
-                          <span className="text-[11px] text-slate-400 block">6 Kategori Turnamen</span>
+                          <span className="text-[11px] text-slate-400 block">{categories.length} Kategori Turnamen</span>
                         </div>
 
                         <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
@@ -3633,7 +3630,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {categories.map(cat => {
                       const activeRegs = registrations.filter(r => r.category === cat.id && r.status !== 'REJECTED');
-                      const regCount = Math.max(activeRegs.length, cat.registeredTeamsCount || 0);
+                      const regCount = activeRegs.length;
                       const isFull = regCount >= cat.maxTeams;
                       const remaining = Math.max(0, cat.maxTeams - regCount);
                       const percent = Math.min(100, Math.round((regCount / cat.maxTeams) * 100));
