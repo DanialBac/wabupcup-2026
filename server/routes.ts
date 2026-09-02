@@ -116,6 +116,16 @@ apiRouter.post('/categories', async (req: Request, res: Response) => {
   }
 });
 
+apiRouter.post('/categories/reorder', async (req: Request, res: Response) => {
+  try {
+    const list = Array.isArray(req.body) ? req.body : req.body.categories;
+    const saved = await Database.reorderCategories(list || []);
+    res.json({ success: true, categories: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
 apiRouter.put('/categories/:id', async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveCategory(req.body);
@@ -244,6 +254,29 @@ apiRouter.post('/matches', async (req: Request, res: Response) => {
     const id = req.body.id || `match-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const saved = await Database.saveMatch({ ...req.body, id });
     res.status(201).json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/matches/replace-category', async (req: Request, res: Response) => {
+  try {
+    const { category, matches } = req.body;
+    if (!category || !Array.isArray(matches)) {
+      return res.status(400).json({ error: 'category and matches array are required' });
+    }
+    const saved = await Database.replaceCategoryMatches(category, matches);
+    res.json({ success: true, count: saved.length, matches: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/matches/batch', async (req: Request, res: Response) => {
+  try {
+    const list = Array.isArray(req.body) ? req.body : req.body.matches;
+    const saved = await Database.saveMatchesBatch(list || []);
+    res.json({ success: true, count: saved.length, matches: saved });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }

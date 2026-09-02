@@ -152,6 +152,15 @@ export const ApiService = {
     });
   },
 
+  async reorderCategories(categories: CategoryDetail[]): Promise<CategoryDetail[] | null> {
+    const res = await safeJsonFetch<{ success: boolean; categories: CategoryDetail[] }>(`${API_BASE}/categories/reorder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categories }),
+    });
+    return res ? res.categories : null;
+  },
+
   async deleteCategory(id: string): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE}/categories/${id}`, { method: 'DELETE' });
@@ -228,6 +237,24 @@ export const ApiService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(match),
     });
+  },
+
+  async replaceCategoryMatches(category: string, matches: MatchItem[]): Promise<MatchItem[] | null> {
+    const res = await safeJsonFetch<{ success: boolean; count: number; matches: MatchItem[] }>(`${API_BASE}/matches/replace-category`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, matches }),
+    });
+    return res ? res.matches : null;
+  },
+
+  async saveMatchesBatch(matches: MatchItem[]): Promise<MatchItem[] | null> {
+    const res = await safeJsonFetch<{ success: boolean; count: number; matches: MatchItem[] }>(`${API_BASE}/matches/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matches }),
+    });
+    return res ? res.matches : null;
   },
 
   async deleteMatch(id: string): Promise<boolean> {

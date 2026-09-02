@@ -466,6 +466,38 @@ export async function runFullSchemaInit() {
     }
   }
 
+  // Seed default sponsors if empty
+  const [sponRows]: any = await pool.query('SELECT COUNT(*) as count FROM sponsors');
+  if (sponRows[0].count === 0) {
+    for (let i = 0; i < INITIAL_SPONSORS.length; i++) {
+      const sp = INITIAL_SPONSORS[i];
+      await pool.query(
+        `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description, sort_order, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sp.id,
+          sp.name,
+          sp.tier,
+          sp.logoText,
+          sp.logoUrl || null,
+          sp.websiteUrl || null,
+          sp.description || null,
+          i,
+          true,
+        ]
+      );
+    }
+  }
+
+  // Seed default config if empty
+  const [cfgRows]: any = await pool.query('SELECT COUNT(*) as count FROM tournament_config');
+  if (cfgRows[0].count === 0) {
+    await pool.query(
+      `INSERT INTO tournament_config (config_key, config_value) VALUES (?, ?)`,
+      ['main_config', JSON.stringify(INITIAL_TOURNAMENT_CONFIG)]
+    );
+  }
+
   return { success: true, message: 'MySQL Database Tables Initialized and Seeded Successfully' };
 }
 
@@ -575,6 +607,30 @@ export const Database = {
       }
     }
     return true;
+  },
+
+  async reorderCategories(categories: CategoryDetail[]): Promise<CategoryDetail[]> {
+    await ensureDbConnected();
+    memStore.categories = [...categories];
+    if (pool && isMySqlConnected) {
+      try {
+        for (let i = 0; i < categories.length; i++) {
+          const cat = categories[i];
+          await pool.query(
+            `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE sort_order = ?, name = ?, max_teams = ?, registration_fee = ?, total_prize = ?`,
+            [
+              cat.id, cat.name, cat.badgeTitle || '', cat.ageRestriction, cat.maxTeams, cat.registeredTeamsCount, cat.registrationFee, cat.totalPrize, cat.description || '', JSON.stringify(cat.prizes), JSON.stringify(cat.rules), i,
+              i, cat.name, cat.maxTeams, cat.registrationFee, cat.totalPrize,
+            ]
+          );
+        }
+      } catch (err) {
+        console.error('Error reordering categories in MySQL:', err);
+      }
+    }
+    return categories;
   },
 
   // Registrations
@@ -739,6 +795,60 @@ export const Database = {
     return true;
   },
 
+  async replaceCategoryMatches(category: string, newMatches: MatchItem[]): Promise<MatchItem[]> {
+    await ensureDbConnected();
+    // 1. Update in-memory store
+    memStore.matches = memStore.matches.filter(m => m.category !== category).concat(newMatches);
+
+    // 2. Update MySQL database
+    if (pool && isMySqlConnected) {
+      try {
+        await pool.query('DELETE FROM matches WHERE category_id = ?', [category]);
+        for (const match of newMatches) {
+          await pool.query(
+            `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              match.id, match.matchNumber, match.category, match.round, match.roundIndex, match.group || null, match.teamA.name, match.teamA.institution || null, match.teamA.logo || null, match.teamA.score !== undefined ? match.teamA.score : null, match.teamA.penalties !== undefined ? match.teamA.penalties : null, match.teamB.name, match.teamB.institution || null, match.teamB.logo || null, match.teamB.score !== undefined ? match.teamB.score : null, match.teamB.penalties !== undefined ? match.teamB.penalties : null, match.date, match.time, match.pitch, match.status, match.liveMinute || null, JSON.stringify(match.events || []), match.winnerId || null, match.nextMatchId || null, match.nextMatchSlot || null,
+            ]
+          );
+        }
+      } catch (err) {
+        console.error('Error replacing category matches in MySQL:', err);
+      }
+    }
+    return newMatches;
+  },
+
+  async saveMatchesBatch(matchesToSave: MatchItem[]): Promise<MatchItem[]> {
+    await ensureDbConnected();
+    for (const match of matchesToSave) {
+      const idx = memStore.matches.findIndex(m => m.id === match.id);
+      if (idx >= 0) {
+        memStore.matches[idx] = match;
+      } else {
+        memStore.matches.push(match);
+      }
+
+      if (pool && isMySqlConnected) {
+        try {
+          await pool.query(
+            `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE match_number=?, category_id=?, round_name=?, round_index=?, group_name=?, team_a_name=?, team_a_institution=?, team_a_logo=?, team_a_score=?, team_a_penalties=?, team_b_name=?, team_b_institution=?, team_b_logo=?, team_b_score=?, team_b_penalties=?, match_date=?, match_time=?, pitch=?, status=?, live_minute=?, events_json=?, winner_id=?, next_match_id=?, next_match_slot=?`,
+            [
+              match.id, match.matchNumber, match.category, match.round, match.roundIndex, match.group || null, match.teamA.name, match.teamA.institution || null, match.teamA.logo || null, match.teamA.score !== undefined ? match.teamA.score : null, match.teamA.penalties !== undefined ? match.teamA.penalties : null, match.teamB.name, match.teamB.institution || null, match.teamB.logo || null, match.teamB.score !== undefined ? match.teamB.score : null, match.teamB.penalties !== undefined ? match.teamB.penalties : null, match.date, match.time, match.pitch, match.status, match.liveMinute || null, JSON.stringify(match.events || []), match.winnerId || null, match.nextMatchId || null, match.nextMatchSlot || null,
+              match.matchNumber, match.category, match.round, match.roundIndex, match.group || null, match.teamA.name, match.teamA.institution || null, match.teamA.logo || null, match.teamA.score !== undefined ? match.teamA.score : null, match.teamA.penalties !== undefined ? match.teamA.penalties : null, match.teamB.name, match.teamB.institution || null, match.teamB.logo || null, match.teamB.score !== undefined ? match.teamB.score : null, match.teamB.penalties !== undefined ? match.teamB.penalties : null, match.date, match.time, match.pitch, match.status, match.liveMinute || null, JSON.stringify(match.events || []), match.winnerId || null, match.nextMatchId || null, match.nextMatchSlot || null,
+            ]
+          );
+        } catch (err) {
+          console.error('Error saving batch match item in MySQL:', err);
+        }
+      }
+    }
+    return matchesToSave;
+  },
+
   // Sponsors
   async getSponsors(): Promise<SponsorItem[]> {
     await ensureDbConnected();
@@ -755,6 +865,21 @@ export const Database = {
             websiteUrl: r.website_url || undefined,
             description: r.description || undefined,
           }));
+        } else {
+          // If empty in MySQL, seed default sponsors into MySQL
+          for (let i = 0; i < memStore.sponsors.length; i++) {
+            const sp = memStore.sponsors[i];
+            await pool.query(
+              `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description, sort_order, is_active)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE name=?, tier=?, logo_text=?, logo_url=?, website_url=?, description=?, sort_order=?`,
+              [
+                sp.id, sp.name, sp.tier, sp.logoText, sp.logoUrl || null, sp.websiteUrl || null, sp.description || null, i, true,
+                sp.name, sp.tier, sp.logoText, sp.logoUrl || null, sp.websiteUrl || null, sp.description || null, i,
+              ]
+            );
+          }
+          return memStore.sponsors;
         }
       } catch (err) {
         console.error('Error fetching sponsors from MySQL:', err);

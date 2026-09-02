@@ -41,23 +41,35 @@ const ROLE_DEFINITIONS: Record<AdminRole, { label: string; desc: string; badgeCl
     badgeClass: 'bg-red-950/80 text-red-400 border-red-800',
     icon: <ShieldAlert className="w-3.5 h-3.5 text-red-400" />,
   },
-  PANITIA: {
+  PANITIA_INTI: {
     label: 'Panitia Inti',
-    desc: 'Verifikasi pendaftaran tim, kelola bagan pertandingan, sponsor, dan laporan turnamen.',
+    desc: 'CRUD seluruh menu turnamen (Pendaftaran, Sistem Acak, Jadwal, Kategori, Sponsor, Pengaturan), kecuali Admin & Database.',
+    badgeClass: 'bg-indigo-950/80 text-indigo-400 border-indigo-800',
+    icon: <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />,
+  },
+  PANITIA: {
+    label: 'Panitia Inti (Legacy)',
+    desc: 'CRUD seluruh menu turnamen operasional (Pendaftaran, Sistem Acak, Jadwal, Kategori, Sponsor, Pengaturan).',
     badgeClass: 'bg-blue-950/80 text-blue-400 border-blue-800',
     icon: <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />,
+  },
+  PANITIA_UMUM: {
+    label: 'Panitia Umum',
+    desc: 'CRUD Pendaftaran Tim & Jadwal Pertandingan, serta melihat Ringkasan & Statistik.',
+    badgeClass: 'bg-emerald-950/80 text-emerald-400 border-emerald-800',
+    icon: <Users className="w-3.5 h-3.5 text-emerald-400" />,
   },
   WASIT: {
     label: 'Wasit & TD',
     desc: 'Update skor langsung, pencatatan pencetak gol & kartu, dan konfirmasi hasil pertandingan.',
-    badgeClass: 'bg-emerald-950/80 text-emerald-400 border-emerald-800',
-    icon: <Shield className="w-3.5 h-3.5 text-emerald-400" />,
+    badgeClass: 'bg-amber-950/80 text-amber-400 border-amber-800',
+    icon: <Shield className="w-3.5 h-3.5 text-amber-400" />,
   },
   OPERATOR: {
     label: 'Operator Live',
     desc: 'Pencatatan statistik pertandingan dan pembaruan menit laga real-time.',
-    badgeClass: 'bg-amber-950/80 text-amber-400 border-amber-800',
-    icon: <UserCheck className="w-3.5 h-3.5 text-amber-400" />,
+    badgeClass: 'bg-cyan-950/80 text-cyan-400 border-cyan-800',
+    icon: <UserCheck className="w-3.5 h-3.5 text-cyan-400" />,
   },
 };
 

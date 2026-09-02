@@ -67,6 +67,7 @@ interface TournamentContextType {
   addCategory: (category: CategoryDetail) => void;
   updateCategory: (category: CategoryDetail) => void;
   deleteCategory: (categoryId: string) => void;
+  reorderCategories: (newCategories: CategoryDetail[]) => Promise<void>;
   registrations: RegistrationItem[];
   submitNewRegistration: (data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>) => RegistrationItem;
   updateRegistration: (item: RegistrationItem) => void;
@@ -499,6 +500,16 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       );
       return next;
     });
+  };
+
+  const reorderCategories = async (newCategories: CategoryDetail[]) => {
+    setCategories(newCategories);
+    safeLocalStorageSet('wabupcup_categories', JSON.stringify(newCategories));
+    try {
+      await ApiService.reorderCategories(newCategories);
+    } catch (err) {
+      console.warn('Could not sync reordered categories to backend:', err);
+    }
   };
 
   // Registrations state
@@ -1277,10 +1288,17 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
     }
 
-    // Replace matches for this category
+    // Replace matches for this category in local state and localStorage
     setMatches(prev => {
       const otherCategoryMatches = prev.filter(m => m.category !== category);
-      return [...otherCategoryMatches, ...newGeneratedMatches];
+      const combined = [...otherCategoryMatches, ...newGeneratedMatches];
+      safeLocalStorageSet('wabupcup_matches', JSON.stringify(combined));
+      return combined;
+    });
+
+    // Sync and persist immediately to backend server & MySQL database
+    ApiService.replaceCategoryMatches(category, newGeneratedMatches).catch(err => {
+      console.warn('Could not sync randomized matches to backend:', err);
     });
 
     return {
@@ -1486,6 +1504,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addCategory,
         updateCategory,
         deleteCategory,
+        reorderCategories,
         registrations,
         submitNewRegistration,
         updateRegistration,
