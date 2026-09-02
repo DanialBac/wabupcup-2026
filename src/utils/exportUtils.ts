@@ -13,9 +13,12 @@ export function exportRegistrationsToExcel(
     if (r.documents?.suratKeterangan) docSummary.push('Surat Ket');
     if (r.documents?.suratPernyataan) docSummary.push('Surat Pernyataan');
     if (r.documents?.formulirPemain) docSummary.push('Form Pemain');
-    if (r.documents?.aktaKelahiran) docSummary.push('Akta/Identitas');
-    if (r.documents?.ktpGabungan) docSummary.push('KTP Gabungan PDF');
-    if (r.documents?.bpjsKetenagakerjaan) docSummary.push('BPJS Ketenagakerjaan PDF');
+    if (r.documents?.aktaKelahiran) docSummary.push('Akta SD');
+    if (r.documents?.raportKartuPelajar) docSummary.push('Raport/Kartu Pelajar');
+    if (r.documents?.ktpGabungan) docSummary.push('KTP Gabungan');
+    if (r.documents?.bpjsKetenagakerjaan) docSummary.push('BPJS Ketenagakerjaan');
+    if (r.documents?.buktiPembayaran) docSummary.push('Bukti Transfer');
+    if (r.documents?.logoTim) docSummary.push('Logo Tim');
 
     const paymentLabel =
       r.paymentStatus === 'PAID'

@@ -36,12 +36,20 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   if (!isOpen || !document) return null;
 
   const pdfSource = document.fileData || document.previewUrl;
+  const isImageFile = Boolean(
+    pdfSource &&
+    (pdfSource.startsWith('data:image/') ||
+     (document.type && document.type.startsWith('image/')) ||
+     document.name?.match(/\.(png|jpg|jpeg|webp|svg)$/i))
+  );
   const isRealPdfFile = Boolean(
+    !isImageFile &&
     pdfSource &&
     (pdfSource.startsWith('data:application/pdf') ||
      pdfSource.startsWith('blob:') ||
      pdfSource.startsWith('http://') ||
-     pdfSource.startsWith('https://'))
+     pdfSource.startsWith('https://') ||
+     document.name?.toLowerCase().endsWith('.pdf'))
   );
 
   return (
@@ -107,7 +115,16 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
         {/* PDF CANVAS / VIEWER BODY */}
         <div className="flex-1 bg-slate-950 p-2 sm:p-4 overflow-hidden flex flex-col">
-          {isRealPdfFile ? (
+          {isImageFile ? (
+            <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-slate-900/60 rounded-xl border border-slate-800">
+              <img
+                src={pdfSource}
+                alt={`${documentTitle} - ${teamName}`}
+                className="max-h-full max-w-full object-contain rounded-lg shadow-xl"
+                style={{ transform: `scale(${zoomLevel / 100})`, transition: 'transform 0.2s' }}
+              />
+            </div>
+          ) : isRealPdfFile ? (
             <div className="w-full h-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col">
               <iframe
                 src={`${pdfSource}#toolbar=1&navpanes=0`}

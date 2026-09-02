@@ -741,6 +741,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [targetRejectItem, setTargetRejectItem] = useState<RegistrationItem | null>(null);
   const [rejectionReasonText, setRejectionReasonText] = useState('');
 
+  // Document Inspector Modal State
+  const [inspectDocsItem, setInspectDocsItem] = useState<RegistrationItem | null>(null);
+
   // Super Admin Full Registration Editor Modal State
   const [editRegModalOpen, setEditRegModalOpen] = useState(false);
   const [editingReg, setEditingReg] = useState<RegistrationItem | null>(null);
@@ -763,6 +766,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     suratPernyataan: UploadedDoc | undefined;
     formulirPemain: UploadedDoc | undefined;
     aktaKelahiran: UploadedDoc | undefined;
+    raportKartuPelajar: UploadedDoc | undefined;
+    ktpGabungan: UploadedDoc | undefined;
+    bpjsKetenagakerjaan: UploadedDoc | undefined;
+    buktiPembayaran: UploadedDoc | undefined;
+    logoTim: UploadedDoc | undefined;
   }>({
     teamName: '',
     category: 'SMA',
@@ -782,6 +790,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     suratPernyataan: undefined,
     formulirPemain: undefined,
     aktaKelahiran: undefined,
+    raportKartuPelajar: undefined,
+    ktpGabungan: undefined,
+    bpjsKetenagakerjaan: undefined,
+    buktiPembayaran: undefined,
+    logoTim: undefined,
   });
 
   const handleOpenEditReg = (item: RegistrationItem) => {
@@ -805,6 +818,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       suratPernyataan: item.documents?.suratPernyataan,
       formulirPemain: item.documents?.formulirPemain,
       aktaKelahiran: item.documents?.aktaKelahiran,
+      raportKartuPelajar: item.documents?.raportKartuPelajar,
+      ktpGabungan: item.documents?.ktpGabungan,
+      bpjsKetenagakerjaan: item.documents?.bpjsKetenagakerjaan,
+      buktiPembayaran: item.documents?.buktiPembayaran,
+      logoTim: item.documents?.logoTim,
     });
     setEditRegModalOpen(true);
   };
@@ -834,6 +852,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         suratPernyataan: regForm.suratPernyataan,
         formulirPemain: regForm.formulirPemain,
         aktaKelahiran: regForm.aktaKelahiran,
+        raportKartuPelajar: regForm.raportKartuPelajar,
+        ktpGabungan: regForm.ktpGabungan,
+        bpjsKetenagakerjaan: regForm.bpjsKetenagakerjaan,
+        buktiPembayaran: regForm.buktiPembayaran,
+        logoTim: regForm.logoTim,
       },
       lastUpdated: new Date().toISOString(),
     };
@@ -858,7 +881,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   };
 
   const handleRegDocUpload = (
-    docType: 'suratKeterangan' | 'suratPernyataan' | 'formulirPemain' | 'aktaKelahiran',
+    docType: keyof typeof regForm,
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
@@ -877,6 +900,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       setRegForm(prev => ({ ...prev, [docType]: uploadedDoc }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleRemoveRegDoc = (docType: keyof typeof regForm) => {
+    setRegForm(prev => ({ ...prev, [docType]: undefined }));
   };
 
   // Drawing Randomizer State
@@ -1136,6 +1163,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     setSelectedDocTitle(title);
     setSelectedTeamName(team);
     setPdfModalOpen(true);
+  };
+
+  // DOCUMENT LABELS & REQUIREMENTS HELPERS
+  const getRequiredDocsForCategory = (category: TournamentCategory): { key: string; label: string; shortLabel: string }[] => {
+    switch (category) {
+      case 'SD':
+        return [
+          { key: 'suratKeterangan', label: 'Surat Keterangan Sekolah', shortLabel: 'Surat Sekolah' },
+          { key: 'suratPernyataan', label: 'Surat Pernyataan SPTJM Bermaterai', shortLabel: 'SPTJM' },
+          { key: 'formulirPemain', label: 'Formulir Pemain & Official', shortLabel: 'Form Pemain' },
+          { key: 'aktaKelahiran', label: 'Akta Kelahiran Gabungan (Max 2014)', shortLabel: 'Akta SD' },
+          { key: 'raportKartuPelajar', label: 'Raport / Kartu Pelajar Siswa', shortLabel: 'Raport/Kartu' },
+        ];
+      case 'SMP':
+      case 'SMA':
+        return [
+          { key: 'suratKeterangan', label: 'Surat Izin / Keterangan Sekolah', shortLabel: 'Surat Sekolah' },
+          { key: 'suratPernyataan', label: 'Surat Pernyataan SPTJM Bermaterai', shortLabel: 'SPTJM' },
+          { key: 'formulirPemain', label: 'Formulir Pemain & Official', shortLabel: 'Form Pemain' },
+          { key: 'raportKartuPelajar', label: 'Raport Terakhir / Kartu Pelajar', shortLabel: 'Raport/Kartu' },
+        ];
+      case 'INSTANSI':
+        return [
+          { key: 'suratKeterangan', label: 'Surat Tugas / Keterangan Pimpinan Instansi', shortLabel: 'Surat Instansi' },
+          { key: 'suratPernyataan', label: 'Surat Pernyataan Tanggung Jawab', shortLabel: 'SPTJM' },
+          { key: 'formulirPemain', label: 'Formulir Pemain Karyawan & Official', shortLabel: 'Form Karyawan' },
+          { key: 'bpjsKetenagakerjaan', label: 'File BPJS Ketenagakerjaan / ID Card', shortLabel: 'BPJS Ketenagakerjaan' },
+        ];
+      case 'DESA':
+        return [
+          { key: 'suratKeterangan', label: 'Surat Keterangan Domisili Kepala Desa / Lurah', shortLabel: 'Surat Kades' },
+          { key: 'suratPernyataan', label: 'Surat Pernyataan Tanggung Jawab', shortLabel: 'SPTJM' },
+          { key: 'formulirPemain', label: 'Formulir Pemain & Official', shortLabel: 'Form Pemain' },
+          { key: 'ktpGabungan', label: 'File KTP / KK Asli Pemain & Official', shortLabel: 'KTP Gabungan' },
+        ];
+      case 'UMUM':
+        return [
+          { key: 'suratKeterangan', label: 'Surat Rekomendasi / Keterangan Klub', shortLabel: 'Surat Klub' },
+          { key: 'suratPernyataan', label: 'Surat Pernyataan Tanggung Jawab', shortLabel: 'SPTJM' },
+          { key: 'formulirPemain', label: 'Formulir Pemain & Official', shortLabel: 'Form Pemain' },
+          { key: 'ktpGabungan', label: 'File KTP Asli Pemain & Official', shortLabel: 'KTP Gabungan' },
+        ];
+      default:
+        return [
+          { key: 'suratKeterangan', label: 'Surat Keterangan', shortLabel: 'Surat Ket' },
+          { key: 'suratPernyataan', label: 'Surat Pernyataan', shortLabel: 'SPTJM' },
+          { key: 'formulirPemain', label: 'Formulir Pemain', shortLabel: 'Form Pemain' },
+        ];
+    }
+  };
+
+  const getDocDisplayInfo = (key: string, category: TournamentCategory) => {
+    switch (key) {
+      case 'suratKeterangan':
+        if (category === 'SD' || category === 'SMP' || category === 'SMA') {
+          return { title: 'Surat Keterangan / Izin Sekolah', label: 'Surat Sekolah', color: 'bg-blue-950/80 text-blue-300 border-blue-800/60 hover:bg-blue-900' };
+        }
+        if (category === 'INSTANSI') {
+          return { title: 'Surat Tugas Instansi / Pimpinan', label: 'Surat Instansi', color: 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900' };
+        }
+        if (category === 'DESA') {
+          return { title: 'Surat Keterangan Kepala Desa / Lurah', label: 'Surat Kades', color: 'bg-amber-950/80 text-amber-300 border-amber-800/60 hover:bg-amber-900' };
+        }
+        if (category === 'UMUM') {
+          return { title: 'Surat Rekomendasi / Pengantar Klub', label: 'Surat Klub', color: 'bg-indigo-950/80 text-indigo-300 border-indigo-800/60 hover:bg-indigo-900' };
+        }
+        return { title: 'Surat Keterangan', label: 'Surat Ket', color: 'bg-blue-950/80 text-blue-300 border-blue-800/60 hover:bg-blue-900' };
+      case 'suratPernyataan':
+        return { title: 'Surat Pernyataan Bermaterai (SPTJM)', label: 'Pernyataan SPTJM', color: 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700' };
+      case 'formulirPemain':
+        return { title: 'Formulir Susunan Pemain & Official', label: 'Form Pemain', color: 'bg-indigo-950/80 text-indigo-300 border-indigo-800/60 hover:bg-indigo-900' };
+      case 'aktaKelahiran':
+        return { title: 'Akta Kelahiran Gabungan (Maks Kelahiran 2014)', label: 'Akta SD', color: 'bg-red-950/80 text-red-300 border-red-800/60 hover:bg-red-900' };
+      case 'raportKartuPelajar':
+        return { title: 'Raport Terakhir / Kartu Pelajar (PDF)', label: 'Raport/Kartu', color: 'bg-cyan-950/80 text-cyan-300 border-cyan-800/60 hover:bg-cyan-900' };
+      case 'ktpGabungan':
+        return { title: 'File KTP Pemain & Official Gabungan (PDF)', label: 'KTP Gabungan', color: 'bg-amber-950/80 text-amber-300 border-amber-800/60 hover:bg-amber-900' };
+      case 'bpjsKetenagakerjaan':
+        return { title: 'File BPJS Ketenagakerjaan / ID Card Pegawai (PDF)', label: 'BPJS Ketenagakerjaan', color: 'bg-teal-950/80 text-teal-300 border-teal-800/60 hover:bg-teal-900' };
+      case 'buktiPembayaran':
+        return { title: 'Bukti Pembayaran / Transfer Bank', label: 'Bukti Transfer', color: 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900' };
+      case 'logoTim':
+        return { title: 'Logo Resmi Tim / Klub', label: 'Logo Tim', color: 'bg-violet-950/80 text-violet-300 border-violet-800/60 hover:bg-violet-900' };
+      default:
+        return { title: key, label: key, color: 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700' };
+    }
   };
 
   // OPEN REJECT MODAL
@@ -2007,46 +2120,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                   </span>
                                 </td>
 
-                                {/* DOKUMEN PDF BUTTONS */}
-                                <td className="py-3.5 px-4 space-y-1">
-                                  <div className="flex flex-wrap gap-1">
-                                    {item.documents.suratKeterangan && (
-                                      <button
-                                        onClick={() => handleOpenPdf(item.documents.suratKeterangan, 'Surat Keterangan', item.teamName)}
-                                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-blue-400 flex items-center space-x-1"
-                                      >
-                                        <Eye className="w-3 h-3" />
-                                        <span>Surat Ket</span>
-                                      </button>
-                                    )}
-                                    {item.documents.suratPernyataan && (
-                                      <button
-                                        onClick={() => handleOpenPdf(item.documents.suratPernyataan, 'Surat Pernyataan', item.teamName)}
-                                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-blue-400 flex items-center space-x-1"
-                                      >
-                                        <Eye className="w-3 h-3" />
-                                        <span>Pernyataan</span>
-                                      </button>
-                                    )}
-                                    {item.documents.formulirPemain && (
-                                      <button
-                                        onClick={() => handleOpenPdf(item.documents.formulirPemain, 'Formulir Pemain', item.teamName)}
-                                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-blue-400 flex items-center space-x-1"
-                                      >
-                                        <Eye className="w-3 h-3" />
-                                        <span>Form Pemain</span>
-                                      </button>
-                                    )}
-                                    {item.documents.aktaKelahiran && (
-                                      <button
-                                        onClick={() => handleOpenPdf(item.documents.aktaKelahiran, 'Akta Kelahiran (Max 2014)', item.teamName)}
-                                        className="px-2 py-0.5 rounded bg-red-950 hover:bg-red-900 text-[10px] text-red-300 flex items-center space-x-1"
-                                      >
-                                        <Eye className="w-3 h-3" />
-                                        <span>Akta SD</span>
-                                      </button>
-                                    )}
-                                  </div>
+                                {/* DOKUMEN PDF BUTTONS (DYNAMIC FOR ALL CATEGORIES) */}
+                                <td className="py-3.5 px-4">
+                                  {(() => {
+                                    const docs = item.documents || {};
+                                    const validEntries = Object.entries(docs).filter(([_, doc]) => doc && doc.name);
+                                    const reqDocs = getRequiredDocsForCategory(item.category);
+                                    const uploadedReqCount = reqDocs.filter(r => Boolean((docs as any)[r.key])).length;
+                                    const isComplete = uploadedReqCount >= reqDocs.length;
+
+                                    return (
+                                      <div className="space-y-1.5 min-w-[200px] max-w-[280px]">
+                                        {/* Status Kelengkapan Checklist Header */}
+                                        <div className="flex items-center justify-between gap-1">
+                                          <button
+                                            onClick={() => setInspectDocsItem(item)}
+                                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition flex items-center space-x-1 cursor-pointer ${
+                                              isComplete
+                                                ? 'bg-emerald-950 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900'
+                                                : uploadedReqCount > 0
+                                                ? 'bg-amber-950 text-amber-300 border-amber-700/60 hover:bg-amber-900'
+                                                : 'bg-red-950 text-red-300 border-red-700/60 hover:bg-red-900'
+                                            }`}
+                                            title="Klik untuk membuka panel verifikasi berkas lengkap"
+                                          >
+                                            <span>{uploadedReqCount}/{reqDocs.length} Berkas {isComplete ? 'Lengkap' : ''}</span>
+                                            <ExternalLink className="w-2.5 h-2.5 opacity-75" />
+                                          </button>
+                                          {validEntries.length > 0 && (
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                              {validEntries.length} file
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Dynamic List of Uploaded Documents */}
+                                        {validEntries.length === 0 ? (
+                                          <p className="text-[10px] text-slate-500 italic flex items-center space-x-1">
+                                            <AlertTriangle className="w-3 h-3 text-amber-500/70 shrink-0" />
+                                            <span>Belum ada berkas</span>
+                                          </p>
+                                        ) : (
+                                          <div className="flex flex-wrap gap-1">
+                                            {validEntries.map(([key, doc]) => {
+                                              if (!doc) return null;
+                                              const info = getDocDisplayInfo(key, item.category);
+                                              return (
+                                                <button
+                                                  key={key}
+                                                  onClick={() => handleOpenPdf(doc, info.title, item.teamName)}
+                                                  title={`${info.title} (${doc.name} • ${doc.size || 'PDF'})`}
+                                                  className={`px-2 py-0.5 rounded text-[10px] font-medium border flex items-center space-x-1 transition shadow-sm cursor-pointer ${info.color}`}
+                                                >
+                                                  <Eye className="w-2.5 h-2.5 shrink-0" />
+                                                  <span className="truncate max-w-[120px]">{info.label}</span>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
 
                                 {/* BIAYA & PEMBAYARAN */}
@@ -5323,112 +5458,174 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
               </div>
 
-              {/* SECTION 4: BERKAS DOKUMEN & PERSYARATAN */}
+              {/* SECTION 4: BERKAS DOKUMEN & PERSYARATAN (SESUAI KATEGORI TIM) */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-                <h5 className="font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-blue-400" />
-                  <span>Kelola Berkas Dokumen Persyaratan</span>
-                </h5>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <h5 className="font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-blue-400" />
+                    <span>Berkas Persyaratan Kategori: <span className="text-blue-400 font-extrabold">{regForm.category}</span></span>
+                  </h5>
+                  <span className="text-[11px] text-slate-400">
+                    Format: PDF, PNG, JPG (Maks 15 MB)
+                  </span>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Doc 1: Surat Keterangan */}
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Dokumen Wajib Dinamis Sesuai Kategori Pendaftar */}
+                  {getRequiredDocsForCategory(regForm.category).map((req, idx) => {
+                    const doc = regForm[req.key as keyof typeof regForm] as UploadedDoc | undefined;
+                    const info = getDocDisplayInfo(req.key, regForm.category);
+
+                    return (
+                      <div key={req.key} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-slate-200 block text-xs">{idx + 1}. {req.label}</span>
+                            <span className="text-[10px] text-blue-400 font-semibold">Wajib ({regForm.category})</span>
+                          </div>
+                          {doc ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">✓ Terunggah</span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-900/60 font-semibold">✕ Belum Ada</span>
+                          )}
+                        </div>
+                        {doc && (
+                          <p className="text-[11px] text-slate-400 font-mono truncate">{doc.name} {doc.size ? `(${doc.size})` : ''}</p>
+                        )}
+                        <div className="flex items-center gap-1.5 pt-1">
+                          {doc && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPdf(doc, info.title, regForm.teamName)}
+                              className="px-2.5 py-1 rounded-lg bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-800/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Lihat</span>
+                            </button>
+                          )}
+                          <label className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                            <Upload className="w-3 h-3 text-blue-400" />
+                            <span>{doc ? 'Ganti' : 'Unggah'}</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx"
+                              onChange={e => handleRegDocUpload(req.key as keyof typeof regForm, e)}
+                              className="hidden"
+                            />
+                          </label>
+                          {doc && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRegDoc(req.key as keyof typeof regForm)}
+                              className="p-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-800/40 cursor-pointer"
+                              title="Hapus berkas ini"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Dokumen Tambahan: Bukti Transfer Pembayaran */}
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-900/50 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-300">1. Surat Keterangan Lembaga</span>
-                      {regForm.suratKeterangan ? (
-                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
+                      <div>
+                        <span className="font-bold text-slate-200 block text-xs">Bukti Transfer Pembayaran</span>
+                        <span className="text-[10px] text-emerald-400 font-semibold">Semua Kategori (Wajib Transfer)</span>
+                      </div>
+                      {regForm.buktiPembayaran ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">✓ Terunggah</span>
                       ) : (
-                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">Belum Ada</span>
                       )}
                     </div>
-                    {regForm.suratKeterangan && (
-                      <p className="text-[11px] text-slate-400 truncate">{regForm.suratKeterangan.name}</p>
+                    {regForm.buktiPembayaran && (
+                      <p className="text-[11px] text-slate-400 font-mono truncate">{regForm.buktiPembayaran.name} {regForm.buktiPembayaran.size ? `(${regForm.buktiPembayaran.size})` : ''}</p>
                     )}
-                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{regForm.suratKeterangan ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg"
-                        onChange={e => handleRegDocUpload('suratKeterangan', e)}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {regForm.buktiPembayaran && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPdf(regForm.buktiPembayaran!, 'Bukti Transfer Pembayaran', regForm.teamName)}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Lihat</span>
+                        </button>
+                      )}
+                      <label className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                        <Upload className="w-3 h-3 text-emerald-400" />
+                        <span>{regForm.buktiPembayaran ? 'Ganti' : 'Unggah'}</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          onChange={e => handleRegDocUpload('buktiPembayaran', e)}
+                          className="hidden"
+                        />
+                      </label>
+                      {regForm.buktiPembayaran && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRegDoc('buktiPembayaran')}
+                          className="p-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-800/40 cursor-pointer"
+                          title="Hapus berkas ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Doc 2: Surat Pernyataan */}
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  {/* Dokumen Tambahan: Logo Tim */}
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-purple-900/50 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-300">2. Surat Pernyataan / SPTJM</span>
-                      {regForm.suratPernyataan ? (
-                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
+                      <div>
+                        <span className="font-bold text-slate-200 block text-xs">Logo Tim / Klub</span>
+                        <span className="text-[10px] text-purple-400 font-semibold">Opsional (Visual Tim)</span>
+                      </div>
+                      {regForm.logoTim ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold">✓ Terunggah</span>
                       ) : (
-                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">Belum Ada</span>
                       )}
                     </div>
-                    {regForm.suratPernyataan && (
-                      <p className="text-[11px] text-slate-400 truncate">{regForm.suratPernyataan.name}</p>
+                    {regForm.logoTim && (
+                      <p className="text-[11px] text-slate-400 font-mono truncate">{regForm.logoTim.name} {regForm.logoTim.size ? `(${regForm.logoTim.size})` : ''}</p>
                     )}
-                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{regForm.suratPernyataan ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg"
-                        onChange={e => handleRegDocUpload('suratPernyataan', e)}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {/* Doc 3: Formulir Biodata */}
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-300">3. Formulir Pemain & Official</span>
-                      {regForm.formulirPemain ? (
-                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500">Belum ada</span>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {regForm.logoTim && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPdf(regForm.logoTim!, 'Logo Tim', regForm.teamName)}
+                          className="px-2.5 py-1 rounded-lg bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800/60 text-[11px] font-semibold flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Lihat</span>
+                        </button>
+                      )}
+                      <label className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
+                        <Upload className="w-3 h-3 text-purple-400" />
+                        <span>{regForm.logoTim ? 'Ganti' : 'Unggah'}</span>
+                        <input
+                          type="file"
+                          accept=".png,.jpg,.jpeg,.svg,.pdf"
+                          onChange={e => handleRegDocUpload('logoTim', e)}
+                          className="hidden"
+                        />
+                      </label>
+                      {regForm.logoTim && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRegDoc('logoTim')}
+                          className="p-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 border border-red-800/40 cursor-pointer"
+                          title="Hapus logo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </div>
-                    {regForm.formulirPemain && (
-                      <p className="text-[11px] text-slate-400 truncate">{regForm.formulirPemain.name}</p>
-                    )}
-                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{regForm.formulirPemain ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx"
-                        onChange={e => handleRegDocUpload('formulirPemain', e)}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {/* Doc 4: Akta Kelahiran */}
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-300">4. Akta Kelahiran / Identitas</span>
-                      {regForm.aktaKelahiran ? (
-                        <span className="text-[10px] text-emerald-400 font-semibold">✓ Terunggah</span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500">Belum ada</span>
-                      )}
-                    </div>
-                    {regForm.aktaKelahiran && (
-                      <p className="text-[11px] text-slate-400 truncate">{regForm.aktaKelahiran.name}</p>
-                    )}
-                    <label className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{regForm.aktaKelahiran ? 'Ganti Berkas' : 'Unggah Berkas'}</span>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg"
-                        onChange={e => handleRegDocUpload('aktaKelahiran', e)}
-                        className="hidden"
-                      />
-                    </label>
                   </div>
                 </div>
               </div>
@@ -6115,6 +6312,264 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 9. MODAL: INSPECT & VERIFIKASI BERKAS DOKUMEN LENGKAP */}
+      {inspectDocsItem && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white space-y-6 shadow-2xl animate-fadeIn max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-11 h-11 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h4 className="text-lg font-black text-white">
+                      Verifikasi Berkas: {inspectDocsItem.teamName}
+                    </h4>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-400 border border-blue-800">
+                      {inspectDocsItem.category}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    {inspectDocsItem.institution} • Pelatih: {inspectDocsItem.coachName} ({inspectDocsItem.coachPhone})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInspectDocsItem(null)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Checklist Persyaratan Kategori */}
+            {(() => {
+              const reqDocs = getRequiredDocsForCategory(inspectDocsItem.category);
+              const docs = inspectDocsItem.documents || {};
+              const uploadedEntries = Object.entries(docs).filter(([_, doc]) => doc && (doc as UploadedDoc).name);
+              const uploadedReqCount = reqDocs.filter(r => Boolean((docs as any)[r.key])).length;
+              const isAllComplete = uploadedReqCount >= reqDocs.length;
+
+              return (
+                <div className="space-y-4">
+                  {/* Status Banner */}
+                  <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                    isAllComplete
+                      ? 'bg-emerald-950/50 border-emerald-800/60 text-emerald-300'
+                      : 'bg-amber-950/50 border-amber-800/60 text-amber-300'
+                  }`}>
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                        isAllComplete ? 'bg-emerald-900/80 text-emerald-400' : 'bg-amber-900/80 text-amber-400'
+                      }`}>
+                        {isAllComplete ? <Check className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-sm">
+                          {isAllComplete ? 'Semua Berkas Wajib Lengkap' : `Berkas Belum Lengkap (${uploadedReqCount}/${reqDocs.length})`}
+                        </h5>
+                        <p className="text-xs opacity-80">
+                          {isAllComplete
+                            ? 'Tim ini telah mengunggah semua dokumen yang dipersyaratkan untuk kategori ' + inspectDocsItem.category
+                            : 'Masih ada dokumen persyaratan wajib yang belum diunggah untuk kategori ' + inspectDocsItem.category}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-mono text-sm font-bold px-3 py-1 rounded-xl bg-slate-900/80 border border-slate-700">
+                      {uploadedReqCount}/{reqDocs.length} Wajib
+                    </span>
+                  </div>
+
+                  {/* Daftar Berkas Lengkap */}
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Detail Dokumen & Lampiran ({uploadedEntries.length} File Terunggah)
+                    </h5>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Tampilkan Semua Dokumen Persyaratan Kategori */}
+                      {reqDocs.map(req => {
+                        const doc = (docs as any)[req.key] as UploadedDoc | undefined;
+                        const info = getDocDisplayInfo(req.key, inspectDocsItem.category);
+
+                        return (
+                          <div
+                            key={req.key}
+                            className={`p-3.5 rounded-2xl border space-y-2 transition ${
+                              doc
+                                ? 'bg-slate-950 border-slate-800'
+                                : 'bg-red-950/20 border-red-900/40'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="font-bold text-white text-xs block">{req.label}</span>
+                                <span className="text-[10px] text-slate-400">Wajib ({inspectDocsItem.category})</span>
+                              </div>
+                              {doc ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                                  ✓ Terunggah
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-400 border border-red-800">
+                                  ✕ Belum Ada
+                                </span>
+                              )}
+                            </div>
+
+                            {doc ? (
+                              <div>
+                                <p className="text-[11px] text-slate-300 font-mono truncate">{doc.name}</p>
+                                <p className="text-[10px] text-slate-500">{doc.size || 'Ukuran tidak diketahui'}</p>
+                                <div className="flex items-center gap-2 pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPdf(doc, info.title, inspectDocsItem.teamName)}
+                                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-md shadow-blue-950"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Buka & Preview Dokumen</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-red-400/80 italic">
+                                Belum diunggah oleh pendaftar.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Dokumen Tambahan: Bukti Pembayaran */}
+                      {docs.buktiPembayaran && (
+                        <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-900/50 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-bold text-white text-xs block">Bukti Transfer Pembayaran</span>
+                              <span className="text-[10px] text-emerald-400 font-semibold">Biaya Pendaftaran</span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                              ✓ Terunggah
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 font-mono truncate">{docs.buktiPembayaran.name}</p>
+                          <p className="text-[10px] text-slate-500">{docs.buktiPembayaran.size || 'PDF/Foto'}</p>
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPdf(docs.buktiPembayaran!, 'Bukti Transfer Pembayaran', inspectDocsItem.teamName)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Lihat Bukti Transfer</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dokumen Tambahan: Logo Tim */}
+                      {docs.logoTim && (
+                        <div className="p-3.5 rounded-2xl bg-slate-950 border border-purple-900/50 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-bold text-white text-xs block">Logo Resmi Tim / Klub</span>
+                              <span className="text-[10px] text-purple-400 font-semibold">Visual Tim</span>
+                            </div>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-950 text-purple-400 border border-purple-800">
+                              ✓ Terunggah
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 font-mono truncate">{docs.logoTim.name}</p>
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPdf(docs.logoTim!, 'Logo Resmi Tim', inspectDocsItem.teamName)}
+                              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Lihat Logo</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center space-x-2">
+                <a
+                  href={`https://wa.me/${inspectDocsItem.coachPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Halo Pelatih ${inspectDocsItem.coachName} (${inspectDocsItem.teamName}), panitia turnamen ingin mengonfirmasi berkas pendaftaran Anda.`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-xl bg-emerald-950 text-emerald-400 hover:bg-emerald-900 border border-emerald-800 text-xs font-bold flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Hubungi Pelatih WA</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = inspectDocsItem;
+                    setInspectDocsItem(null);
+                    handleOpenEditReg(item);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Edit className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Kelola / Unggah Berkas</span>
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {inspectDocsItem.status !== 'APPROVED' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateRegistrationStatus(inspectDocsItem.id, 'APPROVED');
+                      setInspectDocsItem(null);
+                    }}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-lg shadow-emerald-950"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Setujui Pendaftaran</span>
+                  </button>
+                )}
+                {inspectDocsItem.status !== 'REJECTED' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reason = window.prompt('Masukkan alasan penolakan berkas:');
+                      if (reason !== null) {
+                        updateRegistrationStatus(inspectDocsItem.id, 'REJECTED', reason);
+                        setInspectDocsItem(null);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-rose-950 text-rose-300 hover:bg-rose-900 border border-rose-800 text-xs font-bold flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>Tolak Berkas</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setInspectDocsItem(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
