@@ -160,7 +160,7 @@ CREATE TABLE `admin_users` (
   `username` VARCHAR(64) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `full_name` VARCHAR(150) NOT NULL,
-  `role` ENUM('SUPERADMIN', 'PANITIA', 'WASIT') NOT NULL DEFAULT 'PANITIA',
+  `role` VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI',
   `email` VARCHAR(150) NULL,
   `phone` VARCHAR(50) NULL,
   `avatar_color` VARCHAR(30) NOT NULL DEFAULT 'bg-red-600',

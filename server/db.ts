@@ -346,6 +346,13 @@ async function autoMigrateTables() {
     if (rows.length === 0) {
       console.log('[MySQL] Tables not found. Initializing schema automatically...');
       await runFullSchemaInit();
+    } else {
+      // Safe non-blocking column upgrade for existing databases (e.g. migrate ENUM role to VARCHAR(64))
+      try {
+        await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
+      } catch (colErr: any) {
+        // Table might not exist yet or already updated, safe to ignore
+      }
     }
   } catch (err) {
     console.error('[MySQL] Error checking tables:', err);
@@ -447,7 +454,7 @@ export async function runFullSchemaInit() {
       username VARCHAR(64) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
       full_name VARCHAR(150) NOT NULL,
-      role VARCHAR(32) NOT NULL DEFAULT 'PANITIA',
+      role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI',
       email VARCHAR(150) NULL,
       phone VARCHAR(50) NULL,
       avatar_color VARCHAR(30) NOT NULL DEFAULT 'bg-red-600',
@@ -1024,8 +1031,9 @@ export const Database = {
     await ensureDbConnected();
 
     if (pool && isMySqlConnected) {
+      const passHash = password || admin.password || 'admin123';
+      const roleToSave = admin.role || 'PANITIA_INTI';
       try {
-        const passHash = password || admin.password || 'admin123';
         await pool.query(
           `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1042,7 +1050,7 @@ export const Database = {
             admin.username,
             passHash,
             admin.fullName,
-            admin.role,
+            roleToSave,
             admin.email || null,
             admin.phone || null,
             admin.avatarColor || 'bg-red-600',
@@ -1054,12 +1062,60 @@ export const Database = {
         // Keep local memory store cache in sync with MySQL
         const idx = memStore.adminUsers.findIndex(a => a.id === admin.id);
         if (idx >= 0) {
-          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
+          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin, role: roleToSave };
         } else {
-          memStore.adminUsers.push(admin);
+          memStore.adminUsers.push({ ...admin, role: roleToSave });
         }
       } catch (err: any) {
         console.error('Error saving admin user to MySQL:', err);
+        const errMsg = String(err?.message || '');
+        // Auto-heal: If MySQL has an older schema with ENUM or short VARCHAR causing Error 1265 (WARN_DATA_TRUNCATED)
+        if (
+          err?.code === 'WARN_DATA_TRUNCATED' ||
+          err?.errno === 1265 ||
+          errMsg.includes('role') ||
+          errMsg.includes('Data truncated')
+        ) {
+          try {
+            console.log('[MySQL Auto-Migration] Migrating column role in admin_users to VARCHAR(64)...');
+            await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
+            // Retry the query
+            await pool.query(
+              `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE 
+                 username = VALUES(username),
+                 full_name = VALUES(full_name),
+                 role = VALUES(role),
+                 email = VALUES(email),
+                 phone = VALUES(phone),
+                 avatar_color = VALUES(avatar_color),
+                 password_hash = COALESCE(?, password_hash)`,
+              [
+                admin.id,
+                admin.username,
+                passHash,
+                admin.fullName,
+                roleToSave,
+                admin.email || null,
+                admin.phone || null,
+                admin.avatarColor || 'bg-red-600',
+                admin.createdAt ? new Date(admin.createdAt) : new Date(),
+                password || null,
+              ]
+            );
+            console.log('[MySQL Auto-Migration] Successfully saved admin user after column role auto-migration!');
+            const idx = memStore.adminUsers.findIndex(a => a.id === admin.id);
+            if (idx >= 0) {
+              memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin, role: roleToSave };
+            } else {
+              memStore.adminUsers.push({ ...admin, role: roleToSave });
+            }
+            return { ...admin, role: roleToSave };
+          } catch (retryErr: any) {
+            console.error('[MySQL Auto-Migration] Retry after role migration failed:', retryErr);
+          }
+        }
         throw new Error(`Gagal menyimpan data admin ke database MySQL: ${err?.message || err}`);
       }
     } else {
