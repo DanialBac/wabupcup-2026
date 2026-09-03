@@ -74,7 +74,7 @@ const ROLE_DEFINITIONS: Record<AdminRole, { label: string; desc: string; badgeCl
 };
 
 export const AdminUsersManagerTab: React.FC = () => {
-  const { adminUsers, addAdminUser, updateAdminUser, deleteAdminUser, currentAdmin, isSyncingWithServer, refreshDataFromServer } = useTournament();
+  const { adminUsers, addAdminUser, updateAdminUser, deleteAdminUser, currentAdmin, isSyncingWithServer, refreshDataFromServer, dbStatus } = useTournament();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<'ALL' | AdminRole>('ALL');
@@ -83,6 +83,7 @@ export const AdminUsersManagerTab: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form Fields State
   const [formUsername, setFormUsername] = useState('');
@@ -127,7 +128,7 @@ export const AdminUsersManagerTab: React.FC = () => {
     setFormError('');
   };
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUsername = formUsername.trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
     if (!cleanUsername) {
@@ -147,21 +148,32 @@ export const AdminUsersManagerTab: React.FC = () => {
       return;
     }
 
-    addAdminUser({
-      username: cleanUsername,
-      fullName: formFullName.trim(),
-      role: formRole,
-      email: formEmail.trim(),
-      phone: formPhone.trim(),
-      avatarColor: formAvatarColor,
-      password: formPassword.trim(),
-    });
+    setIsSubmitting(true);
+    try {
+      const res = await addAdminUser({
+        username: cleanUsername,
+        fullName: formFullName.trim(),
+        role: formRole,
+        email: formEmail.trim(),
+        phone: formPhone.trim(),
+        avatarColor: formAvatarColor,
+        password: formPassword.trim(),
+      });
 
-    setIsAddModalOpen(false);
-    triggerToast(`Admin @${cleanUsername} (${formFullName}) berhasil ditambahkan!`);
+      setIsAddModalOpen(false);
+      if (res.savedToDatabase) {
+        triggerToast(`Admin @${cleanUsername} berhasil ditambahkan dan disimpan langsung ke database online!`);
+      } else {
+        triggerToast(`Admin @${cleanUsername} berhasil ditambahkan!`);
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Gagal menambahkan admin');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
@@ -196,21 +208,43 @@ export const AdminUsersManagerTab: React.FC = () => {
       ...(formPassword.trim() ? { password: formPassword.trim() } : {}),
     };
 
-    updateAdminUser(updated);
-    setEditingUser(null);
-    triggerToast(`Data admin @${cleanUsername} berhasil diperbarui!`);
+    setIsSubmitting(true);
+    try {
+      const res = await updateAdminUser(updated);
+      setEditingUser(null);
+      if (res.savedToDatabase) {
+        triggerToast(`Data admin @${cleanUsername} berhasil diperbarui & disimpan langsung di database online!`);
+      } else {
+        triggerToast(`Data admin @${cleanUsername} berhasil diperbarui!`);
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Gagal memperbarui admin');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deletingUser) return;
     if (deletingUser.username.toLowerCase() === 'superadmin') {
       alert('Akun Super Admin utama tidak dapat dihapus demi keamanan!');
       setDeletingUser(null);
       return;
     }
-    deleteAdminUser(deletingUser.id);
-    triggerToast(`Admin @${deletingUser.username} telah dihapus.`);
-    setDeletingUser(null);
+    setIsSubmitting(true);
+    try {
+      const res = await deleteAdminUser(deletingUser.id);
+      if (res.savedToDatabase) {
+        triggerToast(`Admin @${deletingUser.username} telah dihapus dari database online.`);
+      } else {
+        triggerToast(`Admin @${deletingUser.username} telah dihapus.`);
+      }
+    } catch (err: any) {
+      alert(`Gagal menghapus admin: ${err?.message}`);
+    } finally {
+      setIsSubmitting(false);
+      setDeletingUser(null);
+    }
   };
 
   const generateRandomPassword = () => {
@@ -263,9 +297,20 @@ export const AdminUsersManagerTab: React.FC = () => {
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[11px] font-bold border border-slate-700">
                   {adminUsers.length} User
                 </span>
+                {dbStatus?.connected ? (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 text-[11px] font-bold border border-emerald-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Database Online Terhubung</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-amber-950/80 text-amber-400 text-[11px] font-bold border border-amber-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    <span>Mode Memori / Cache</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Kelola hak akses panitia, wasit, delegasi teknis, dan operator live score turnamen secara terpusat.
+                Kelola hak akses panitia, wasit, delegasi teknis, dan operator live score turnamen secara terpusat (tersinkronisasi langsung ke database).
               </p>
             </div>
           </div>

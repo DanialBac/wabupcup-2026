@@ -355,7 +355,7 @@ apiRouter.post('/admins', async (req: Request, res: Response) => {
       id: `adm-${Date.now()}`,
       username: cleanUsername,
       fullName: fullName.trim(),
-      role: role || 'PANITIA',
+      role: role || 'PANITIA_INTI',
       email: email ? email.trim() : '',
       phone: phone ? phone.trim() : '',
       avatarColor: avatarColor || 'bg-red-600',
@@ -363,7 +363,14 @@ apiRouter.post('/admins', async (req: Request, res: Response) => {
       password: password || 'admin123',
     };
     const saved = await Database.saveAdmin(newAdmin, password);
-    res.status(201).json(saved);
+    const dbStatus = getMySqlStatus();
+    res.status(201).json({
+      success: true,
+      ...saved,
+      savedToDatabase: dbStatus.connected,
+      databaseMode: dbStatus.mode,
+      databaseHost: dbStatus.host,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Gagal menambahkan admin' });
   }
@@ -375,7 +382,7 @@ apiRouter.put('/admins/:id', async (req: Request, res: Response) => {
     const existingList = await Database.getAdmins();
     const target = existingList.find(a => a.id === req.params.id);
     if (!target) {
-      return res.status(404).json({ error: 'Admin tidak ditemukan' });
+      return res.status(404).json({ error: 'Admin dengan ID tersebut tidak ditemukan' });
     }
     const updatedAdmin = {
       ...target,
@@ -388,7 +395,14 @@ apiRouter.put('/admins/:id', async (req: Request, res: Response) => {
       password: password || target.password,
     };
     const saved = await Database.saveAdmin(updatedAdmin, password);
-    res.json(saved);
+    const dbStatus = getMySqlStatus();
+    res.json({
+      success: true,
+      ...saved,
+      savedToDatabase: dbStatus.connected,
+      databaseMode: dbStatus.mode,
+      databaseHost: dbStatus.host,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Gagal memperbarui admin' });
   }
@@ -400,7 +414,8 @@ apiRouter.delete('/admins/:id', async (req: Request, res: Response) => {
     if (!success) {
       return res.status(400).json({ error: 'Akun Superadmin utama tidak dapat dihapus demi keamanan sistem.' });
     }
-    res.json({ success: true, id: req.params.id });
+    const dbStatus = getMySqlStatus();
+    res.json({ success: true, id: req.params.id, savedToDatabase: dbStatus.connected });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Gagal menghapus admin' });
   }

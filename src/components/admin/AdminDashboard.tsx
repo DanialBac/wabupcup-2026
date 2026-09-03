@@ -142,6 +142,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     updateBankAccount,
     deleteBankAccount,
     setPrimaryBankAccount,
+    dbStatus,
   } = useTournament();
 
   // Login credentials state
@@ -1929,14 +1930,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           </div>
 
           {/* DATABASE SYNC STATUS WIDGET */}
-          <div className="mt-auto p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-medium text-slate-300">Database Engine</p>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div className="mt-auto p-3.5 bg-slate-800/60 rounded-xl border border-slate-700">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+                <Database className="w-3.5 h-3.5 text-blue-400" />
+                <span>Database Sync</span>
+              </span>
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${
+                  dbStatus?.connected
+                    ? 'bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse'
+                    : 'bg-amber-400'
+                }`}
+              ></span>
             </div>
-            <p className="text-[10px] text-slate-400 mb-2">MySQL & Real-Time Sync Active</p>
-            <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 w-full h-full rounded-full"></div>
+            <p className="text-[11px] text-slate-300 font-medium truncate">
+              {dbStatus?.connected
+                ? `Online: ${dbStatus.host.split('.')[0] || 'TiDB/MySQL'}`
+                : 'Mode Cache / Fallback'}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {dbStatus?.connected
+                ? 'Semua data tersinkron langsung ke database'
+                : (dbStatus?.error ? 'Periksa kredensial database di tab Database' : 'Menghubungkan...')}
+            </p>
+            <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2">
+              <div
+                className={`h-full rounded-full ${
+                  dbStatus?.connected ? 'bg-emerald-500 w-full' : 'bg-amber-500 w-1/2'
+                }`}
+              ></div>
             </div>
           </div>
         </aside>

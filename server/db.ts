@@ -1,4 +1,6 @@
 import mysql from 'mysql2/promise';
+import fs from 'fs';
+import path from 'path';
 import {
   INITIAL_ADMIN_USERS,
   INITIAL_CATEGORIES,
@@ -34,6 +36,29 @@ const memStore = new MemoryStore();
 let pool: mysql.Pool | null = null;
 let isMySqlConnected = false;
 let mySqlError: string | null = null;
+
+const DB_CONFIG_FILE = path.join(process.cwd(), 'server', 'db-config.json');
+
+export function loadSavedDbConfig(): CustomDbConfig | null {
+  try {
+    if (fs.existsSync(DB_CONFIG_FILE)) {
+      const content = fs.readFileSync(DB_CONFIG_FILE, 'utf-8');
+      return JSON.parse(content);
+    }
+  } catch (err) {
+    console.warn('[DB Config] Could not read saved config file:', err);
+  }
+  return null;
+}
+
+export function saveDbConfigFile(config: CustomDbConfig): void {
+  try {
+    fs.writeFileSync(DB_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    console.log('[DB Config] Successfully saved database configuration to', DB_CONFIG_FILE);
+  } catch (err) {
+    console.warn('[DB Config] Could not write config to file:', err);
+  }
+}
 
 export function getMySqlStatus() {
   const host = process.env.MYSQL_HOST || (process.env.DATABASE_URL ? 'Via DATABASE_URL' : 'Not configured (In-Memory fallback)');
@@ -131,28 +156,30 @@ export async function ensureDbConnected(): Promise<boolean> {
 }
 
 export async function initDatabaseConnection(customConfig?: CustomDbConfig): Promise<boolean> {
-  // If customConfig provided, apply to process.env and memory
-  if (customConfig) {
-    if (customConfig.databaseUrl !== undefined) {
-      process.env.DATABASE_URL = customConfig.databaseUrl.trim();
+  // If no customConfig provided, check if we have a saved config on disk
+  const effectiveConfig = customConfig || loadSavedDbConfig();
+
+  if (effectiveConfig) {
+    if (effectiveConfig.databaseUrl !== undefined && effectiveConfig.databaseUrl.trim()) {
+      process.env.DATABASE_URL = effectiveConfig.databaseUrl.trim();
     }
-    if (customConfig.host !== undefined) {
-      process.env.MYSQL_HOST = customConfig.host.trim();
+    if (effectiveConfig.host !== undefined && effectiveConfig.host.trim()) {
+      process.env.MYSQL_HOST = effectiveConfig.host.trim();
     }
-    if (customConfig.port !== undefined) {
-      process.env.MYSQL_PORT = String(customConfig.port);
+    if (effectiveConfig.port !== undefined) {
+      process.env.MYSQL_PORT = String(effectiveConfig.port);
     }
-    if (customConfig.user !== undefined) {
-      process.env.MYSQL_USER = customConfig.user.trim();
+    if (effectiveConfig.user !== undefined && effectiveConfig.user.trim()) {
+      process.env.MYSQL_USER = effectiveConfig.user.trim();
     }
-    if (customConfig.password !== undefined) {
-      process.env.MYSQL_PASSWORD = customConfig.password;
+    if (effectiveConfig.password !== undefined) {
+      process.env.MYSQL_PASSWORD = effectiveConfig.password;
     }
-    if (customConfig.database !== undefined) {
-      process.env.MYSQL_DATABASE = customConfig.database.trim();
+    if (effectiveConfig.database !== undefined && effectiveConfig.database.trim()) {
+      process.env.MYSQL_DATABASE = effectiveConfig.database.trim();
     }
-    if (customConfig.ssl !== undefined) {
-      process.env.MYSQL_SSL = customConfig.ssl ? 'true' : 'false';
+    if (effectiveConfig.ssl !== undefined) {
+      process.env.MYSQL_SSL = effectiveConfig.ssl ? 'true' : 'false';
     }
   }
 
@@ -169,6 +196,7 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
   if (!dbUrl && !host) {
     console.log('[Database] No MySQL host or DATABASE_URL provided. Operating with in-memory persistence layer.');
     isMySqlConnected = false;
+    mySqlError = 'Belum dikonfigurasi. Silakan atur kredensial database di tab Database.';
     return false;
   }
 
@@ -283,12 +311,28 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
     mySqlError = null;
     console.log(`[MySQL] Successfully connected to MySQL database: ${database} at ${host || 'DATABASE_URL'}`);
 
+    // If custom config was successfully connected, save to persistent config file
+    if (customConfig) {
+      saveDbConfigFile(customConfig);
+    }
+
     // Auto-check and setup tables if needed
     await autoMigrateTables();
     return true;
   } catch (err: any) {
     isMySqlConnected = false;
-    mySqlError = err?.message || 'Failed to connect to MySQL';
+    
+    // Human-friendly Indonesian error messages for common database issues
+    if (err?.code === 'ER_ACCESS_DENIED_ERROR' || err?.errno === 1045) {
+      mySqlError = `Akses Ditolak (ER_ACCESS_DENIED): Password atau Username database tidak cocok. Silakan periksa atau buat ulang password di dashboard database online Anda (misal TiDB Cloud Console).`;
+    } else if (err?.code === 'ENOTFOUND') {
+      mySqlError = `Host Tidak Ditemukan (ENOTFOUND): Hostname '${host || 'DATABASE_URL'}' tidak dapat dihubungi. Periksa URL koneksi database.`;
+    } else if (err?.code === 'ETIMEDOUT') {
+      mySqlError = `Koneksi Timeout (ETIMEDOUT): Server database tidak merespons. Pastikan IP Allowlist diatur ke 0.0.0.0/0.`;
+    } else {
+      mySqlError = err?.message || 'Gagal terhubung ke MySQL';
+    }
+    
     console.warn(`[MySQL Warning] Could not connect to MySQL: ${mySqlError}. Using fallback storage.`);
     return false;
   }
@@ -933,9 +977,9 @@ export const Database = {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
-        const [rows]: any = await pool.query('SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users');
-        if (rows.length > 0) {
-          return rows.map((r: any) => ({
+        const [rows]: any = await pool.query('SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users ORDER BY created_at ASC');
+        if (Array.isArray(rows) && rows.length > 0) {
+          const list = rows.map((r: any) => ({
             id: r.id,
             username: r.username,
             fullName: r.full_name,
@@ -945,6 +989,29 @@ export const Database = {
             avatarColor: r.avatar_color,
             createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '2026-08-01',
           }));
+          memStore.adminUsers = list;
+          return list;
+        } else if (Array.isArray(rows) && rows.length === 0) {
+          // Table exists in MySQL but has 0 rows -> Seed default admins
+          for (const adm of INITIAL_ADMIN_USERS) {
+            await pool.query(
+              `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE full_name = VALUES(full_name)`,
+              [
+                adm.id,
+                adm.username,
+                adm.password || 'admin123',
+                adm.fullName,
+                adm.role,
+                adm.email || '',
+                adm.phone || '',
+                adm.avatarColor || 'bg-red-600',
+              ]
+            );
+          }
+          memStore.adminUsers = [...INITIAL_ADMIN_USERS];
+          return memStore.adminUsers;
         }
       } catch (err) {
         console.error('Error fetching admins from MySQL:', err);
@@ -955,12 +1022,6 @@ export const Database = {
 
   async saveAdmin(admin: AdminUser, password?: string): Promise<AdminUser> {
     await ensureDbConnected();
-    const idx = memStore.adminUsers.findIndex(a => a.id === admin.id || a.username.toLowerCase() === admin.username.toLowerCase());
-    if (idx >= 0) {
-      memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
-    } else {
-      memStore.adminUsers.push(admin);
-    }
 
     if (pool && isMySqlConnected) {
       try {
@@ -968,7 +1029,14 @@ export const Database = {
         await pool.query(
           `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE full_name=?, role=?, email=?, phone=?, avatar_color=?, password_hash=COALESCE(?, password_hash)`,
+           ON DUPLICATE KEY UPDATE 
+             username = VALUES(username),
+             full_name = VALUES(full_name),
+             role = VALUES(role),
+             email = VALUES(email),
+             phone = VALUES(phone),
+             avatar_color = VALUES(avatar_color),
+             password_hash = COALESCE(?, password_hash)`,
           [
             admin.id,
             admin.username,
@@ -979,19 +1047,31 @@ export const Database = {
             admin.phone || null,
             admin.avatarColor || 'bg-red-600',
             admin.createdAt ? new Date(admin.createdAt) : new Date(),
-            // Updates
-            admin.fullName,
-            admin.role,
-            admin.email || null,
-            admin.phone || null,
-            admin.avatarColor || 'bg-red-600',
             password || null,
           ]
         );
-      } catch (err) {
+
+        // Keep local memory store cache in sync with MySQL
+        const idx = memStore.adminUsers.findIndex(a => a.id === admin.id);
+        if (idx >= 0) {
+          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
+        } else {
+          memStore.adminUsers.push(admin);
+        }
+      } catch (err: any) {
         console.error('Error saving admin user to MySQL:', err);
+        throw new Error(`Gagal menyimpan data admin ke database MySQL: ${err?.message || err}`);
+      }
+    } else {
+      // Memory Store fallback when MySQL is not connected
+      const idx = memStore.adminUsers.findIndex(a => a.id === admin.id || a.username.toLowerCase() === admin.username.toLowerCase());
+      if (idx >= 0) {
+        memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
+      } else {
+        memStore.adminUsers.push(admin);
       }
     }
+
     return admin;
   },
 
@@ -1006,8 +1086,9 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         await pool.query("DELETE FROM admin_users WHERE id = ? AND username != 'superadmin'", [id]);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error deleting admin from MySQL:', err);
+        throw new Error(`Gagal menghapus admin dari MySQL: ${err?.message || err}`);
       }
     }
     return true;

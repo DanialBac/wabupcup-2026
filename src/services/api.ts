@@ -55,6 +55,10 @@ export const ApiService = {
     }
   },
 
+  async checkHealth() {
+    return this.getHealth();
+  },
+
   // Database actions
   async initDb(): Promise<{ success: boolean; message?: string; error?: string; status?: any }> {
     try {
@@ -290,31 +294,60 @@ export const ApiService = {
 
   // Admins & Auth
   async getAdmins(): Promise<AdminUser[] | null> {
-    return safeJsonFetch<AdminUser[]>(`${API_BASE}/admins`);
+    const res = await safeJsonFetch<any>(`${API_BASE}/admins`);
+    if (res && Array.isArray(res.admins)) {
+      return res.admins;
+    }
+    if (Array.isArray(res)) {
+      return res;
+    }
+    return null;
   },
 
-  async createAdmin(admin: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }): Promise<AdminUser | null> {
-    return safeJsonFetch<AdminUser>(`${API_BASE}/admins`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(admin),
-    });
+  async createAdmin(admin: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }): Promise<{ success: boolean; user?: AdminUser; error?: string; savedToDatabase?: boolean }> {
+    try {
+      const res = await fetch(`${API_BASE}/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(admin),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        return { success: false, error: data.error || `Error ${res.status}: Gagal membuat admin` };
+      }
+      return { success: true, user: data, savedToDatabase: data.savedToDatabase };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal menghubungi server database' };
+    }
   },
 
-  async updateAdmin(id: string, admin: Partial<AdminUser> & { password?: string }): Promise<AdminUser | null> {
-    return safeJsonFetch<AdminUser>(`${API_BASE}/admins/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(admin),
-    });
+  async updateAdmin(id: string, admin: Partial<AdminUser> & { password?: string }): Promise<{ success: boolean; user?: AdminUser; error?: string; savedToDatabase?: boolean }> {
+    try {
+      const res = await fetch(`${API_BASE}/admins/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(admin),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        return { success: false, error: data.error || `Error ${res.status}: Gagal memperbarui admin` };
+      }
+      return { success: true, user: data, savedToDatabase: data.savedToDatabase };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal menghubungi server database' };
+    }
   },
 
-  async deleteAdmin(id: string): Promise<boolean> {
+  async deleteAdmin(id: string): Promise<{ success: boolean; error?: string; savedToDatabase?: boolean }> {
     try {
       const res = await fetch(`${API_BASE}/admins/${id}`, { method: 'DELETE' });
-      return res.ok;
-    } catch {
-      return false;
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        return { success: false, error: data.error || 'Gagal menghapus admin' };
+      }
+      return { success: true, savedToDatabase: data.savedToDatabase };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal menghubungi server database' };
     }
   },
 

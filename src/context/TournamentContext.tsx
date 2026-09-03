@@ -97,11 +97,20 @@ interface TournamentContextType {
   currentAdmin: AdminUser | null;
   loginAdmin: (username: string, pass: string) => Promise<{ success: boolean; message?: string; admin?: AdminUser }>;
   logoutAdmin: () => void;
-  addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => void;
-  updateAdminUser: (user: AdminUser & { password?: string }) => void;
-  deleteAdminUser: (id: string) => void;
+  addAdminUser: (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }>;
+  updateAdminUser: (user: AdminUser & { password?: string }) => Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }>;
+  deleteAdminUser: (id: string) => Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }>;
   resetAllDataToDefaults: () => void;
   getWhatsAppNotificationUrl: (item: RegistrationItem, type: 'CONFIRMATION' | 'APPROVED' | 'REJECTED' | 'PAYMENT_REMINDER') => string;
+  // Database status and synchronization
+  dbStatus: {
+    connected: boolean;
+    host: string;
+    database: string;
+    error: string | null;
+    mode: 'MYSQL_REAL' | 'MEMORY_FALLBACK';
+  };
+  checkDbStatus: () => Promise<any>;
 }
 
 const TournamentContext = createContext<TournamentContextType | undefined>(undefined);
@@ -160,13 +169,41 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   });
 
+  // Database Status & Synchronization
+  const [dbStatus, setDbStatus] = useState<{
+    connected: boolean;
+    host: string;
+    database: string;
+    error: string | null;
+    mode: 'MYSQL_REAL' | 'MEMORY_FALLBACK';
+  }>({
+    connected: false,
+    host: 'Memeriksa...',
+    database: 'wabupcup_db',
+    error: null,
+    mode: 'MEMORY_FALLBACK',
+  });
+
+  const checkDbStatus = useCallback(async () => {
+    try {
+      const health = await ApiService.checkHealth();
+      if (health && health.database) {
+        setDbStatus(health.database);
+        return health.database;
+      }
+    } catch (err: any) {
+      console.warn('Could not check database health:', err);
+    }
+    return dbStatus;
+  }, [dbStatus]);
+
   // Sync with Backend (MySQL / Node API)
   const [isSyncingWithServer, setIsSyncingWithServer] = useState(false);
 
   const refreshDataFromServer = useCallback(async () => {
     try {
       setIsSyncingWithServer(true);
-      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors, serverAdmins] =
+      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors, serverAdmins, health] =
         await Promise.all([
           ApiService.getConfig(),
           ApiService.getCategories(),
@@ -174,7 +211,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ApiService.getMatches(),
           ApiService.getSponsors(),
           ApiService.getAdmins(),
+          ApiService.checkHealth().catch(() => null),
         ]);
+
+      if (health && health.database) {
+        setDbStatus(health.database);
+      }
 
       if (serverConfig) {
         setConfig(prev => ({
@@ -1394,7 +1436,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const addAdminUser = (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }) => {
+  const addAdminUser = async (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }): Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }> => {
     const newUser: AdminUser = {
       ...user,
       id: `adm-${Date.now()}`,
@@ -1405,12 +1447,22 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       safeLocalStorageSet('wabupcup_admins', JSON.stringify(next));
       return next;
     });
-    ApiService.createAdmin(user).catch(err =>
-      console.warn('Could not sync created admin to backend:', err)
-    );
+
+    try {
+      const res = await ApiService.createAdmin(user);
+      if (!res.success) {
+        throw new Error(res.error || 'Gagal menyimpan admin ke database.');
+      }
+      await checkDbStatus();
+      return { success: true, savedToDatabase: res.savedToDatabase };
+    } catch (err: any) {
+      console.warn('Could not sync created admin to backend:', err);
+      refreshDataFromServer();
+      return { success: false, error: err?.message || 'Gagal membuat admin' };
+    }
   };
 
-  const updateAdminUser = (updatedUser: AdminUser & { password?: string }) => {
+  const updateAdminUser = async (updatedUser: AdminUser & { password?: string }): Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }> => {
     setAdminUsers(prev => {
       const next = prev.map(a => (a.id === updatedUser.id ? { ...a, ...updatedUser } : a));
       safeLocalStorageSet('wabupcup_admins', JSON.stringify(next));
@@ -1420,20 +1472,40 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setCurrentAdmin(updatedUser);
       safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(updatedUser));
     }
-    ApiService.updateAdmin(updatedUser.id, updatedUser).catch(err =>
-      console.warn('Could not sync updated admin to backend:', err)
-    );
+
+    try {
+      const res = await ApiService.updateAdmin(updatedUser.id, updatedUser);
+      if (!res.success) {
+        throw new Error(res.error || 'Gagal menyimpan perubahan admin ke database.');
+      }
+      await checkDbStatus();
+      return { success: true, savedToDatabase: res.savedToDatabase };
+    } catch (err: any) {
+      console.warn('Could not sync updated admin to backend:', err);
+      refreshDataFromServer();
+      return { success: false, error: err?.message || 'Gagal mengupdate admin' };
+    }
   };
 
-  const deleteAdminUser = (id: string) => {
+  const deleteAdminUser = async (id: string): Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }> => {
     setAdminUsers(prev => {
       const next = prev.filter(a => a.id !== id);
       safeLocalStorageSet('wabupcup_admins', JSON.stringify(next));
       return next;
     });
-    ApiService.deleteAdmin(id).catch(err =>
-      console.warn('Could not delete admin from backend:', err)
-    );
+
+    try {
+      const res = await ApiService.deleteAdmin(id);
+      if (!res.success) {
+        throw new Error(res.error || 'Gagal menghapus admin dari database.');
+      }
+      await checkDbStatus();
+      return { success: true, savedToDatabase: res.savedToDatabase };
+    } catch (err: any) {
+      console.warn('Could not delete admin from backend:', err);
+      refreshDataFromServer();
+      return { success: false, error: err?.message || 'Gagal menghapus admin' };
+    }
   };
 
   const resetAllDataToDefaults = () => {
@@ -1530,6 +1602,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteAdminUser,
         resetAllDataToDefaults,
         getWhatsAppNotificationUrl,
+        dbStatus,
+        checkDbStatus,
       }}
     >
       {children}
