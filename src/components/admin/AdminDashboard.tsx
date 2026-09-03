@@ -82,7 +82,10 @@ import {
   HelpCircle,
   CheckSquare,
   Share2,
-  AlertCircle
+  AlertCircle,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -103,6 +106,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     addCategory,
     updateCategory,
     deleteCategory,
+    reorderCategories,
     matches,
     addMatch,
     updateMatch,
@@ -167,12 +171,117 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   // Match Schedule Category Filter
   const [selectedMatchCategory, setSelectedMatchCategory] = useState<string>('ALL');
 
-  // Auto-redirect WASIT & OPERATOR to SCHEDULE_LIVESCORE
+  // Role permissions evaluation
+  const isSuperAdmin = currentAdmin?.role === 'SUPERADMIN';
+  const isPanitiaInti = currentAdmin?.role === 'PANITIA_INTI' || currentAdmin?.role === 'PANITIA';
+  const isPanitiaUmum = currentAdmin?.role === 'PANITIA_UMUM';
+  const isWasitOrOperator = currentAdmin?.role === 'WASIT' || currentAdmin?.role === 'OPERATOR';
+
+  // Specific capability permissions
+  const canManageCategories = isSuperAdmin || isPanitiaInti;
+  const canManageDrawing = isSuperAdmin || isPanitiaInti;
+  const canManageSponsors = isSuperAdmin || isPanitiaInti;
+  const canManageSettings = isSuperAdmin || isPanitiaInti;
+  const canManageAdminUsers = isSuperAdmin;
+  const canManageDatabase = isSuperAdmin;
+  const canCrudRegistrations = isSuperAdmin || isPanitiaInti || isPanitiaUmum;
+  const canCrudMatches = isSuperAdmin || isPanitiaInti || isPanitiaUmum;
+
+  // Auto-enforce role tab restrictions
   useEffect(() => {
-    if (currentAdmin && (currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR')) {
-      setActiveTab('SCHEDULE_LIVESCORE');
+    if (!currentAdmin) return;
+    if (isWasitOrOperator) {
+      if (activeTab !== 'SCHEDULE_LIVESCORE') {
+        setActiveTab('SCHEDULE_LIVESCORE');
+      }
+    } else if (isPanitiaUmum) {
+      const allowedPanitiaUmum: CmsTab[] = [
+        'OVERVIEW',
+        'ALL_REGISTRATIONS',
+        'PENDING_PAYMENT',
+        'APPROVED_TEAMS',
+        'REJECTED_TEAMS',
+        'SCHEDULE_LIVESCORE',
+      ];
+      if (!allowedPanitiaUmum.includes(activeTab)) {
+        setActiveTab('OVERVIEW');
+      }
+    } else if (isPanitiaInti) {
+      const forbiddenPanitiaInti: CmsTab[] = [
+        'ADMIN_USERS',
+        'MYSQL_DATABASE_MANAGER',
+      ];
+      if (forbiddenPanitiaInti.includes(activeTab)) {
+        setActiveTab('OVERVIEW');
+      }
     }
-  }, [currentAdmin]);
+  }, [currentAdmin, activeTab, isWasitOrOperator, isPanitiaUmum, isPanitiaInti]);
+
+  // Category Drag and Drop State & Handlers
+  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
+  const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
+  const [isSavingCategoryOrder, setIsSavingCategoryOrder] = useState(false);
+  const [categoryOrderToast, setCategoryOrderToast] = useState<string | null>(null);
+
+  const handleCategoryDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedCategoryIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCategoryIndex !== index) {
+      setDragOverCategoryIndex(index);
+    }
+  };
+
+  const handleCategoryDrop = async (targetIndex: number) => {
+    if (draggedCategoryIndex === null || draggedCategoryIndex === targetIndex) {
+      setDraggedCategoryIndex(null);
+      setDragOverCategoryIndex(null);
+      return;
+    }
+
+    const updated = [...categories];
+    const [movedItem] = updated.splice(draggedCategoryIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setDraggedCategoryIndex(null);
+    setDragOverCategoryIndex(null);
+
+    setIsSavingCategoryOrder(true);
+    try {
+      await reorderCategories(updated);
+      setCategoryOrderToast(`Urutan kategori "${movedItem.name}" berhasil dipindahkan ke posisi #${targetIndex + 1}! Urutan landing page telah diperbarui.`);
+      setTimeout(() => setCategoryOrderToast(null), 4000);
+    } catch (err) {
+      console.warn('Gagal menyimpan urutan kategori:', err);
+    } finally {
+      setIsSavingCategoryOrder(false);
+    }
+  };
+
+  const handleMoveCategoryStep = async (fromIndex: number, direction: 'UP' | 'DOWN') => {
+    const targetIndex = direction === 'UP' ? fromIndex - 1 : fromIndex + 1;
+    if (targetIndex < 0 || targetIndex >= categories.length) return;
+
+    const updated = [...categories];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setIsSavingCategoryOrder(true);
+    try {
+      await reorderCategories(updated);
+      setCategoryOrderToast(`Urutan kategori "${movedItem.name}" berhasil dipindahkan ke posisi #${targetIndex + 1}! Urutan landing page telah diperbarui.`);
+      setTimeout(() => setCategoryOrderToast(null), 4000);
+    } catch (err) {
+      console.warn('Gagal memindahkan urutan kategori:', err);
+    } finally {
+      setIsSavingCategoryOrder(false);
+    }
+  };
 
   // Settings Sub-Tab State
   type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'GENERAL';
@@ -1585,13 +1694,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               <div className="flex items-center space-x-1.5 mt-0.5">
                 <span className={`w-2 h-2 rounded-full ${
                   currentAdmin.role === 'SUPERADMIN' ? 'bg-red-500' :
-                  currentAdmin.role === 'PANITIA' ? 'bg-blue-500' : 'bg-emerald-500'
+                  currentAdmin.role === 'PANITIA_INTI' || currentAdmin.role === 'PANITIA' ? 'bg-indigo-500' :
+                  currentAdmin.role === 'PANITIA_UMUM' ? 'bg-emerald-500' :
+                  currentAdmin.role === 'WASIT' ? 'bg-amber-500' : 'bg-cyan-500'
                 }`}></span>
                 <strong className="text-white font-bold">{currentAdmin.fullName || currentAdmin.username}</strong>
               </div>
               <span className="text-[10px] text-amber-400 font-semibold uppercase mt-0.5 block">
                 Role: {currentAdmin.role === 'SUPERADMIN' ? 'Super Administrator' :
-                       currentAdmin.role === 'PANITIA' ? 'Sekretariat Panitia' :
+                       currentAdmin.role === 'PANITIA_INTI' ? 'Panitia Inti' :
+                       currentAdmin.role === 'PANITIA' ? 'Panitia Inti' :
+                       currentAdmin.role === 'PANITIA_UMUM' ? 'Panitia Umum' :
                        currentAdmin.role === 'WASIT' ? 'Wasit Turnamen' : 'Operator Live Score'}
               </span>
             </div>
@@ -1701,7 +1814,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   Manajemen Kompetisi
                 </p>
 
-                {currentAdmin.role === 'SUPERADMIN' && (
+                {canManageDrawing && (
                   <button
                     onClick={() => setActiveTab('DRAWING_RANDOMIZER')}
                     className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
@@ -1727,33 +1840,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   <span>Jadwal Pertandingan</span>
                 </button>
 
-                {/* MENU KHUSUS SUPERADMIN */}
-                {currentAdmin.role === 'SUPERADMIN' && (
-                  <>
-                    <button
-                      onClick={() => setActiveTab('CATEGORIES_PRIZES')}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                        activeTab === 'CATEGORIES_PRIZES'
-                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                {/* MENU KATEGORI & SPONSOR (SUPERADMIN & PANITIA INTI) */}
+                {canManageCategories && (
+                  <button
+                    onClick={() => setActiveTab('CATEGORIES_PRIZES')}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                      activeTab === 'CATEGORIES_PRIZES'
+                        ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <Trophy className="w-4 h-4 text-yellow-400" />
-                      <span>Kategori & Hadiah</span>
-                    </button>
+                    }`}
+                  >
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    <span>Kategori & Hadiah</span>
+                  </button>
+                )}
 
+                {canManageSponsors && (
+                  <button
+                    onClick={() => setActiveTab('SPONSORS')}
+                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
+                      activeTab === 'SPONSORS'
+                        ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <Users className="w-4 h-4 text-purple-400" />
+                    <span>Sponsorship</span>
+                  </button>
+                )}
+
+                {/* MENU PENGATURAN & BERKAS (SUPERADMIN & PANITIA INTI) */}
+                {canManageSettings && (
+                  <>
+                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                      Pengaturan Turnamen
+                    </p>
                     <button
-                      onClick={() => setActiveTab('SPONSORS')}
+                      onClick={() => setActiveTab('SETTINGS')}
                       className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                        activeTab === 'SPONSORS'
+                        activeTab === 'SETTINGS'
                           ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
                           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
-                      <Users className="w-4 h-4 text-purple-400" />
-                      <span>Sponsorship</span>
+                      <Settings className="w-4 h-4 text-cyan-400" />
+                      <span>Pengaturan & Berkas</span>
                     </button>
+                  </>
+                )}
 
+                {/* MENU KHUSUS SUPERADMIN: ADMIN USERS & DATABASE */}
+                {isSuperAdmin && (
+                  <>
                     <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
                       Sistem & Sinkronisasi
                     </p>
@@ -1768,18 +1906,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     >
                       <Shield className="w-4 h-4 text-emerald-400" />
                       <span>Kelola Admin Users</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab('SETTINGS')}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                        activeTab === 'SETTINGS'
-                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <Settings className="w-4 h-4 text-cyan-400" />
-                      <span>Pengaturan & Berkas</span>
                     </button>
 
                     <button
@@ -1825,7 +1951,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
               onChange={e => setActiveTab(e.target.value as CmsTab)}
               className="w-full bg-[#1E293B] border border-slate-700 rounded-xl p-3 text-xs font-bold text-white focus:outline-none"
             >
-              {(currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR') ? (
+              {isWasitOrOperator ? (
                 <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan & Live Score</option>
               ) : (
                 <>
@@ -1835,15 +1961,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   <option value="APPROVED_TEAMS">✅ Tim Disetujui ({approvedList.length})</option>
                   <option value="REJECTED_TEAMS">❌ Pendaftaran Ditolak ({rejectedList.length})</option>
                   <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan</option>
-                  {currentAdmin.role === 'SUPERADMIN' && (
-                    <>
-                      <option value="DRAWING_RANDOMIZER">🎲 Sistem Acak & Bracket</option>
-                      <option value="CATEGORIES_PRIZES">🏆 Kategori & Hadiah</option>
-                      <option value="SPONSORS">🤝 Sponsorship</option>
-                      <option value="SETTINGS">⚙️ Pengaturan & Berkas (Settings)</option>
-                      <option value="ADMIN_USERS">🛡️ Kelola Admin Users</option>
-                      <option value="MYSQL_DATABASE_MANAGER">🗄️ Database</option>
-                    </>
+                  {canManageDrawing && (
+                    <option value="DRAWING_RANDOMIZER">🎲 Sistem Acak & Bracket</option>
+                  )}
+                  {canManageCategories && (
+                    <option value="CATEGORIES_PRIZES">🏆 Kategori & Hadiah</option>
+                  )}
+                  {canManageSponsors && (
+                    <option value="SPONSORS">🤝 Sponsorship</option>
+                  )}
+                  {canManageSettings && (
+                    <option value="SETTINGS">⚙️ Pengaturan & Berkas (Settings)</option>
+                  )}
+                  {canManageAdminUsers && (
+                    <option value="ADMIN_USERS">🛡️ Kelola Admin Users</option>
+                  )}
+                  {canManageDatabase && (
+                    <option value="MYSQL_DATABASE_MANAGER">🗄️ Database</option>
                   )}
                 </>
               )}
@@ -2277,8 +2411,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                       <Edit className="w-4 h-4" />
                                     </button>
 
-                                    {/* Hapus Registrasi (Hanya Super Admin) */}
-                                    {currentAdmin?.role === 'SUPERADMIN' && (
+                                    {/* Hapus Registrasi (Super Admin, Panitia Inti & Panitia Umum) */}
+                                    {canCrudRegistrations && (
                                       <button
                                         onClick={() => {
                                           if (confirm(`Hapus data pendaftaran tim ${item.teamName}? Tindakan ini tidak dapat dibatalkan.`)) {
@@ -2286,7 +2420,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                           }
                                         }}
                                         className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400 cursor-pointer"
-                                        title="Hapus Registrasi (Super Admin)"
+                                        title="Hapus Registrasi"
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
@@ -2706,8 +2840,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                           <span>Edit</span>
                         </button>
 
-                        {/* Hapus Match (Hanya Super Admin) */}
-                        {currentAdmin?.role === 'SUPERADMIN' && (
+                        {/* Hapus Match (Super Admin, Panitia Inti & Panitia Umum) */}
+                        {canCrudMatches && (
                           <button
                             onClick={() => {
                               if (confirm(`Hapus pertandingan Match #${m.matchNumber} (${m.teamA.name} vs ${m.teamB.name})?`)) {
@@ -2715,7 +2849,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                               }
                             }}
                             className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/60 cursor-pointer shrink-0"
-                            title="Hapus Match (Super Admin)"
+                            title="Hapus Match"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2734,6 +2868,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           {/* TAB 8: KELOLA KATEGORI & TOTAL HADIAH (CRUD LENGKAP) */}
           {activeTab === 'CATEGORIES_PRIZES' && (
             <div className="space-y-6 animate-fadeIn">
+              {/* TOAST URUTAN KATEGORI */}
+              {categoryOrderToast && (
+                <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-3 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl border border-emerald-400 animate-fadeIn">
+                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-xs font-bold">{categoryOrderToast}</span>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800">
                 <div>
                   <h3 className="text-2xl font-heading font-bold uppercase tracking-wide text-white flex items-center space-x-2">
@@ -2741,7 +2883,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     <span>KELOLA KATEGORI & TOTAL HADIAH ({categories.length} KATEGORI)</span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Tambah, edit rincian hadiah/regulasi, ubah kuota tim, biaya pendaftaran, atau hapus kategori turnamen secara real-time.
+                    Tambah, edit rincian hadiah/regulasi, ubah kuota tim, biaya pendaftaran, atau susun posisi urutan kategori turnamen.
                   </p>
                 </div>
 
@@ -2754,8 +2896,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
               </div>
 
+              {/* BANNER DRAG & DROP & PANDUAN URUTAN */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-start space-x-3">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+                    <GripVertical className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-xs uppercase flex items-center space-x-2">
+                      <span>Pengaturan Urutan Tampilan Landing Page (Drag & Drop)</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Interaktif
+                      </span>
+                    </h4>
+                    <p className="text-slate-300 text-[11px] mt-0.5 leading-relaxed">
+                      Pegang dan geser (<strong>drag & drop</strong>) kartu kategori atau gunakan tombol panah (<strong>↑ / ↓</strong>) untuk menyusun posisi urutan kartu pada bagian <em>Kategori & Hadiah</em> di Landing Page secara instan.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0">
+                  {isSavingCategoryOrder ? (
+                    <span className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center space-x-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan urutan...</span>
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold flex items-center space-x-1.5">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Sinkron Landing Page</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {categories.map(c => {
+                {categories.map((c, idx) => {
                   const catRegs = registrations.filter(r => r.category === c.id && r.status !== 'REJECTED');
                   const count = catRegs.length;
                   const isFull = count >= c.maxTeams;
@@ -2763,17 +2939,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   const percent = Math.min(100, Math.round((count / c.maxTeams) * 100));
 
                   return (
-                    <div key={c.id} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4 flex flex-col justify-between">
+                    <div
+                      key={c.id}
+                      draggable={canManageCategories}
+                      onDragStart={e => handleCategoryDragStart(e, idx)}
+                      onDragOver={e => handleCategoryDragOver(e, idx)}
+                      onDrop={e => {
+                        e.preventDefault();
+                        handleCategoryDrop(idx);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedCategoryIndex(null);
+                        setDragOverCategoryIndex(null);
+                      }}
+                      className={`p-6 rounded-2xl bg-slate-900 border shadow-xl space-y-4 flex flex-col justify-between transition-all duration-200 relative ${
+                        draggedCategoryIndex === idx
+                          ? 'opacity-40 border-amber-500 border-dashed scale-[0.98]'
+                          : dragOverCategoryIndex === idx
+                          ? 'border-amber-400 ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 bg-slate-800/90 shadow-2xl'
+                          : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
                       <div className="space-y-4">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                          <div className="flex items-center space-x-2">
-                            <span className="px-2.5 py-1 rounded-md bg-red-600 text-white font-bold text-xs">
+                          <div className="flex items-center space-x-2.5">
+                            {/* GRIP & POSITION BADGE */}
+                            <div
+                              className="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 hover:border-amber-500/50 cursor-grab active:cursor-grabbing text-slate-400 hover:text-amber-400 transition shrink-0"
+                              title="Tahan & geser (drag & drop) untuk ubah urutan di landing page"
+                            >
+                              <GripVertical className="w-4 h-4 text-slate-400" />
+                              <span className="text-[11px] font-mono font-bold text-amber-400">
+                                #{idx + 1}
+                              </span>
+                            </div>
+
+                            {/* STEP BUTTONS UP / DOWN */}
+                            <div className="flex items-center space-x-0.5 bg-slate-950 border border-slate-800 rounded-lg p-0.5 shrink-0">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveCategoryStep(idx, 'UP');
+                                }}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition cursor-pointer"
+                                title="Geser Naik (Sebelumnya)"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === categories.length - 1}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveCategoryStep(idx, 'DOWN');
+                                }}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition cursor-pointer"
+                                title="Geser Turun (Berikutnya)"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <span className="px-2.5 py-1 rounded-md bg-red-600 text-white font-bold text-xs shrink-0">
                               {c.id}
                             </span>
                             <h4 className="text-lg font-bold text-white">{c.name}</h4>
                           </div>
 
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 shrink-0">
                             {isFull ? (
                               <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center space-x-1">
                                 <Lock className="w-3 h-3 text-amber-400" />
@@ -3057,14 +3292,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* TAB 10: KELOLA ADMIN USERS (FULL CRUD) */}
+          {/* TAB 10: KELOLA ADMIN USERS (HANYA SUPERADMIN) */}
           {activeTab === 'ADMIN_USERS' && (
-            <AdminUsersManagerTab />
+            isSuperAdmin ? (
+              <AdminUsersManagerTab />
+            ) : (
+              <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-4 max-w-lg mx-auto mt-12">
+                <div className="w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h4 className="text-lg font-bold text-white">Akses Dibatasi: Khusus Super Admin</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Menu Kelola Admin Users hanya dapat diakses dan dikelola oleh Super Administrator demi menjaga keamanan hak akses akun.
+                </p>
+                <button
+                  onClick={() => setActiveTab('OVERVIEW')}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition"
+                >
+                  Kembali ke Ringkasan
+                </button>
+              </div>
+            )
           )}
 
-          {/* TAB: DATABASE MYSQL & HOSTING VERCEL */}
+          {/* TAB: DATABASE MYSQL & HOSTING VERCEL (HANYA SUPERADMIN) */}
           {activeTab === 'MYSQL_DATABASE_MANAGER' && (
-            <DatabaseManagerTab />
+            isSuperAdmin ? (
+              <DatabaseManagerTab />
+            ) : (
+              <div className="p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-4 max-w-lg mx-auto mt-12">
+                <div className="w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h4 className="text-lg font-bold text-white">Akses Dibatasi: Khusus Super Admin</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Menu Manajemen Database hanya dapat diakses oleh Super Administrator untuk memelihara integritas data turnamen.
+                </p>
+                <button
+                  onClick={() => setActiveTab('OVERVIEW')}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition"
+                >
+                  Kembali ke Ringkasan
+                </button>
+              </div>
+            )
           )}
 
           {/* TAB 11: GOOGLE APPS SCRIPT 3-FILE HUB & DEPLOYMENT GUIDE */}

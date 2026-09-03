@@ -43,13 +43,13 @@ const ROLE_DEFINITIONS: Record<AdminRole, { label: string; desc: string; badgeCl
   },
   PANITIA_INTI: {
     label: 'Panitia Inti',
-    desc: 'CRUD seluruh menu turnamen (Pendaftaran, Sistem Acak, Jadwal, Kategori, Sponsor, Pengaturan), kecuali Admin & Database.',
+    desc: 'CRUD seluruh menu turnamen (Pendaftaran, Sistem Acak, Jadwal, Kategori, Sponsor, Pengaturan), kecuali Admin Users dan Database.',
     badgeClass: 'bg-indigo-950/80 text-indigo-400 border-indigo-800',
     icon: <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />,
   },
   PANITIA: {
     label: 'Panitia Inti (Legacy)',
-    desc: 'CRUD seluruh menu turnamen operasional (Pendaftaran, Sistem Acak, Jadwal, Kategori, Sponsor, Pengaturan).',
+    desc: 'CRUD seluruh menu turnamen (Pendaftaran, Sistem Acak, Jadwal, Kategori, Sponsor, Pengaturan), kecuali Admin Users dan Database.',
     badgeClass: 'bg-blue-950/80 text-blue-400 border-blue-800',
     icon: <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />,
   },
@@ -87,7 +87,7 @@ export const AdminUsersManagerTab: React.FC = () => {
   // Form Fields State
   const [formUsername, setFormUsername] = useState('');
   const [formFullName, setFormFullName] = useState('');
-  const [formRole, setFormRole] = useState<AdminRole>('PANITIA');
+  const [formRole, setFormRole] = useState<AdminRole>('PANITIA_INTI');
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formPassword, setFormPassword] = useState('');
@@ -104,11 +104,11 @@ export const AdminUsersManagerTab: React.FC = () => {
   const openAddModal = () => {
     setFormUsername('');
     setFormFullName('');
-    setFormRole('PANITIA');
+    setFormRole('PANITIA_INTI');
     setFormEmail('');
     setFormPhone('');
     setFormPassword('');
-    setFormAvatarColor('bg-blue-600');
+    setFormAvatarColor('bg-indigo-600');
     setShowPassword(false);
     setFormError('');
     setIsAddModalOpen(true);
@@ -231,7 +231,10 @@ export const AdminUsersManagerTab: React.FC = () => {
       (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (user.phone && user.phone.includes(searchQuery));
 
-    const matchesRole = selectedRoleFilter === 'ALL' || user.role === selectedRoleFilter;
+    const matchesRole =
+      selectedRoleFilter === 'ALL' ||
+      user.role === selectedRoleFilter ||
+      (selectedRoleFilter === 'PANITIA_INTI' && user.role === 'PANITIA');
     return matchesSearch && matchesRole;
   });
 
@@ -288,9 +291,9 @@ export const AdminUsersManagerTab: React.FC = () => {
         </div>
 
         {/* ROLE STATS BADGES */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800">
-          {(['SUPERADMIN', 'PANITIA', 'WASIT', 'OPERATOR'] as AdminRole[]).map(role => {
-            const count = adminUsers.filter(a => a.role === role).length;
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-6 pt-5 border-t border-slate-800">
+          {(['SUPERADMIN', 'PANITIA_INTI', 'PANITIA_UMUM', 'WASIT', 'OPERATOR'] as AdminRole[]).map(role => {
+            const count = adminUsers.filter(a => a.role === role || (role === 'PANITIA_INTI' && a.role === 'PANITIA')).length;
             const def = ROLE_DEFINITIONS[role];
             return (
               <div
@@ -597,7 +600,7 @@ export const AdminUsersManagerTab: React.FC = () => {
                   Role Akses & Kewenangan
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(['SUPERADMIN', 'PANITIA', 'WASIT', 'OPERATOR'] as AdminRole[]).map(role => {
+                  {(['SUPERADMIN', 'PANITIA_INTI', 'PANITIA_UMUM', 'WASIT', 'OPERATOR'] as AdminRole[]).map(role => {
                     const rDef = ROLE_DEFINITIONS[role];
                     const isSelected = formRole === role;
                     return (
@@ -812,9 +815,9 @@ export const AdminUsersManagerTab: React.FC = () => {
                   Role Akses & Kewenangan
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(['SUPERADMIN', 'PANITIA', 'WASIT', 'OPERATOR'] as AdminRole[]).map(role => {
+                  {(['SUPERADMIN', 'PANITIA_INTI', 'PANITIA_UMUM', 'WASIT', 'OPERATOR'] as AdminRole[]).map(role => {
                     const rDef = ROLE_DEFINITIONS[role];
-                    const isSelected = formRole === role;
+                    const isSelected = formRole === role || (role === 'PANITIA_INTI' && formRole === 'PANITIA');
                     return (
                       <div
                         key={role}
