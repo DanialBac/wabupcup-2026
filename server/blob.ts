@@ -10,14 +10,21 @@ export const blobRouter = Router();
 blobRouter.post('/blob/upload', async (req: Request, res: Response) => {
   const body = req.body as HandleUploadBody;
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  // Check all common environment variable naming variations from Vercel
+  const token =
+    process.env.BLOB_READ_WRITE_TOKEN ||
+    process.env.VERCEL_BLOB_READ_WRITE_TOKEN ||
+    (Object.entries(process.env).find(([k]) => k.includes('BLOB') && k.includes('TOKEN'))?.[1] as string | undefined);
+
+  if (!token) {
     return res.status(503).json({
-      error: 'BLOB_READ_WRITE_TOKEN belum dikonfigurasi pada environment. Klien akan menggunakan fallback kompresi ringan.',
+      error: 'BLOB_READ_WRITE_TOKEN belum aktif pada deployment saat ini. Harap lakukan Redeploy di dashboard Vercel.',
     });
   }
 
   try {
     const jsonResponse = await handleUpload({
+      token,
       body,
       request: req,
       onBeforeGenerateToken: async (pathname: string) => {
