@@ -1,6 +1,5 @@
 import React from 'react';
 import { useTournament } from '../context/TournamentContext';
-import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   MapPin,
   Navigation,
@@ -11,36 +10,25 @@ import {
   HeartPulse,
   Sparkles,
   Coffee,
-  CheckCircle2
+  CheckCircle2,
+  Toilet 
 } from 'lucide-react';
 
 export const VenueLocationSection: React.FC = () => {
   const { config } = useTournament();
 
   const facilities = [
-    { icon: Sparkles, title: '3 Lapangan Standar Nasional', desc: '1 Lapangan Utama Mini Soccer & 2 Lapangan Futsal Vinyl Standar FIFA' },
-    { icon: Shield, title: 'Tribun Kapasitas 2.500+', desc: 'Tribun tertutup dengan sound system modern dan lighting malam' },
-    { icon: HeartPulse, title: 'Tim Medis & Ambulans Siaga', desc: 'Kerjasama resmi dengan RSUD dan Palang Merah Indonesia' },
-    { icon: Car, title: 'Area Parkir Luas & Aman', desc: 'Kapasitas 100+ mobil dan 500+ sepeda motor dijaga petugas keamanan' },
+    { icon: Sparkles, title: '1 Lapangan Standar Nasional', desc: '1 Lapangan Futsal Vinyl Standart FIFA' },
+    { icon: Shield, title: 'Tribun Kapasitas 3.500+', desc: 'Tribun indoor modern' },
+    { icon: HeartPulse, title: 'Tim Medis & Ambulans Siaga', desc: 'Kerjasama resmi RSUD dan STIKES/UNIDSOE banyuwangi' },
+    { icon: Car, title: 'Area Parkir Luas & Aman', desc: 'Kapasitas 500 mobil dan 1000 sepeda dijaga petugas keamanan' },
     { icon: Coffee, title: 'Food Court & UMKM Corner', desc: 'Tersedia aneka kuliner dan minuman segar dari UMKM binaan daerah' },
+    { icon: Toilet, title: 'Kamar Mandi & Toilet', desc: 'Tersedia kurang lebih 6 Kamar Mandi dan Toilet' },
   ];
 
-  const bgConfig = config.sectionsBackgrounds?.venue;
-  const isCustomImage = bgConfig?.mode === 'IMAGE';
-  const isCustomColor = bgConfig?.mode === 'COLOR';
-
   return (
-    <section
-      id="lokasi"
-      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
-        isCustomColor || isCustomImage ? '' : 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
-      }`}
-      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
-    >
-      {/* CUSTOM SECTION BACKGROUND */}
-      <SectionBackground config={bgConfig} />
-
-      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig)}`}>
+    <section id="lokasi" className="py-16 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* HEADER */}
         <div className="text-center max-w-3xl mx-auto mb-12">
