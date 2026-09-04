@@ -247,7 +247,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               ? serverConfig.committeeEmails
               : prev.committeeEmails,
           bankAccounts:
-            serverConfig.bankAccounts && serverConfig.bankAccounts.length > 0
+            serverConfig.bankAccounts !== undefined && Array.isArray(serverConfig.bankAccounts)
               ? serverConfig.bankAccounts
               : prev.bankAccounts,
         }));

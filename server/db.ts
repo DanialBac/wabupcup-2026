@@ -576,9 +576,29 @@ export const Database = {
   async updateConfig(newConfig: Partial<TournamentConfig>): Promise<TournamentConfig> {
     await ensureDbConnected();
     const current = await this.getConfig();
-    const updated = {
+    const updated: TournamentConfig = {
       ...current,
       ...newConfig,
+      bankAccounts:
+        newConfig.bankAccounts !== undefined
+          ? newConfig.bankAccounts
+          : current.bankAccounts || [],
+      bankAccount:
+        newConfig.bankAccount !== undefined
+          ? newConfig.bankAccount
+          : current.bankAccount,
+      committeeContacts:
+        newConfig.committeeContacts !== undefined
+          ? newConfig.committeeContacts
+          : current.committeeContacts || [],
+      committeeEmails:
+        newConfig.committeeEmails !== undefined
+          ? newConfig.committeeEmails
+          : current.committeeEmails || [],
+      downloadableDocs:
+        newConfig.downloadableDocs !== undefined
+          ? newConfig.downloadableDocs
+          : current.downloadableDocs || [],
       sectionsBackgrounds: {
         ...(current.sectionsBackgrounds || {}),
         ...(newConfig.sectionsBackgrounds || {}),

@@ -14,6 +14,7 @@ import {
   Download,
   Phone,
   Copy,
+  Check,
   ExternalLink,
   Shield,
   X,
@@ -98,6 +99,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const submittingRef = useRef(false);
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedBankId, setCopiedBankId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -294,6 +296,14 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   };
 
+  const handleCopyBank = (accountNumber: string, identifier: string) => {
+    navigator.clipboard.writeText(accountNumber);
+    setCopiedBankId(identifier);
+    setTimeout(() => {
+      setCopiedBankId(prev => (prev === identifier ? null : prev));
+    }, 2500);
+  };
+
   return (
     <div
       id="registration-modal-overlay"
@@ -379,43 +389,119 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
 
               {/* BANK TRANSFER DETAILS */}
-              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                <span className="font-bold flex items-center space-x-1">
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>Rekening Resmi Pembayaran Panitia:</span>
-                </span>
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center space-x-1">
+                    <Shield className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Rekening Resmi Pembayaran Panitia:</span>
+                  </span>
+                  <span className="text-[10px] text-amber-700 dark:text-amber-400 italic">
+                    Klik nomor untuk salin
+                  </span>
+                </div>
                 {config.bankAccounts && config.bankAccounts.length > 0 ? (
-                  <div className="space-y-1 pt-1">
+                  <div className="space-y-2 pt-1">
                     {config.bankAccounts.map(b => (
-                      <div key={b.id} className="p-2 rounded-lg bg-white/60 dark:bg-slate-950/60 border border-amber-200/60 dark:border-amber-900/40">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900 dark:text-white font-mono text-sm">
-                            {b.bankName} - {b.accountNumber}
-                          </span>
-                          {b.isPrimary && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
-                              Utama
+                      <div key={b.id} className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-950/70 border border-amber-200/70 dark:border-amber-900/50 hover:border-amber-400 dark:hover:border-amber-700 transition">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                              {b.bankName}
                             </span>
-                          )}
+                            {b.isPrimary && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30">
+                                Utama
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* COPY BUTTON */}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyBank(b.accountNumber, b.id)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center space-x-1 transition cursor-pointer shrink-0 ${
+                              copiedBankId === b.id
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-800/60 text-amber-900 dark:text-amber-200'
+                            }`}
+                            title="Salin Nomor Rekening"
+                          >
+                            {copiedBankId === b.id ? (
+                              <>
+                                <Check className="w-3 h-3 text-white" />
+                                <span>Tersalin!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Salin No. Rek</span>
+                              </>
+                            )}
+                          </button>
                         </div>
-                        <p className="text-[11px] text-slate-700 dark:text-slate-300">
+
+                        {/* CLICKABLE ACCOUNT NUMBER */}
+                        <div className="mt-1 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyBank(b.accountNumber, b.id)}
+                            className="font-mono text-sm font-bold text-slate-900 dark:text-amber-200 tracking-wider hover:underline hover:text-amber-600 dark:hover:text-amber-400 flex items-center space-x-1.5 cursor-pointer text-left"
+                            title="Klik untuk salin no rekening"
+                          >
+                            <span>{b.accountNumber}</span>
+                          </button>
+                        </div>
+
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300 mt-0.5">
                           a/n <strong>{b.accountHolder}</strong> {b.branchName ? `(${b.branchName})` : ''}
                         </p>
                         {b.instructions && (
-                          <p className="text-[10px] text-slate-500 italic mt-0.5">{b.instructions}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-0.5">{b.instructions}</p>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <>
-                    <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">
-                      {config.bankAccount.bankName} - {config.bankAccount.accountNumber}
-                    </p>
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                  <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-950/70 border border-amber-200/70 dark:border-amber-900/50">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                        {config.bankAccount.bankName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyBank(config.bankAccount.accountNumber, 'fallback')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center space-x-1 transition cursor-pointer shrink-0 ${
+                          copiedBankId === 'fallback'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-800/60 text-amber-900 dark:text-amber-200'
+                        }`}
+                        title="Salin Nomor Rekening"
+                      >
+                        {copiedBankId === 'fallback' ? (
+                          <>
+                            <Check className="w-3 h-3 text-white" />
+                            <span>Tersalin!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Salin No. Rek</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyBank(config.bankAccount.accountNumber, 'fallback')}
+                      className="font-mono text-sm font-bold text-slate-900 dark:text-amber-200 tracking-wider hover:underline hover:text-amber-600 dark:hover:text-amber-400 block mt-1 cursor-pointer"
+                      title="Klik untuk salin no rekening"
+                    >
+                      {config.bankAccount.accountNumber}
+                    </button>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
                       Atas Nama: <strong>{config.bankAccount.accountHolder}</strong>
                     </p>
-                  </>
+                  </div>
                 )}
               </div>
 
