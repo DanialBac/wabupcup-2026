@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { SponsorTier } from '../types';
+import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   Users,
   ExternalLink,
@@ -80,15 +81,27 @@ export const SponsorSection: React.FC = () => {
 
   const orderedTiers: SponsorTier[] = ['PLATINUM', 'GOLD', 'SILVER', 'OFFICIAL_PARTNER'];
 
+  const bgConfig = config.sectionsBackgrounds?.sponsors;
+  const isCustomImage = bgConfig?.mode === 'IMAGE';
+  const isCustomColor = bgConfig?.mode === 'COLOR';
+
   return (
     <section
       id="sponsor"
-      className="py-20 relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800/80 transition-colors"
+      className={`py-20 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800/80 ${
+        isCustomColor || isCustomImage ? '' : 'bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white'
+      }`}
+      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
     >
-      {/* BACKGROUND AMBIENT GLOW */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-gradient-to-r from-red-600/10 via-blue-600/10 to-amber-600/10 blur-3xl pointer-events-none rounded-full" />
+      {/* CUSTOM SECTION BACKGROUND */}
+      <SectionBackground config={bgConfig} />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      {/* BACKGROUND AMBIENT GLOW (Only in default mode) */}
+      {(!bgConfig || bgConfig.mode === 'DEFAULT') && (
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-gradient-to-r from-red-600/10 via-blue-600/10 to-amber-600/10 blur-3xl pointer-events-none rounded-full" />
+      )}
+
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${getSectionTextClass(bgConfig)}`}>
         
         {/* HEADER */}
         <div className="text-center max-w-3xl mx-auto mb-16">

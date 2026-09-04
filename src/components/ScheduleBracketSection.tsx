@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { MatchItem, TournamentCategory } from '../types';
+import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   Trophy,
   Calendar,
@@ -27,7 +28,7 @@ interface ScheduleBracketSectionProps {
 export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   onOpenRegister,
 }) => {
-  const { matches, categories, registrations } = useTournament();
+  const { matches, categories, registrations, config } = useTournament();
   const [selectedCat, setSelectedCat] = useState<TournamentCategory>('SMA');
   const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
@@ -57,12 +58,25 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
 
   const currentCatDetail = categories.find(c => c.id === selectedCat);
 
+  const bgConfig = config.sectionsBackgrounds?.bracket;
+  const isCustomImage = bgConfig?.mode === 'IMAGE';
+  const isCustomColor = bgConfig?.mode === 'COLOR';
+
   return (
-    <section id="bagan" className="py-16 bg-slate-100/60 dark:bg-slate-900/40 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 transition-colors">
+    <section
+      id="bagan"
+      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
+        isCustomColor || isCustomImage ? '' : 'bg-slate-100/60 dark:bg-slate-900/40 text-slate-900 dark:text-white'
+      }`}
+      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
+    >
       {/* Hidden Anchor for #tim */}
       <div id="tim" className="relative -top-24"></div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* CUSTOM SECTION BACKGROUND */}
+      <SectionBackground config={bgConfig} />
+
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig)}`}>
         
         {/* HEADER & CONTROLS */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-8 gap-6">

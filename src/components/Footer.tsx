@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTournament } from '../context/TournamentContext';
+import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   Trophy,
   Phone,
@@ -25,9 +26,21 @@ export const Footer: React.FC<FooterProps> = ({
 }) => {
   const { config } = useTournament();
 
+  const bgConfig = config.sectionsBackgrounds?.footer;
+  const isCustomImage = bgConfig?.mode === 'IMAGE';
+  const isCustomColor = bgConfig?.mode === 'COLOR';
+
   return (
-    <footer className="bg-slate-950 text-slate-400 border-t border-slate-800 transition-colors pt-16 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <footer
+      className={`relative overflow-hidden border-t border-slate-800 transition-colors duration-300 pt-16 pb-12 ${
+        isCustomColor || isCustomImage ? '' : 'bg-slate-950 text-slate-400'
+      }`}
+      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
+    >
+      {/* CUSTOM SECTION BACKGROUND */}
+      <SectionBackground config={bgConfig} />
+
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig, 'text-slate-400')}`}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800/80">
           
           {/* BRAND & ABOUT (2 COLS) */}

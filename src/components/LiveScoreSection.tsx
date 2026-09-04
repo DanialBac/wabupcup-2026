@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { MatchItem, TournamentCategory } from '../types';
+import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   Flame,
   Clock,
@@ -13,9 +14,13 @@ import {
 } from 'lucide-react';
 
 export const LiveScoreSection: React.FC = () => {
-  const { matches, categories: tourneyCategories } = useTournament();
+  const { matches, categories: tourneyCategories, config } = useTournament();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING'>('ALL');
+
+  const bgConfig = config.sectionsBackgrounds?.liveScore;
+  const isCustomImage = bgConfig?.mode === 'IMAGE';
+  const isCustomColor = bgConfig?.mode === 'COLOR';
 
   const categoriesList = [
     { id: 'ALL', label: 'Semua Kategori' },
@@ -35,8 +40,17 @@ export const LiveScoreSection: React.FC = () => {
   });
 
   return (
-    <section id="live-jadwal" className="py-16 bg-slate-900/60 dark:bg-slate-900/60 bg-slate-50 border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section
+      id="live-jadwal"
+      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
+        isCustomColor || isCustomImage ? '' : 'bg-slate-50 dark:bg-slate-900/60'
+      }`}
+      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
+    >
+      {/* CUSTOM SECTION BACKGROUND */}
+      <SectionBackground config={bgConfig} />
+
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig)}`}>
         
         {/* SECTION HEADER */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">

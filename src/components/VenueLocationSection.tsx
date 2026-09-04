@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTournament } from '../context/TournamentContext';
+import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   MapPin,
   Navigation,
@@ -24,9 +25,22 @@ export const VenueLocationSection: React.FC = () => {
     { icon: Coffee, title: 'Food Court & UMKM Corner', desc: 'Tersedia aneka kuliner dan minuman segar dari UMKM binaan daerah' },
   ];
 
+  const bgConfig = config.sectionsBackgrounds?.venue;
+  const isCustomImage = bgConfig?.mode === 'IMAGE';
+  const isCustomColor = bgConfig?.mode === 'COLOR';
+
   return (
-    <section id="lokasi" className="py-16 bg-white dark:bg-slate-950 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section
+      id="lokasi"
+      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
+        isCustomColor || isCustomImage ? '' : 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
+      }`}
+      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
+    >
+      {/* CUSTOM SECTION BACKGROUND */}
+      <SectionBackground config={bgConfig} />
+
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig)}`}>
         
         {/* HEADER */}
         <div className="text-center max-w-3xl mx-auto mb-12">

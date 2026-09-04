@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { CategoryDetail, TournamentCategory } from '../types';
+import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   Trophy,
   Award,
@@ -48,9 +49,22 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
     }
   };
 
+  const bgConfig = config.sectionsBackgrounds?.categories;
+  const isCustomImage = bgConfig?.mode === 'IMAGE';
+  const isCustomColor = bgConfig?.mode === 'COLOR';
+
   return (
-    <section id="kategori" className="py-16 bg-white dark:bg-slate-950 text-slate-900 dark:text-white transition-colors border-b border-slate-200 dark:border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section
+      id="kategori"
+      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
+        isCustomColor || isCustomImage ? '' : 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
+      }`}
+      style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
+    >
+      {/* CUSTOM SECTION BACKGROUND */}
+      <SectionBackground config={bgConfig} />
+
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig)}`}>
         
         {/* SECTION HEADER */}
         <div className="text-center max-w-3xl mx-auto mb-12">

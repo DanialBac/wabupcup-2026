@@ -157,6 +157,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...DEFAULT_SECTIONS_VISIBILITY,
           ...(parsed.sectionsVisibility || {}),
         },
+        sectionsBackgrounds: {
+          ...(INITIAL_TOURNAMENT_CONFIG.sectionsBackgrounds || {}),
+          ...(parsed.sectionsBackgrounds || {}),
+        },
         downloadableDocs: parsed.downloadableDocs && parsed.downloadableDocs.length > 0 ? parsed.downloadableDocs : INITIAL_TOURNAMENT_CONFIG.downloadableDocs,
         committeeContacts: parsed.committeeContacts && parsed.committeeContacts.length > 0 ? parsed.committeeContacts : INITIAL_TOURNAMENT_CONFIG.committeeContacts,
         committeeEmails: parsed.committeeEmails && parsed.committeeEmails.length > 0 ? parsed.committeeEmails : INITIAL_TOURNAMENT_CONFIG.committeeEmails,
@@ -225,6 +229,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           sectionsVisibility: {
             ...DEFAULT_SECTIONS_VISIBILITY,
             ...(serverConfig.sectionsVisibility || prev.sectionsVisibility || {}),
+          },
+          sectionsBackgrounds: {
+            ...(prev.sectionsBackgrounds || {}),
+            ...(serverConfig.sectionsBackgrounds || {}),
           },
           downloadableDocs:
             serverConfig.downloadableDocs && serverConfig.downloadableDocs.length > 0

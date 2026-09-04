@@ -22,6 +22,7 @@ import {
 import { PdfViewerModal } from './PdfViewerModal';
 import { DatabaseManagerTab } from './DatabaseManagerTab';
 import { AdminUsersManagerTab } from './AdminUsersManagerTab';
+import { SectionBackgroundManager } from './SectionBackgroundManager';
 import {
   exportRegistrationsToExcel,
   exportRegistrationsToPdf,
@@ -36,6 +37,7 @@ import {
   Database,
   Server,
   Shield,
+  Palette,
   Users,
   Trophy,
   Award,
@@ -285,7 +287,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   };
 
   // Settings Sub-Tab State
-  type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'GENERAL';
+  type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'BACKGROUNDS' | 'GENERAL';
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('DOCS');
   const [quotaSaveSuccess, setQuotaSaveSuccess] = useState(false);
   const [visibilitySaveSuccess, setVisibilitySaveSuccess] = useState(false);
@@ -3523,6 +3525,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
 
                 <button
+                  onClick={() => setSettingsSubTab('BACKGROUNDS')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
+                    settingsSubTab === 'BACKGROUNDS'
+                      ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-lg shadow-rose-900/30'
+                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Palette className="w-4 h-4 text-pink-300" />
+                  <span>7. Background & Hero Image Tiap Section</span>
+                </button>
+
+                <button
                   onClick={() => setSettingsSubTab('GENERAL')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
                     settingsSubTab === 'GENERAL'
@@ -3531,7 +3545,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   }`}
                 >
                   <Building className="w-4 h-4" />
-                  <span>7. Informasi Turnamen & Logo</span>
+                  <span>8. Informasi Turnamen & Logo</span>
                 </button>
               </div>
 
@@ -4414,7 +4428,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
               )}
 
-              {/* SUB-TAB 7: INFORMASI UMUM TURNAMEN */}
+              {/* SUB-TAB 7: BACKGROUND & HERO IMAGE TIAP SECTION */}
+              {settingsSubTab === 'BACKGROUNDS' && (
+                <div className="animate-fadeIn">
+                  <SectionBackgroundManager />
+                </div>
+              )}
+
+              {/* SUB-TAB 8: INFORMASI UMUM TURNAMEN */}
               {settingsSubTab === 'GENERAL' && (
                 <div className="space-y-6 animate-fadeIn">
                   <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex items-center justify-between">

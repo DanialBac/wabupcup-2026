@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
+import { SectionBackground } from './SectionBackground';
 import {
   Trophy,
   Calendar,
@@ -57,20 +58,28 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
   const approvedTeamsCount = registrations.filter(r => r.status === 'APPROVED').length;
   const totalTeamsCount = registrations.length;
 
+  const bgConfig = config.sectionsBackgrounds?.hero;
+
   return (
     <div
       id="beranda"
-      className="relative overflow-hidden bg-slate-950 text-white pt-8 pb-16 lg:py-20 border-b border-slate-800"
+      className="relative overflow-hidden bg-slate-950 text-white pt-8 pb-16 lg:py-20 border-b border-slate-800 transition-colors duration-300"
+      style={bgConfig?.mode === 'COLOR' && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
     >
-      {/* BACKGROUND DECORATIVE SPORTS PITCH & GLOW */}
-      <div className="absolute inset-0 pointer-events-none opacity-20 pitch-lines"></div>
-      
-      {/* RED & NAVY RADIAL GLOWS */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute top-1/3 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-red-900/15 rounded-full blur-3xl pointer-events-none"></div>
+      {/* CUSTOM SECTION BACKGROUND (IMAGE / COLOR / OVERLAY) */}
+      <SectionBackground config={bgConfig} />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* BACKGROUND DECORATIVE SPORTS PITCH & GLOW (Hidden if in custom Image mode to keep background clean) */}
+      {(!bgConfig || bgConfig.mode === 'DEFAULT') && (
+        <>
+          <div className="absolute inset-0 pointer-events-none opacity-20 pitch-lines"></div>
+          <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute top-1/3 -right-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-red-900/15 rounded-full blur-3xl pointer-events-none"></div>
+        </>
+      )}
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* TOP PILL BADGE */}
         <div className="flex justify-center mb-6">

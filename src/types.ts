@@ -219,6 +219,7 @@ export interface TournamentConfig {
   committeeEmails?: CommitteeEmail[];
   bankAccounts?: CommitteeBankAccount[];
   sectionsVisibility?: PageSectionsVisibility;
+  sectionsBackgrounds?: SectionsBackgrounds;
 }
 
 export interface PageSectionsVisibility {
@@ -229,3 +230,25 @@ export interface PageSectionsVisibility {
   venue: boolean;
   sponsors: boolean;
 }
+
+export type SectionKey =
+  | 'hero'
+  | 'liveScore'
+  | 'categories'
+  | 'bracket'
+  | 'venue'
+  | 'sponsors'
+  | 'footer';
+
+export interface SectionBackgroundConfig {
+  mode: 'DEFAULT' | 'COLOR' | 'IMAGE';
+  bgColor?: string;
+  desktopImage?: string;
+  mobileImage?: string;
+  overlayColor?: string;
+  overlayOpacity?: number; // 0 to 100
+  overlayBlur?: boolean;
+  textColorMode?: 'AUTO' | 'LIGHT' | 'DARK';
+}
+
+export type SectionsBackgrounds = Partial<Record<SectionKey, SectionBackgroundConfig>>;

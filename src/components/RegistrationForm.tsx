@@ -529,7 +529,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                     </label>
                     {currentCatDetail && (
                       <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                        Sisa {Math.max(0, currentCatDetail.maxTeams - getCategoryCount(currentCatDetail.id))} Slot ({currentCatDetail.maxTeams} Tim)
+                        Sisa {Math.max(0, currentCatDetail.maxTeams - getCategoryCount(currentCatDetail.id))} 
+                         {/* Slot ({currentCatDetail.maxTeams} Tim) */}
                       </span>
                     )}
                   </div>
@@ -544,7 +545,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                       const sisa = Math.max(0, c.maxTeams - count);
                       return (
                         <option key={c.id} value={c.id}>
-                          {c.name} — Biaya: Rp {c.registrationFee.toLocaleString('id-ID')} (Sisa {sisa} Slot)
+                          {c.name} — Biaya: Rp {c.registrationFee.toLocaleString('id-ID')}
+                           {/* (Sisa {sisa} Slot) */}
+                           
                         </option>
                       );
                     })}
