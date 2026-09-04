@@ -24,6 +24,7 @@ import { DatabaseManagerTab } from './DatabaseManagerTab';
 import { AdminUsersManagerTab } from './AdminUsersManagerTab';
 import { SectionBackgroundManager } from './SectionBackgroundManager';
 import { compressLogo } from '../../utils/imageCompressor';
+import { uploadToTiDbStorage, deleteMediaFromStorage } from '../../utils/blobUpload';
 import {
   exportRegistrationsToExcel,
   exportRegistrationsToPdf,
@@ -1489,19 +1490,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       return;
     }
 
-    compressLogo(file, 400, 0.85)
-      .then(dataUrl => {
-        setSponsorLogoPreview(dataUrl);
-        setSponsorForm(prev => ({ ...prev, logoUrl: dataUrl }));
+    uploadToTiDbStorage(file, 'sponsors')
+      .then(res => {
+        // If editing and previous logo is in TiDB, we clean up the previous file when replaced
+        if (editingSponsor?.logoUrl && editingSponsor.logoUrl !== res.url && editingSponsor.logoUrl.includes('/api/media/view/')) {
+          deleteMediaFromStorage(editingSponsor.logoUrl).catch(() => {});
+        }
+        setSponsorLogoPreview(res.url);
+        setSponsorForm(prev => ({ ...prev, logoUrl: res.url }));
       })
       .catch(() => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const dataUrl = event.target?.result as string;
-          setSponsorLogoPreview(dataUrl);
-          setSponsorForm(prev => ({ ...prev, logoUrl: dataUrl }));
-        };
-        reader.readAsDataURL(file);
+        compressLogo(file, 400, 0.85)
+          .then(dataUrl => {
+            setSponsorLogoPreview(dataUrl);
+            setSponsorForm(prev => ({ ...prev, logoUrl: dataUrl }));
+          })
+          .catch(() => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const dataUrl = event.target?.result as string;
+              setSponsorLogoPreview(dataUrl);
+              setSponsorForm(prev => ({ ...prev, logoUrl: dataUrl }));
+            };
+            reader.readAsDataURL(file);
+          });
       });
   };
 
@@ -3266,6 +3278,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                               <button
                                 onClick={() => {
                                   if (confirm(`Yakin ingin menghapus sponsor "${sp.name}"?`)) {
+                                    if (sp.logoUrl && sp.logoUrl.includes('/api/media/view/')) {
+                                      deleteMediaFromStorage(sp.logoUrl).catch(() => {});
+                                    }
                                     deleteSponsor(sp.id);
                                   }
                                 }}

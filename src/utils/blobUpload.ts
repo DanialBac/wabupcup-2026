@@ -1,4 +1,3 @@
-import { upload } from '@vercel/blob/client';
 import { compressImage, compressLogo } from './imageCompressor';
 
 export interface UploadResult {
@@ -6,53 +5,118 @@ export interface UploadResult {
   name: string;
   size: string;
   type: string;
-  fileData?: string; // Optional fallback if blob storage is unavailable
+  fileData?: string; // Optional fallback
 }
 
 /**
- * Uploads a document or image directly from React to @vercel/blob cloud storage.
- * Eliminates large payload transmissions through Vercel Serverless Functions.
+ * Reads file as Base64 Data URL
+ */
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Centralized Storage in TiDB Cloud:
+ * Uploads media (logos, PDF docs, CMS images) file-by-file directly into
+ * the TiDB Cloud `app_media_storage` table via /api/media/upload.
+ * Fast, centralized, zero external dependencies, with automatic cascading cleanup.
+ */
+export async function uploadToTiDbStorage(
+  file: File,
+  folder = 'registrations',
+  onProgress?: (percent: number) => void
+): Promise<UploadResult> {
+  let base64Data = '';
+  let contentType = file.type || 'application/octet-stream';
+
+  if (onProgress) onProgress(20);
+
+  // Map folder to semantic category
+  let category = 'REG_DOC';
+  if (folder.includes('logo') || folder === 'logos') {
+    category = 'TEAM_LOGO';
+  } else if (folder.includes('sponsor') || folder === 'sponsors') {
+    category = 'SPONSOR_LOGO';
+  } else if (folder.includes('wallpaper') || folder.includes('background') || folder === 'cms') {
+    category = 'CMS_WALLPAPER';
+  }
+
+  // Pre-compress images client-side for lightning fast speed & minimal DB footprint
+  if (file.type.startsWith('image/')) {
+    try {
+      if (category === 'TEAM_LOGO' || category === 'SPONSOR_LOGO') {
+        base64Data = await compressLogo(file, 400, 0.85);
+      } else if (category === 'CMS_WALLPAPER') {
+        base64Data = await compressImage(file, 1920, 1080, 0.82);
+      } else {
+        base64Data = await compressImage(file, 1600, 1200, 0.82);
+      }
+      contentType = 'image/jpeg';
+    } catch {
+      base64Data = await readFileAsDataUrl(file);
+    }
+  } else {
+    base64Data = await readFileAsDataUrl(file);
+  }
+
+  if (onProgress) onProgress(50);
+
+  const res = await fetch('/api/media/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType,
+      fileData: base64Data,
+      category,
+    }),
+  });
+
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => ({}));
+    throw new Error(errorJson.error || `Gagal menyimpan berkas ke TiDB Cloud (${res.status})`);
+  }
+
+  const data = await res.json();
+  if (onProgress) onProgress(100);
+
+  return {
+    url: data.url, // e.g. /api/media/view/med-123456
+    name: data.filename || file.name,
+    size: data.sizeFormatted || `${(file.size / 1024).toFixed(1)} KB`,
+    type: data.contentType || contentType,
+    fileData: data.url,
+  };
+}
+
+/**
+ * Universal file uploader:
+ * Centralized in TiDB Cloud.
+ * Fallback to direct client-side compressed base64 if server is temporarily unreachable.
  */
 export async function uploadFileToBlob(
   file: File,
   folder = 'registrations',
   onProgress?: (percent: number) => void
 ): Promise<UploadResult> {
-  const timestamp = Date.now();
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const pathname = `${folder}/${timestamp}-${sanitizedName}`;
-
   try {
-    // Attempt direct upload to @vercel/blob
-    const blob = await upload(pathname, file, {
-      access: 'public',
-      handleUploadUrl: '/api/blob/upload',
-      onUploadProgress: (progress) => {
-        if (onProgress && progress.total > 0) {
-          onProgress(Math.round((progress.loaded / progress.total) * 100));
-        }
-      },
-    });
-
-    const sizeInKb = (file.size / 1024).toFixed(1);
-    const sizeFormatted = file.size > 1024 * 1024
-      ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-      : `${sizeInKb} KB`;
-
-    return {
-      url: blob.url,
-      name: file.name,
-      size: sizeFormatted,
-      type: file.type || 'application/octet-stream',
-    };
+    return await uploadToTiDbStorage(file, folder, onProgress);
   } catch (err: any) {
-    console.warn('[Blob Upload] Direct cloud upload unavailable or token not set, using lightweight client fallback:', err?.message || err);
+    console.warn('[TiDB Cloud Storage Upload] Server upload encountered an issue, using client-side fallback:', err?.message || err);
 
-    // If file is an image (e.g. logo/foto bukti), compress it first to ensure payload stays tiny (~25-50KB)
+    // Fallback: Client-side compression
     if (file.type.startsWith('image/')) {
       try {
-        const compressed = await (folder.includes('logo') ? compressLogo(file, 400, 0.85) : compressImage(file, 1600, 1200, 0.82));
+        const compressed = await (folder.includes('logo')
+          ? compressLogo(file, 400, 0.85)
+          : compressImage(file, 1600, 1200, 0.82));
         const approxKb = (compressed.length * 0.75 / 1024).toFixed(1);
+        if (onProgress) onProgress(100);
         return {
           url: compressed,
           name: file.name,
@@ -60,27 +124,38 @@ export async function uploadFileToBlob(
           type: 'image/jpeg',
           fileData: compressed,
         };
-      } catch {
-        // Continue to fallback
-      }
+      } catch {}
     }
 
-    // Fallback for PDFs or general documents
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result as string;
-        const sizeInKb = (file.size / 1024).toFixed(1);
-        resolve({
-          url: base64,
-          name: file.name,
-          size: `${sizeInKb} KB`,
-          type: file.type || 'application/pdf',
-          fileData: base64,
-        });
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    const base64 = await readFileAsDataUrl(file);
+    const sizeInKb = (file.size / 1024).toFixed(1);
+    if (onProgress) onProgress(100);
+    return {
+      url: base64,
+      name: file.name,
+      size: `${sizeInKb} KB`,
+      type: file.type || 'application/pdf',
+      fileData: base64,
+    };
+  }
+}
+
+/**
+ * Helper to delete media by URL or ID from TiDB Cloud
+ */
+export async function deleteMediaFromStorage(urlOrId: string): Promise<boolean> {
+  try {
+    if (!urlOrId) return false;
+    let mediaId = urlOrId;
+    if (urlOrId.includes('/api/media/view/')) {
+      mediaId = urlOrId.split('/api/media/view/')[1].split(/[?#]/)[0];
+    }
+    if (!mediaId.startsWith('med-')) return false;
+
+    const res = await fetch(`/api/media/${mediaId}`, { method: 'DELETE' });
+    return res.ok;
+  } catch (err) {
+    console.warn('[deleteMediaFromStorage warning]', err);
+    return false;
   }
 }

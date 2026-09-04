@@ -22,6 +22,19 @@ import {
 } from '../src/types';
 
 // In-Memory Storage Fallback (used when MySQL host is not configured or in preview mode)
+export interface AppMediaItem {
+  id: string;
+  category: string; // 'REG_DOC' | 'TEAM_LOGO' | 'CMS_WALLPAPER' | 'SPONSOR_LOGO' | 'GENERAL'
+  refId?: string;
+  subKey?: string;
+  filename: string;
+  contentType: string;
+  fileSize: number;
+  fileData: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 class MemoryStore {
   config: TournamentConfig = { ...INITIAL_TOURNAMENT_CONFIG };
   categories: CategoryDetail[] = [...INITIAL_CATEGORIES];
@@ -29,6 +42,7 @@ class MemoryStore {
   matches: MatchItem[] = [...INITIAL_MATCHES];
   sponsors: SponsorItem[] = [...INITIAL_SPONSORS];
   adminUsers: AdminUser[] = [...INITIAL_ADMIN_USERS];
+  media: Map<string, AppMediaItem> = new Map();
 }
 
 const memStore = new MemoryStore();
@@ -478,6 +492,22 @@ export async function runFullSchemaInit() {
       config_value LONGTEXT NOT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    `CREATE TABLE IF NOT EXISTS app_media_storage (
+      id VARCHAR(64) PRIMARY KEY,
+      category VARCHAR(32) NOT NULL,
+      ref_id VARCHAR(64) NULL,
+      sub_key VARCHAR(64) NULL,
+      filename VARCHAR(255) NOT NULL,
+      content_type VARCHAR(100) NOT NULL,
+      file_size INT NOT NULL,
+      file_data LONGTEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_category (category),
+      INDEX idx_ref_id (ref_id),
+      INDEX idx_sub_key (sub_key)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
   ];
 
   for (const q of queries) {
@@ -794,9 +824,19 @@ export const Database = {
   async deleteRegistration(id: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.registrations = memStore.registrations.filter(r => r.id !== id);
+    // Delete in-memory media related to this registration
+    for (const [mId, mItem] of memStore.media.entries()) {
+      if (mItem.refId === id) {
+        memStore.media.delete(mId);
+      }
+    }
+
     if (pool && isMySqlConnected) {
       try {
         await pool.execute('DELETE FROM registrations WHERE id = ?', [id]);
+        // Cascading delete: Automatically remove all uploaded documents and team logo from TiDB app_media_storage
+        await pool.execute('DELETE FROM app_media_storage WHERE ref_id = ?', [id]);
+        console.log(`[Storage Cleanup] Deleted all associated media for registration ${id} from TiDB Cloud`);
       } catch (err) {
         console.error('Error deleting registration from MySQL with prepared statement:', err);
       }
@@ -1013,9 +1053,18 @@ export const Database = {
   async deleteSponsor(id: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.sponsors = memStore.sponsors.filter(s => s.id !== id);
+    for (const [mId, mItem] of memStore.media.entries()) {
+      if (mItem.refId === id) {
+        memStore.media.delete(mId);
+      }
+    }
+
     if (pool && isMySqlConnected) {
       try {
         await pool.query('DELETE FROM sponsors WHERE id = ?', [id]);
+        // Cascading delete: Automatically remove sponsor logo from TiDB app_media_storage
+        await pool.query('DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?', [id, 'SPONSOR_LOGO']);
+        console.log(`[Storage Cleanup] Deleted sponsor logo for ${id} from TiDB Cloud`);
       } catch (err) {
         console.error('Error deleting sponsor from MySQL:', err);
       }
@@ -1293,5 +1342,112 @@ export const Database = {
     }
 
     return sql;
+  },
+
+  // Centralized Media Storage (TiDB Cloud)
+  async saveMedia(item: AppMediaItem): Promise<AppMediaItem> {
+    await ensureDbConnected();
+    memStore.media.set(item.id, item);
+
+    if (pool && isMySqlConnected) {
+      try {
+        await pool.execute(
+          `INSERT INTO app_media_storage (id, category, ref_id, sub_key, filename, content_type, file_size, file_data)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE category=?, ref_id=?, sub_key=?, filename=?, content_type=?, file_size=?, file_data=?`,
+          [
+            item.id, item.category, item.refId || null, item.subKey || null, item.filename, item.contentType, item.fileSize, item.fileData,
+            item.category, item.refId || null, item.subKey || null, item.filename, item.contentType, item.fileSize, item.fileData,
+          ]
+        );
+      } catch (err) {
+        console.error('Error saving media to TiDB app_media_storage:', err);
+      }
+    }
+    return item;
+  },
+
+  async getMedia(id: string): Promise<AppMediaItem | null> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.execute('SELECT * FROM app_media_storage WHERE id = ? LIMIT 1', [id]);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const r = rows[0];
+          return {
+            id: r.id,
+            category: r.category,
+            refId: r.ref_id || undefined,
+            subKey: r.sub_key || undefined,
+            filename: r.filename,
+            contentType: r.content_type,
+            fileSize: Number(r.file_size),
+            fileData: r.file_data,
+            createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+            updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching media from TiDB app_media_storage:', err);
+      }
+    }
+    return memStore.media.get(id) || null;
+  },
+
+  async deleteMedia(id: string): Promise<boolean> {
+    await ensureDbConnected();
+    memStore.media.delete(id);
+    if (pool && isMySqlConnected) {
+      try {
+        await pool.execute('DELETE FROM app_media_storage WHERE id = ?', [id]);
+      } catch (err) {
+        console.error('Error deleting media from TiDB app_media_storage:', err);
+      }
+    }
+    return true;
+  },
+
+  async deleteMediaByRef(refId: string, category?: string): Promise<boolean> {
+    await ensureDbConnected();
+    for (const [mId, mItem] of memStore.media.entries()) {
+      if (mItem.refId === refId && (!category || mItem.category === category)) {
+        memStore.media.delete(mId);
+      }
+    }
+
+    if (pool && isMySqlConnected) {
+      try {
+        if (category) {
+          await pool.execute('DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?', [refId, category]);
+        } else {
+          await pool.execute('DELETE FROM app_media_storage WHERE ref_id = ?', [refId]);
+        }
+      } catch (err) {
+        console.error('Error deleting media by ref from TiDB app_media_storage:', err);
+      }
+    }
+    return true;
+  },
+
+  async updateMediaRef(id: string, refId: string, subKey?: string): Promise<boolean> {
+    await ensureDbConnected();
+    const memItem = memStore.media.get(id);
+    if (memItem) {
+      memItem.refId = refId;
+      if (subKey) memItem.subKey = subKey;
+    }
+
+    if (pool && isMySqlConnected) {
+      try {
+        if (subKey) {
+          await pool.execute('UPDATE app_media_storage SET ref_id = ?, sub_key = ? WHERE id = ?', [refId, subKey, id]);
+        } else {
+          await pool.execute('UPDATE app_media_storage SET ref_id = ? WHERE id = ?', [refId, id]);
+        }
+      } catch (err) {
+        console.error('Error updating media ref in TiDB app_media_storage:', err);
+      }
+    }
+    return true;
   },
 };

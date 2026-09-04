@@ -211,4 +211,24 @@ CREATE TABLE `committee_bank_accounts` (
   `qris_image_url` LONGTEXT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ----------------------------------------------------------
+-- 11. Table: app_media_storage (Penyimpanan Media & Berkas Terpusat TiDB Cloud)
+-- ----------------------------------------------------------
+DROP TABLE IF EXISTS `app_media_storage`;
+CREATE TABLE `app_media_storage` (
+  `id` VARCHAR(64) PRIMARY KEY,
+  `filename` VARCHAR(255) NOT NULL,
+  `content_type` VARCHAR(100) NOT NULL,
+  `file_size` BIGINT NOT NULL DEFAULT 0,
+  `category` VARCHAR(50) NOT NULL DEFAULT 'GENERAL', -- 'REG_DOC', 'TEAM_LOGO', 'SPONSOR_LOGO', 'CMS_WALLPAPER'
+  `ref_id` VARCHAR(100) NULL, -- ID entitas induk (pendaftaran / sponsor)
+  `sub_key` VARCHAR(100) NULL, -- nama field (teamLogo, suratKeterangan, dll)
+  `file_data` LONGTEXT NOT NULL, -- Base64 data URI
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_media_category` (`category`),
+  INDEX `idx_media_ref` (`ref_id`),
+  INDEX `idx_media_subkey` (`sub_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

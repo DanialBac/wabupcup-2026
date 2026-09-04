@@ -3,6 +3,7 @@ import { useTournament } from '../../context/TournamentContext';
 import { SectionKey, SectionBackgroundConfig, SectionsBackgrounds } from '../../types';
 import { ApiService } from '../../services/api';
 import { compressImage } from '../../utils/imageCompressor';
+import { uploadToTiDbStorage, deleteMediaFromStorage } from '../../utils/blobUpload';
 import {
   Image,
   Upload,
@@ -184,7 +185,15 @@ export const SectionBackgroundManager: React.FC = () => {
     }
   };
 
-  const handleResetSection = (secKey: SectionKey) => {
+  const handleResetSection = async (secKey: SectionKey) => {
+    const secBg = backgrounds[secKey];
+    if (secBg?.desktopImage) {
+      deleteMediaFromStorage(secBg.desktopImage).catch(() => {});
+    }
+    if (secBg?.mobileImage) {
+      deleteMediaFromStorage(secBg.mobileImage).catch(() => {});
+    }
+
     const nextBackgrounds: SectionsBackgrounds = {
       ...backgrounds,
       [secKey]: {
@@ -203,8 +212,14 @@ export const SectionBackgroundManager: React.FC = () => {
     showToast(`Background section ${secKey} berhasil direset ke warna default.`);
   };
 
-  const handleResetAllSections = () => {
-    if (!window.confirm('Kembalikan semua background section ke warna default sistem?')) return;
+  const handleResetAllSections = async () => {
+    if (!window.confirm('Kembalikan semua background section ke warna default sistem? Berkas gambar lama di penyimpanan juga akan dibersihkan.')) return;
+
+    for (const s of SECTIONS_LIST) {
+      const secBg = backgrounds[s.key];
+      if (secBg?.desktopImage) deleteMediaFromStorage(secBg.desktopImage).catch(() => {});
+      if (secBg?.mobileImage) deleteMediaFromStorage(secBg.mobileImage).catch(() => {});
+    }
 
     const resetObj: SectionsBackgrounds = {};
     for (const s of SECTIONS_LIST) {
@@ -231,34 +246,48 @@ export const SectionBackgroundManager: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size limit (e.g. 10MB input before compression)
     if (file.size > 10 * 1024 * 1024) {
       alert('Ukuran file terlalu besar! Maksimal 10MB.');
       return;
     }
 
+    // Delete previous wallpaper if exists in TiDB storage
+    const prevUrl = type === 'desktop' ? currentConfig.desktopImage : currentConfig.mobileImage;
+    if (prevUrl && prevUrl.includes('/api/media/view/')) {
+      deleteMediaFromStorage(prevUrl).catch(() => {});
+    }
+
     try {
+      showToast('Sedang menyimpan wallpaper ke TiDB Cloud storage...');
+      const uploaded = await uploadToTiDbStorage(file, 'wallpapers');
       if (type === 'desktop') {
-        // Compress desktop wallpaper to 1920x1080 (max ~200KB)
-        const compressedBase64 = await compressImage(file, 1920, 1080, 0.82);
-        handleUpdateCurrent({ desktopImage: compressedBase64, mode: 'IMAGE' });
+        handleUpdateCurrent({ desktopImage: uploaded.url, mode: 'IMAGE' });
       } else {
-        // Compress mobile wallpaper to 1080x1920 (max ~150KB)
-        const compressedBase64 = await compressImage(file, 1080, 1920, 0.82);
-        handleUpdateCurrent({ mobileImage: compressedBase64, mode: 'IMAGE' });
+        handleUpdateCurrent({ mobileImage: uploaded.url, mode: 'IMAGE' });
       }
-    } catch {
-      // Fallback to FileReader if Canvas compression fails
-      const reader = new FileReader();
-      reader.onload = (loadEvt) => {
-        const base64 = loadEvt.target?.result as string;
+      showToast('Wallpaper berhasil tersimpan terpusat di TiDB Cloud!');
+    } catch (err: any) {
+      console.warn('Fallback to client-side compression:', err);
+      try {
         if (type === 'desktop') {
-          handleUpdateCurrent({ desktopImage: base64, mode: 'IMAGE' });
+          const compressedBase64 = await compressImage(file, 1920, 1080, 0.82);
+          handleUpdateCurrent({ desktopImage: compressedBase64, mode: 'IMAGE' });
         } else {
-          handleUpdateCurrent({ mobileImage: base64, mode: 'IMAGE' });
+          const compressedBase64 = await compressImage(file, 1080, 1920, 0.82);
+          handleUpdateCurrent({ mobileImage: compressedBase64, mode: 'IMAGE' });
         }
-      };
-      reader.readAsDataURL(file);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = (loadEvt) => {
+          const base64 = loadEvt.target?.result as string;
+          if (type === 'desktop') {
+            handleUpdateCurrent({ desktopImage: base64, mode: 'IMAGE' });
+          } else {
+            handleUpdateCurrent({ mobileImage: base64, mode: 'IMAGE' });
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
     e.target.value = '';
   };

@@ -2,11 +2,55 @@ import { Router, Request, Response } from 'express';
 import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection, ensureDbConnected } from './db';
 import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem } from '../src/types';
 import { blobRouter } from './blob';
+import { r2Router } from './r2';
+import { mediaRouter } from './mediaRoutes';
 
 export const apiRouter = Router();
 
-// Mount Vercel Blob direct cloud upload handler
+// Mount TiDB Centralized Media Storage Router
+apiRouter.use(mediaRouter);
+
+// Mount Cloudflare R2 and Vercel Blob cloud upload handlers as legacy fallback
+apiRouter.use(r2Router);
 apiRouter.use(blobRouter);
+
+// Helper to associate media storage records with parent entities for automatic cascading cleanup
+async function linkRegistrationMedia(regId: string, teamLogo?: string, documents?: Record<string, any>) {
+  try {
+    if (teamLogo && teamLogo.includes('/api/media/view/')) {
+      const match = teamLogo.match(/\/api\/media\/view\/([^/?#]+)/);
+      if (match && match[1]) {
+        await Database.updateMediaRef(match[1], regId, 'teamLogo');
+      }
+    }
+    if (documents && typeof documents === 'object') {
+      for (const [key, val] of Object.entries(documents)) {
+        const url = typeof val === 'string' ? val : (val && (val as any).url);
+        if (url && typeof url === 'string' && url.includes('/api/media/view/')) {
+          const match = url.match(/\/api\/media\/view\/([^/?#]+)/);
+          if (match && match[1]) {
+            await Database.updateMediaRef(match[1], regId, key);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[linkRegistrationMedia warning]', err);
+  }
+}
+
+async function linkSponsorMedia(sponsorId: string, logoUrl?: string) {
+  try {
+    if (logoUrl && logoUrl.includes('/api/media/view/')) {
+      const match = logoUrl.match(/\/api\/media\/view\/([^/?#]+)/);
+      if (match && match[1]) {
+        await Database.updateMediaRef(match[1], sponsorId, 'sponsorLogo');
+      }
+    }
+  } catch (err) {
+    console.warn('[linkSponsorMedia warning]', err);
+  }
+}
 
 // 1. Health & Database Status
 apiRouter.get('/health', async (req: Request, res: Response) => {
@@ -183,6 +227,8 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     };
 
     const saved = await Database.saveRegistration(newReg);
+    // Link uploaded media storage records to this registration ID for cascading cleanup
+    await linkRegistrationMedia(newReg.id, newReg.teamLogo, newReg.documents);
     res.status(201).json(saved);
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Gagal menyimpan pendaftaran' });
@@ -214,6 +260,8 @@ apiRouter.put('/registrations/:id', async (req: Request, res: Response) => {
     };
 
     const saved = await Database.saveRegistration(updatedItem);
+    // Link updated media storage records to this registration ID
+    await linkRegistrationMedia(id, updatedItem.teamLogo, updatedItem.documents);
     res.json(saved);
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Gagal memperbarui pendaftaran' });
@@ -342,6 +390,7 @@ apiRouter.post('/sponsors', async (req: Request, res: Response) => {
   try {
     const id = req.body.id || `sp-${Date.now()}`;
     const saved = await Database.saveSponsor({ ...req.body, id });
+    await linkSponsorMedia(id, saved.logoUrl);
     res.status(201).json(saved);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
@@ -351,6 +400,7 @@ apiRouter.post('/sponsors', async (req: Request, res: Response) => {
 apiRouter.put('/sponsors/:id', async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveSponsor(req.body);
+    await linkSponsorMedia(req.params.id, saved.logoUrl);
     res.json(saved);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
