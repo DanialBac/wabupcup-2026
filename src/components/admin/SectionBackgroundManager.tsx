@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTournament } from '../../context/TournamentContext';
 import { SectionKey, SectionBackgroundConfig, SectionsBackgrounds } from '../../types';
+import { ApiService } from '../../services/api';
 import {
   Image,
   Upload,
@@ -16,7 +17,9 @@ import {
   CheckCircle2,
   Eye,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Save,
+  Database
 } from 'lucide-react';
 
 interface SectionMeta {
@@ -139,15 +142,23 @@ export const SectionBackgroundManager: React.FC = () => {
     textColorMode: 'LIGHT',
   };
 
+  const [isSavingDb, setIsSavingDb] = useState(false);
+
   const showToast = (msg: string) => {
     setSaveToast(msg);
     setTimeout(() => setSaveToast(null), 3000);
   };
 
   const handleUpdateCurrent = (updates: Partial<SectionBackgroundConfig>) => {
+    let newMode = updates.mode || currentConfig.mode;
+    if (!updates.mode && (updates.desktopImage || updates.mobileImage)) {
+      newMode = 'IMAGE';
+    }
+
     const updatedSectionConfig: SectionBackgroundConfig = {
       ...currentConfig,
       ...updates,
+      mode: newMode,
     };
 
     const nextBackgrounds: SectionsBackgrounds = {
@@ -156,7 +167,20 @@ export const SectionBackgroundManager: React.FC = () => {
     };
 
     updateConfig({ sectionsBackgrounds: nextBackgrounds });
-    showToast(`Pengaturan background section "${activeMeta.name}" berhasil disimpan.`);
+    showToast(`Background "${activeMeta.name}" langsung diterapkan & disimpan!`);
+  };
+
+  const handleSaveToDatabase = async () => {
+    setIsSavingDb(true);
+    try {
+      await ApiService.updateConfig({ sectionsBackgrounds: config.sectionsBackgrounds });
+      showToast('Konfigurasi background berhasil disimpan permanen ke database!');
+    } catch (err: any) {
+      console.error('Error saving to DB:', err);
+      showToast('Gagal simpan ke DB: ' + (err?.message || 'Error'));
+    } finally {
+      setIsSavingDb(false);
+    }
   };
 
   const handleResetSection = (secKey: SectionKey) => {
@@ -245,14 +269,24 @@ export const SectionBackgroundManager: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center space-x-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              onClick={handleSaveToDatabase}
+              disabled={isSavingDb}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-bold text-white shadow-md shadow-emerald-950/40 border border-emerald-500/50 transition flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+              title="Simpan seluruh konfigurasi background ke database MySQL"
+            >
+              <Save className={`w-3.5 h-3.5 ${isSavingDb ? 'animate-spin' : ''}`} />
+              <span>{isSavingDb ? 'Menyimpan...' : 'Simpan ke Database'}</span>
+            </button>
+
             <button
               onClick={handleResetAllSections}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white transition flex items-center space-x-2 cursor-pointer"
               title="Kembalikan semua background ke warna default"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset Semua ke Default</span>
+              <span>Reset Default</span>
             </button>
           </div>
         </div>
@@ -893,6 +927,19 @@ export const SectionBackgroundManager: React.FC = () => {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* DIRECT ACTION BUTTONS */}
+            <div className="pt-2 space-y-2">
+              <button
+                type="button"
+                onClick={handleSaveToDatabase}
+                disabled={isSavingDb}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-950/50 border border-emerald-500/50 transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <Save className={`w-4 h-4 ${isSavingDb ? 'animate-spin' : ''}`} />
+                <span>{isSavingDb ? 'Menyimpan...' : 'Terapkan & Simpan Permanen'}</span>
+              </button>
             </div>
           </div>
         </div>

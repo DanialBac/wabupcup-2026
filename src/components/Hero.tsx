@@ -59,18 +59,19 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
   const totalTeamsCount = registrations.length;
 
   const bgConfig = config.sectionsBackgrounds?.hero;
+  const hasCustomBg = Boolean(bgConfig?.desktopImage?.trim() || bgConfig?.mobileImage?.trim() || (bgConfig?.mode === 'COLOR' && bgConfig?.bgColor));
 
   return (
     <div
       id="beranda"
-      className="relative overflow-hidden bg-slate-950 text-white pt-8 pb-16 lg:py-20 border-b border-slate-800 transition-colors duration-300"
+      className="relative overflow-hidden bg-slate-950 text-white -mt-20 pt-28 pb-16 sm:pt-32 sm:pb-20 lg:pt-36 lg:pb-24 border-b border-slate-800 transition-colors duration-300"
       style={bgConfig?.mode === 'COLOR' && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
     >
       {/* CUSTOM SECTION BACKGROUND (IMAGE / COLOR / OVERLAY) */}
       <SectionBackground config={bgConfig} />
 
-      {/* BACKGROUND DECORATIVE SPORTS PITCH & GLOW (Hidden if in custom Image mode to keep background clean) */}
-      {(!bgConfig || bgConfig.mode === 'DEFAULT') && (
+      {/* BACKGROUND DECORATIVE SPORTS PITCH & GLOW (Only shown if no custom photo/color is set) */}
+      {!hasCustomBg && (
         <>
           <div className="absolute inset-0 pointer-events-none opacity-20 pitch-lines"></div>
           <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>

@@ -575,7 +575,19 @@ export const Database = {
 
   async updateConfig(newConfig: Partial<TournamentConfig>): Promise<TournamentConfig> {
     await ensureDbConnected();
-    const updated = { ...memStore.config, ...newConfig };
+    const current = await this.getConfig();
+    const updated = {
+      ...current,
+      ...newConfig,
+      sectionsBackgrounds: {
+        ...(current.sectionsBackgrounds || {}),
+        ...(newConfig.sectionsBackgrounds || {}),
+      },
+      sectionsVisibility: {
+        ...(current.sectionsVisibility || {}),
+        ...(newConfig.sectionsVisibility || {}),
+      },
+    };
     memStore.config = updated;
 
     if (pool && isMySqlConnected) {

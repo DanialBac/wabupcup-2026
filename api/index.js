@@ -7,10 +7,12 @@ import { Router } from "express";
 
 // server/db.ts
 import mysql from "mysql2/promise";
+import fs from "fs";
+import path from "path";
 
 // src/data/mockData.ts
 var INITIAL_TOURNAMENT_CONFIG = {
-  name: "WabupCup ",
+  name: "WabupCup",
   edition: "2026",
   tagline: "Turnamen Futsal Perebutan Piala Wakil Bupati",
   registrationDeadline: "2026-10-15",
@@ -20,7 +22,7 @@ var INITIAL_TOURNAMENT_CONFIG = {
   venueAddress: "Jl. Wijaya Kusuma, Lingkungan Cuking Rw., Mojopanggung, Kec. Giri, Kabupaten Banyuwangi, Jawa Timur 68425, Kabupaten Banyuwangi",
   venueCity: "Kabupaten Banyuwangi",
   googleMapsEmbedUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3948.921835941096!2d114.34936872662414!3d-8.210615691821596!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2dd14545d37030e3%3A0x3f601cc59d28c3c8!2sGedung%20Utama%20GOR%20Tawang%20Alun%20Banyuwangi!5e0!3m2!1sid!2sid!4v1788166952611!5m2!1sid!2sid",
-  totalPrizePool: 58000000,
+  totalPrizePool: 58e6,
   adminContactPhone: "6285233909898",
   adminContactEmail: "infinityorganizer01.22@gmail.com",
   bankAccount: {
@@ -164,7 +166,79 @@ var INITIAL_TOURNAMENT_CONFIG = {
       instructions: "Dukungan transfer antar bank & BI-Fast realtime.",
       isPrimary: false
     }
-  ]
+  ],
+  sectionsBackgrounds: {
+    hero: {
+      mode: "DEFAULT",
+      bgColor: "#020617",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 60,
+      overlayBlur: false,
+      textColorMode: "LIGHT"
+    },
+    liveScore: {
+      mode: "DEFAULT",
+      bgColor: "#0f172a",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 60,
+      overlayBlur: false,
+      textColorMode: "AUTO"
+    },
+    categories: {
+      mode: "DEFAULT",
+      bgColor: "#0b0f19",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 60,
+      overlayBlur: false,
+      textColorMode: "AUTO"
+    },
+    bracket: {
+      mode: "DEFAULT",
+      bgColor: "#0f172a",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 60,
+      overlayBlur: false,
+      textColorMode: "AUTO"
+    },
+    venue: {
+      mode: "DEFAULT",
+      bgColor: "#020617",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 60,
+      overlayBlur: false,
+      textColorMode: "AUTO"
+    },
+    sponsors: {
+      mode: "DEFAULT",
+      bgColor: "#020617",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 60,
+      overlayBlur: false,
+      textColorMode: "AUTO"
+    },
+    footer: {
+      mode: "DEFAULT",
+      bgColor: "#020617",
+      desktopImage: "",
+      mobileImage: "",
+      overlayColor: "#000000",
+      overlayOpacity: 70,
+      overlayBlur: false,
+      textColorMode: "AUTO"
+    }
+  }
 };
 var INITIAL_CATEGORIES = [
   {
@@ -173,7 +247,7 @@ var INITIAL_CATEGORIES = [
     badgeTitle: "Tingkat Sekolah Dasar",
     ageRestriction: "Kelahiran Maksimal Tahun 2014 (U-12)",
     maxTeams: 32,
-    registeredTeamsCount: 24,
+    registeredTeamsCount: 0,
     registrationFee: 25e4,
     totalPrize: 2e7,
     description: "Ajang pembibitan talenta muda pesepakbola cilik se-kabupaten dengan format mini soccer 7v7.",
@@ -198,7 +272,7 @@ var INITIAL_CATEGORIES = [
     badgeTitle: "Tingkat SMP / MTs",
     ageRestriction: "Siswa Aktif Kelas 7-9 (U-15)",
     maxTeams: 32,
-    registeredTeamsCount: 28,
+    registeredTeamsCount: 0,
     registrationFee: 35e4,
     totalPrize: 25e6,
     description: "Kompetisi futsal antarpelajar SMP/MTs dengan tensi tinggi dan sportivitas unggul.",
@@ -221,10 +295,10 @@ var INITIAL_CATEGORIES = [
     badgeTitle: "Tingkat SMA / SMK",
     ageRestriction: "Siswa Aktif Kelas 10-12 (U-18)",
     maxTeams: 32,
-    registeredTeamsCount: 30,
+    registeredTeamsCount: 0,
     registrationFee: 4e5,
     totalPrize: 3e7,
-    description: "Panggung sekolah menengah atas, memperebutkan supremasi futsal pelajar.",
+    description: "Panggung bergengsi gengsi sekolah menengah atas, memperebutkan supremasi futsal pelajar.",
     prizes: [
       { rank: "Juara 1", prizeMoney: 12e6, trophyText: "Piala Bergilir Wabup + Medali Emas" },
       { rank: "Juara 2", prizeMoney: 8e6, trophyText: "Piala Tetap + Medali Perak" },
@@ -244,7 +318,7 @@ var INITIAL_CATEGORIES = [
     badgeTitle: "Pemerintahan & BUMN/Swasta",
     ageRestriction: "Pegawai ASN / Honorer / Karyawan Resmi",
     maxTeams: 24,
-    registeredTeamsCount: 18,
+    registeredTeamsCount: 0,
     registrationFee: 5e5,
     totalPrize: 3e7,
     description: "Ajang silaturahmi antar institusi pemerintah daerah, dinas, perbankan, dan BUMN se-kabupaten.",
@@ -266,10 +340,10 @@ var INITIAL_CATEGORIES = [
     badgeTitle: "Kategori Bebas / Open",
     ageRestriction: "Usia Bebas (Minimal 16 Tahun)",
     maxTeams: 32,
-    registeredTeamsCount: 26,
+    registeredTeamsCount: 0,
     registrationFee: 6e5,
     totalPrize: 4e7,
-    description: "Kategori dengan pemain-pemain bintang futsal/sepakbola kelas regional.",
+    description: "Kategori paling bergengsi dengan pemain-pemain bintang futsal/sepakbola kelas regional.",
     prizes: [
       { rank: "Juara 1", prizeMoney: 18e6, trophyText: "Piala Utama WabupCup 2026 + Medali Emas" },
       { rank: "Juara 2", prizeMoney: 11e6, trophyText: "Piala Tetap + Medali Perak" },
@@ -288,7 +362,7 @@ var INITIAL_CATEGORIES = [
     badgeTitle: "Antar Desa / Nagari / Kelurahan",
     ageRestriction: "Warga Ber-KTP Asli Desa Bersangkutan",
     maxTeams: 32,
-    registeredTeamsCount: 22,
+    registeredTeamsCount: 0,
     registrationFee: 4e5,
     totalPrize: 3e7,
     description: "Pertarungan martabat pemuda desa dan kelurahan se-kabupaten dalam semangat persatuan daerah.",
@@ -822,67 +896,13 @@ var INITIAL_MATCHES = [
 ];
 var INITIAL_SPONSORS = [
   {
-    id: "sp-1",
-    name: "Pemerintah Kabupaten Wijaya",
+    id: "-",
+    name: "-",
     tier: "PLATINUM",
-    logoText: "PEMKAB WIJAYA",
-    logoUrl: "https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://kabwijaya.go.id",
+    logoText: "-",
+    logoUrl: "-0",
+    websiteUrl: "-",
     description: "Sponsor Utama Pelindung Turnamen WabupCup 2026"
-  },
-  {
-    id: "sp-2",
-    name: "Bank Nagari / BPD",
-    tier: "PLATINUM",
-    logoText: "BANK NAGARI",
-    logoUrl: "https://images.unsplash.com/photo-1541354329998-f4d9a9f9297f?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://banknagari.co.id",
-    description: "Official Banking Partner & Tabungan Prestasi Pemuda"
-  },
-  {
-    id: "sp-3",
-    name: "Pocari Sweat Indonesia",
-    tier: "GOLD",
-    logoText: "POCARI SWEAT",
-    logoUrl: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://pocarisweat.id",
-    description: "Official Hydration Partner"
-  },
-  {
-    id: "sp-4",
-    name: "SPECS Indonesia",
-    tier: "GOLD",
-    logoText: "SPECS INDONESIA",
-    logoUrl: "https://images.unsplash.com/photo-1511556532299-8f662fc26c06?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://specs.id",
-    description: "Official Match Ball & Apparel Partner"
-  },
-  {
-    id: "sp-5",
-    name: "Hydro Coco",
-    tier: "SILVER",
-    logoText: "HYDRO COCO",
-    logoUrl: "https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://hydrococo.com",
-    description: "Official Mineral Isotonic Drink"
-  },
-  {
-    id: "sp-6",
-    name: "Wijaya TV & Radio Suara Daerah",
-    tier: "OFFICIAL_PARTNER",
-    logoText: "WIJAYA MEDIA NETWORK",
-    logoUrl: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://suarawijaya.fm",
-    description: "Official Media Broadcaster & Live Streaming"
-  },
-  {
-    id: "sp-7",
-    name: "RSUD Kabupaten Wijaya",
-    tier: "OFFICIAL_PARTNER",
-    logoText: "RSUD WIJAYA MEDIKA",
-    logoUrl: "https://images.unsplash.com/photo-1516549655169-df83a0774514?w=300&auto=format&fit=crop&q=80",
-    websiteUrl: "https://rsudwijaya.go.id",
-    description: "Official Medical Team & Ambulance On-Site"
   }
 ];
 var INITIAL_ADMIN_USERS = [
@@ -899,15 +919,25 @@ var INITIAL_ADMIN_USERS = [
   {
     id: "adm-02",
     username: "panitia",
-    fullName: "Sekretariat & Pendaftaran",
-    role: "PANITIA",
-    email: "sekretariat@wabupcup2026.id",
+    fullName: "Sekretariat Panitia Inti",
+    role: "PANITIA_INTI",
+    email: "sekretariat.inti@wabupcup2026.id",
     phone: "081398765432",
     createdAt: "2026-08-05",
-    avatarColor: "bg-blue-600"
+    avatarColor: "bg-indigo-600"
   },
   {
     id: "adm-03",
+    username: "panitia_umum",
+    fullName: "Staf Panitia Umum",
+    role: "PANITIA_UMUM",
+    email: "panitia.umum@wabupcup2026.id",
+    phone: "085288990011",
+    createdAt: "2026-08-08",
+    avatarColor: "bg-emerald-600"
+  },
+  {
+    id: "adm-04",
     username: "wasit_utama",
     fullName: "Koordinator Wasit & Pertandingan",
     role: "WASIT",
@@ -915,6 +945,16 @@ var INITIAL_ADMIN_USERS = [
     phone: "085211223344",
     createdAt: "2026-08-10",
     avatarColor: "bg-amber-600"
+  },
+  {
+    id: "adm-05",
+    username: "operator",
+    fullName: "Operator Lapangan & Live Score",
+    role: "OPERATOR",
+    email: "operator@wabupcup2026.id",
+    phone: "085277889900",
+    createdAt: "2026-08-12",
+    avatarColor: "bg-cyan-600"
   }
 ];
 
@@ -933,6 +973,26 @@ var memStore = new MemoryStore();
 var pool = null;
 var isMySqlConnected = false;
 var mySqlError = null;
+var DB_CONFIG_FILE = path.join(process.cwd(), "server", "db-config.json");
+function loadSavedDbConfig() {
+  try {
+    if (fs.existsSync(DB_CONFIG_FILE)) {
+      const content = fs.readFileSync(DB_CONFIG_FILE, "utf-8");
+      return JSON.parse(content);
+    }
+  } catch (err) {
+    console.warn("[DB Config] Could not read saved config file:", err);
+  }
+  return null;
+}
+function saveDbConfigFile(config) {
+  try {
+    fs.writeFileSync(DB_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+    console.log("[DB Config] Successfully saved database configuration to", DB_CONFIG_FILE);
+  } catch (err) {
+    console.warn("[DB Config] Could not write config to file:", err);
+  }
+}
 function getMySqlStatus() {
   const host = process.env.MYSQL_HOST || (process.env.DATABASE_URL ? "Via DATABASE_URL" : "Not configured (In-Memory fallback)");
   const dbName = process.env.MYSQL_DATABASE || "wabupcup_db";
@@ -991,27 +1051,28 @@ async function ensureDbConnected() {
   }
 }
 async function initDatabaseConnection(customConfig) {
-  if (customConfig) {
-    if (customConfig.databaseUrl !== void 0) {
-      process.env.DATABASE_URL = customConfig.databaseUrl.trim();
+  const effectiveConfig = customConfig || loadSavedDbConfig();
+  if (effectiveConfig) {
+    if (effectiveConfig.databaseUrl !== void 0 && effectiveConfig.databaseUrl.trim()) {
+      process.env.DATABASE_URL = effectiveConfig.databaseUrl.trim();
     }
-    if (customConfig.host !== void 0) {
-      process.env.MYSQL_HOST = customConfig.host.trim();
+    if (effectiveConfig.host !== void 0 && effectiveConfig.host.trim()) {
+      process.env.MYSQL_HOST = effectiveConfig.host.trim();
     }
-    if (customConfig.port !== void 0) {
-      process.env.MYSQL_PORT = String(customConfig.port);
+    if (effectiveConfig.port !== void 0) {
+      process.env.MYSQL_PORT = String(effectiveConfig.port);
     }
-    if (customConfig.user !== void 0) {
-      process.env.MYSQL_USER = customConfig.user.trim();
+    if (effectiveConfig.user !== void 0 && effectiveConfig.user.trim()) {
+      process.env.MYSQL_USER = effectiveConfig.user.trim();
     }
-    if (customConfig.password !== void 0) {
-      process.env.MYSQL_PASSWORD = customConfig.password;
+    if (effectiveConfig.password !== void 0) {
+      process.env.MYSQL_PASSWORD = effectiveConfig.password;
     }
-    if (customConfig.database !== void 0) {
-      process.env.MYSQL_DATABASE = customConfig.database.trim();
+    if (effectiveConfig.database !== void 0 && effectiveConfig.database.trim()) {
+      process.env.MYSQL_DATABASE = effectiveConfig.database.trim();
     }
-    if (customConfig.ssl !== void 0) {
-      process.env.MYSQL_SSL = customConfig.ssl ? "true" : "false";
+    if (effectiveConfig.ssl !== void 0) {
+      process.env.MYSQL_SSL = effectiveConfig.ssl ? "true" : "false";
     }
   }
   const dbUrl = process.env.DATABASE_URL ? process.env.DATABASE_URL.trim() : void 0;
@@ -1026,6 +1087,7 @@ async function initDatabaseConnection(customConfig) {
   if (!dbUrl && !host) {
     console.log("[Database] No MySQL host or DATABASE_URL provided. Operating with in-memory persistence layer.");
     isMySqlConnected = false;
+    mySqlError = "Belum dikonfigurasi. Silakan atur kredensial database di tab Database.";
     return false;
   }
   try {
@@ -1127,11 +1189,22 @@ async function initDatabaseConnection(customConfig) {
     isMySqlConnected = true;
     mySqlError = null;
     console.log(`[MySQL] Successfully connected to MySQL database: ${database} at ${host || "DATABASE_URL"}`);
+    if (customConfig) {
+      saveDbConfigFile(customConfig);
+    }
     await autoMigrateTables();
     return true;
   } catch (err) {
     isMySqlConnected = false;
-    mySqlError = err?.message || "Failed to connect to MySQL";
+    if (err?.code === "ER_ACCESS_DENIED_ERROR" || err?.errno === 1045) {
+      mySqlError = `Akses Ditolak (ER_ACCESS_DENIED): Password atau Username database tidak cocok. Silakan periksa atau buat ulang password di dashboard database online Anda (misal TiDB Cloud Console).`;
+    } else if (err?.code === "ENOTFOUND") {
+      mySqlError = `Host Tidak Ditemukan (ENOTFOUND): Hostname '${host || "DATABASE_URL"}' tidak dapat dihubungi. Periksa URL koneksi database.`;
+    } else if (err?.code === "ETIMEDOUT") {
+      mySqlError = `Koneksi Timeout (ETIMEDOUT): Server database tidak merespons. Pastikan IP Allowlist diatur ke 0.0.0.0/0.`;
+    } else {
+      mySqlError = err?.message || "Gagal terhubung ke MySQL";
+    }
     console.warn(`[MySQL Warning] Could not connect to MySQL: ${mySqlError}. Using fallback storage.`);
     return false;
   }
@@ -1143,6 +1216,11 @@ async function autoMigrateTables() {
     if (rows.length === 0) {
       console.log("[MySQL] Tables not found. Initializing schema automatically...");
       await runFullSchemaInit();
+    } else {
+      try {
+        await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
+      } catch (colErr) {
+      }
     }
   } catch (err) {
     console.error("[MySQL] Error checking tables:", err);
@@ -1238,7 +1316,7 @@ async function runFullSchemaInit() {
       username VARCHAR(64) NOT NULL UNIQUE,
       password_hash VARCHAR(255) NOT NULL,
       full_name VARCHAR(150) NOT NULL,
-      role VARCHAR(32) NOT NULL DEFAULT 'PANITIA',
+      role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI',
       email VARCHAR(150) NULL,
       phone VARCHAR(50) NULL,
       avatar_color VARCHAR(30) NOT NULL DEFAULT 'bg-red-600',
@@ -1294,6 +1372,34 @@ async function runFullSchemaInit() {
       );
     }
   }
+  const [sponRows] = await pool.query("SELECT COUNT(*) as count FROM sponsors");
+  if (sponRows[0].count === 0) {
+    for (let i = 0; i < INITIAL_SPONSORS.length; i++) {
+      const sp = INITIAL_SPONSORS[i];
+      await pool.query(
+        `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description, sort_order, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sp.id,
+          sp.name,
+          sp.tier,
+          sp.logoText,
+          sp.logoUrl || null,
+          sp.websiteUrl || null,
+          sp.description || null,
+          i,
+          true
+        ]
+      );
+    }
+  }
+  const [cfgRows] = await pool.query("SELECT COUNT(*) as count FROM tournament_config");
+  if (cfgRows[0].count === 0) {
+    await pool.query(
+      `INSERT INTO tournament_config (config_key, config_value) VALUES (?, ?)`,
+      ["main_config", JSON.stringify(INITIAL_TOURNAMENT_CONFIG)]
+    );
+  }
   return { success: true, message: "MySQL Database Tables Initialized and Seeded Successfully" };
 }
 var Database = {
@@ -1314,7 +1420,19 @@ var Database = {
   },
   async updateConfig(newConfig) {
     await ensureDbConnected();
-    const updated = { ...memStore.config, ...newConfig };
+    const current = await this.getConfig();
+    const updated = {
+      ...current,
+      ...newConfig,
+      sectionsBackgrounds: {
+        ...(current.sectionsBackgrounds || {}),
+        ...(newConfig.sectionsBackgrounds || {}),
+      },
+      sectionsVisibility: {
+        ...(current.sectionsVisibility || {}),
+        ...(newConfig.sectionsVisibility || {}),
+      },
+    };
     memStore.config = updated;
     if (pool && isMySqlConnected) {
       try {
@@ -1412,13 +1530,51 @@ var Database = {
     }
     return true;
   },
+  async reorderCategories(categories) {
+    await ensureDbConnected();
+    memStore.categories = [...categories];
+    if (pool && isMySqlConnected) {
+      try {
+        for (let i = 0; i < categories.length; i++) {
+          const cat = categories[i];
+          await pool.query(
+            `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE sort_order = ?, name = ?, max_teams = ?, registration_fee = ?, total_prize = ?`,
+            [
+              cat.id,
+              cat.name,
+              cat.badgeTitle || "",
+              cat.ageRestriction,
+              cat.maxTeams,
+              cat.registeredTeamsCount,
+              cat.registrationFee,
+              cat.totalPrize,
+              cat.description || "",
+              JSON.stringify(cat.prizes),
+              JSON.stringify(cat.rules),
+              i,
+              i,
+              cat.name,
+              cat.maxTeams,
+              cat.registrationFee,
+              cat.totalPrize
+            ]
+          );
+        }
+      } catch (err) {
+        console.error("Error reordering categories in MySQL:", err);
+      }
+    }
+    return categories;
+  },
   // Registrations
   async getRegistrations() {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows] = await pool.query("SELECT * FROM registrations ORDER BY created_at DESC");
-        if (rows.length > 0) {
+        if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
             regCode: r.reg_code,
@@ -1524,7 +1680,7 @@ var Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows] = await pool.query("SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC");
-        if (rows.length > 0) {
+        if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
             matchNumber: r.match_number,
@@ -1647,6 +1803,125 @@ var Database = {
     }
     return true;
   },
+  async replaceCategoryMatches(category, newMatches) {
+    await ensureDbConnected();
+    memStore.matches = memStore.matches.filter((m) => m.category !== category).concat(newMatches);
+    if (pool && isMySqlConnected) {
+      try {
+        await pool.query("DELETE FROM matches WHERE category_id = ?", [category]);
+        for (const match of newMatches) {
+          await pool.query(
+            `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              match.id,
+              match.matchNumber,
+              match.category,
+              match.round,
+              match.roundIndex,
+              match.group || null,
+              match.teamA.name,
+              match.teamA.institution || null,
+              match.teamA.logo || null,
+              match.teamA.score !== void 0 ? match.teamA.score : null,
+              match.teamA.penalties !== void 0 ? match.teamA.penalties : null,
+              match.teamB.name,
+              match.teamB.institution || null,
+              match.teamB.logo || null,
+              match.teamB.score !== void 0 ? match.teamB.score : null,
+              match.teamB.penalties !== void 0 ? match.teamB.penalties : null,
+              match.date,
+              match.time,
+              match.pitch,
+              match.status,
+              match.liveMinute || null,
+              JSON.stringify(match.events || []),
+              match.winnerId || null,
+              match.nextMatchId || null,
+              match.nextMatchSlot || null
+            ]
+          );
+        }
+      } catch (err) {
+        console.error("Error replacing category matches in MySQL:", err);
+      }
+    }
+    return newMatches;
+  },
+  async saveMatchesBatch(matchesToSave) {
+    await ensureDbConnected();
+    for (const match of matchesToSave) {
+      const idx = memStore.matches.findIndex((m) => m.id === match.id);
+      if (idx >= 0) {
+        memStore.matches[idx] = match;
+      } else {
+        memStore.matches.push(match);
+      }
+      if (pool && isMySqlConnected) {
+        try {
+          await pool.query(
+            `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE match_number=?, category_id=?, round_name=?, round_index=?, group_name=?, team_a_name=?, team_a_institution=?, team_a_logo=?, team_a_score=?, team_a_penalties=?, team_b_name=?, team_b_institution=?, team_b_logo=?, team_b_score=?, team_b_penalties=?, match_date=?, match_time=?, pitch=?, status=?, live_minute=?, events_json=?, winner_id=?, next_match_id=?, next_match_slot=?`,
+            [
+              match.id,
+              match.matchNumber,
+              match.category,
+              match.round,
+              match.roundIndex,
+              match.group || null,
+              match.teamA.name,
+              match.teamA.institution || null,
+              match.teamA.logo || null,
+              match.teamA.score !== void 0 ? match.teamA.score : null,
+              match.teamA.penalties !== void 0 ? match.teamA.penalties : null,
+              match.teamB.name,
+              match.teamB.institution || null,
+              match.teamB.logo || null,
+              match.teamB.score !== void 0 ? match.teamB.score : null,
+              match.teamB.penalties !== void 0 ? match.teamB.penalties : null,
+              match.date,
+              match.time,
+              match.pitch,
+              match.status,
+              match.liveMinute || null,
+              JSON.stringify(match.events || []),
+              match.winnerId || null,
+              match.nextMatchId || null,
+              match.nextMatchSlot || null,
+              match.matchNumber,
+              match.category,
+              match.round,
+              match.roundIndex,
+              match.group || null,
+              match.teamA.name,
+              match.teamA.institution || null,
+              match.teamA.logo || null,
+              match.teamA.score !== void 0 ? match.teamA.score : null,
+              match.teamA.penalties !== void 0 ? match.teamA.penalties : null,
+              match.teamB.name,
+              match.teamB.institution || null,
+              match.teamB.logo || null,
+              match.teamB.score !== void 0 ? match.teamB.score : null,
+              match.teamB.penalties !== void 0 ? match.teamB.penalties : null,
+              match.date,
+              match.time,
+              match.pitch,
+              match.status,
+              match.liveMinute || null,
+              JSON.stringify(match.events || []),
+              match.winnerId || null,
+              match.nextMatchId || null,
+              match.nextMatchSlot || null
+            ]
+          );
+        } catch (err) {
+          console.error("Error saving batch match item in MySQL:", err);
+        }
+      }
+    }
+    return matchesToSave;
+  },
   // Sponsors
   async getSponsors() {
     await ensureDbConnected();
@@ -1663,6 +1938,34 @@ var Database = {
             websiteUrl: r.website_url || void 0,
             description: r.description || void 0
           }));
+        } else {
+          for (let i = 0; i < memStore.sponsors.length; i++) {
+            const sp = memStore.sponsors[i];
+            await pool.query(
+              `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description, sort_order, is_active)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE name=?, tier=?, logo_text=?, logo_url=?, website_url=?, description=?, sort_order=?`,
+              [
+                sp.id,
+                sp.name,
+                sp.tier,
+                sp.logoText,
+                sp.logoUrl || null,
+                sp.websiteUrl || null,
+                sp.description || null,
+                i,
+                true,
+                sp.name,
+                sp.tier,
+                sp.logoText,
+                sp.logoUrl || null,
+                sp.websiteUrl || null,
+                sp.description || null,
+                i
+              ]
+            );
+          }
+          return memStore.sponsors;
         }
       } catch (err) {
         console.error("Error fetching sponsors from MySQL:", err);
@@ -1723,9 +2026,9 @@ var Database = {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users");
-        if (rows.length > 0) {
-          return rows.map((r) => ({
+        const [rows] = await pool.query("SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users ORDER BY created_at ASC");
+        if (Array.isArray(rows) && rows.length > 0) {
+          const list = rows.map((r) => ({
             id: r.id,
             username: r.username,
             fullName: r.full_name,
@@ -1735,6 +2038,28 @@ var Database = {
             avatarColor: r.avatar_color,
             createdAt: r.created_at ? new Date(r.created_at).toISOString().split("T")[0] : "2026-08-01"
           }));
+          memStore.adminUsers = list;
+          return list;
+        } else if (Array.isArray(rows) && rows.length === 0) {
+          for (const adm of INITIAL_ADMIN_USERS) {
+            await pool.query(
+              `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE full_name = VALUES(full_name)`,
+              [
+                adm.id,
+                adm.username,
+                adm.password || "admin123",
+                adm.fullName,
+                adm.role,
+                adm.email || "",
+                adm.phone || "",
+                adm.avatarColor || "bg-red-600"
+              ]
+            );
+          }
+          memStore.adminUsers = [...INITIAL_ADMIN_USERS];
+          return memStore.adminUsers;
         }
       } catch (err) {
         console.error("Error fetching admins from MySQL:", err);
@@ -1744,40 +2069,91 @@ var Database = {
   },
   async saveAdmin(admin, password) {
     await ensureDbConnected();
-    const idx = memStore.adminUsers.findIndex((a) => a.id === admin.id || a.username.toLowerCase() === admin.username.toLowerCase());
-    if (idx >= 0) {
-      memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
-    } else {
-      memStore.adminUsers.push(admin);
-    }
     if (pool && isMySqlConnected) {
+      const passHash = password || admin.password || "admin123";
+      const roleToSave = admin.role || "PANITIA_INTI";
       try {
-        const passHash = password || admin.password || "admin123";
         await pool.query(
           `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE full_name=?, role=?, email=?, phone=?, avatar_color=?, password_hash=COALESCE(?, password_hash)`,
+           ON DUPLICATE KEY UPDATE 
+             username = VALUES(username),
+             full_name = VALUES(full_name),
+             role = VALUES(role),
+             email = VALUES(email),
+             phone = VALUES(phone),
+             avatar_color = VALUES(avatar_color),
+             password_hash = COALESCE(?, password_hash)`,
           [
             admin.id,
             admin.username,
             passHash,
             admin.fullName,
-            admin.role,
+            roleToSave,
             admin.email || null,
             admin.phone || null,
             admin.avatarColor || "bg-red-600",
             admin.createdAt ? new Date(admin.createdAt) : /* @__PURE__ */ new Date(),
-            // Updates
-            admin.fullName,
-            admin.role,
-            admin.email || null,
-            admin.phone || null,
-            admin.avatarColor || "bg-red-600",
             password || null
           ]
         );
+        const idx = memStore.adminUsers.findIndex((a) => a.id === admin.id);
+        if (idx >= 0) {
+          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin, role: roleToSave };
+        } else {
+          memStore.adminUsers.push({ ...admin, role: roleToSave });
+        }
       } catch (err) {
         console.error("Error saving admin user to MySQL:", err);
+        const errMsg = String(err?.message || "");
+        if (err?.code === "WARN_DATA_TRUNCATED" || err?.errno === 1265 || errMsg.includes("role") || errMsg.includes("Data truncated")) {
+          try {
+            console.log("[MySQL Auto-Migration] Migrating column role in admin_users to VARCHAR(64)...");
+            await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
+            await pool.query(
+              `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON DUPLICATE KEY UPDATE 
+                 username = VALUES(username),
+                 full_name = VALUES(full_name),
+                 role = VALUES(role),
+                 email = VALUES(email),
+                 phone = VALUES(phone),
+                 avatar_color = VALUES(avatar_color),
+                 password_hash = COALESCE(?, password_hash)`,
+              [
+                admin.id,
+                admin.username,
+                passHash,
+                admin.fullName,
+                roleToSave,
+                admin.email || null,
+                admin.phone || null,
+                admin.avatarColor || "bg-red-600",
+                admin.createdAt ? new Date(admin.createdAt) : /* @__PURE__ */ new Date(),
+                password || null
+              ]
+            );
+            console.log("[MySQL Auto-Migration] Successfully saved admin user after column role auto-migration!");
+            const idx = memStore.adminUsers.findIndex((a) => a.id === admin.id);
+            if (idx >= 0) {
+              memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin, role: roleToSave };
+            } else {
+              memStore.adminUsers.push({ ...admin, role: roleToSave });
+            }
+            return { ...admin, role: roleToSave };
+          } catch (retryErr) {
+            console.error("[MySQL Auto-Migration] Retry after role migration failed:", retryErr);
+          }
+        }
+        throw new Error(`Gagal menyimpan data admin ke database MySQL: ${err?.message || err}`);
+      }
+    } else {
+      const idx = memStore.adminUsers.findIndex((a) => a.id === admin.id || a.username.toLowerCase() === admin.username.toLowerCase());
+      if (idx >= 0) {
+        memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin };
+      } else {
+        memStore.adminUsers.push(admin);
       }
     }
     return admin;
@@ -1794,9 +2170,51 @@ var Database = {
         await pool.query("DELETE FROM admin_users WHERE id = ? AND username != 'superadmin'", [id]);
       } catch (err) {
         console.error("Error deleting admin from MySQL:", err);
+        throw new Error(`Gagal menghapus admin dari MySQL: ${err?.message || err}`);
       }
     }
     return true;
+  },
+  async verifyAdminLogin(username, pass) {
+    await ensureDbConnected();
+    const cleanUser = (username || "").trim().toLowerCase();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows] = await pool.query("SELECT * FROM admin_users WHERE LOWER(username) = ?", [cleanUser]);
+        if (rows && rows.length > 0) {
+          const row = rows[0];
+          const passHash = row.password_hash;
+          if (passHash === pass) {
+            const userObj = {
+              id: row.id,
+              username: row.username,
+              fullName: row.full_name,
+              role: row.role,
+              email: row.email || "",
+              phone: row.phone || "",
+              avatarColor: row.avatar_color || "bg-red-600",
+              createdAt: row.created_at ? new Date(row.created_at).toISOString().split("T")[0] : "2026-08-01"
+            };
+            return { success: true, user: userObj };
+          } else {
+            return { success: false, error: "Password tidak sesuai dengan database" };
+          }
+        } else {
+          return { success: false, error: "Akun username tidak ditemukan dalam tabel users" };
+        }
+      } catch (err) {
+        console.error("Error verifying admin login with MySQL:", err);
+      }
+    }
+    const found = memStore.adminUsers.find((a) => a.username.toLowerCase() === cleanUser);
+    if (found) {
+      if (found.password === pass) {
+        const { password, ...userWithoutPass } = found;
+        return { success: true, user: userWithoutPass };
+      }
+      return { success: false, error: "Password tidak sesuai" };
+    }
+    return { success: false, error: "Akun username tidak ditemukan" };
   },
   // Generate complete SQL Export dump
   async exportFullSqlDump() {
@@ -1969,6 +2387,15 @@ apiRouter.post("/categories", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
+apiRouter.post("/categories/reorder", async (req, res) => {
+  try {
+    const list = Array.isArray(req.body) ? req.body : req.body.categories;
+    const saved = await Database.reorderCategories(list || []);
+    res.json({ success: true, categories: saved });
+  } catch (err) {
+    res.status(500).json({ error: err?.message });
+  }
+});
 apiRouter.put("/categories/:id", async (req, res) => {
   try {
     const saved = await Database.saveCategory(req.body);
@@ -2086,6 +2513,27 @@ apiRouter.post("/matches", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
+apiRouter.post("/matches/replace-category", async (req, res) => {
+  try {
+    const { category, matches } = req.body;
+    if (!category || !Array.isArray(matches)) {
+      return res.status(400).json({ error: "category and matches array are required" });
+    }
+    const saved = await Database.replaceCategoryMatches(category, matches);
+    res.json({ success: true, count: saved.length, matches: saved });
+  } catch (err) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+apiRouter.post("/matches/batch", async (req, res) => {
+  try {
+    const list = Array.isArray(req.body) ? req.body : req.body.matches;
+    const saved = await Database.saveMatchesBatch(list || []);
+    res.json({ success: true, count: saved.length, matches: saved });
+  } catch (err) {
+    res.status(500).json({ error: err?.message });
+  }
+});
 apiRouter.put("/matches/:id", async (req, res) => {
   try {
     const saved = await Database.saveMatch(req.body);
@@ -2150,7 +2598,7 @@ apiRouter.post("/admins", async (req, res) => {
       id: `adm-${Date.now()}`,
       username: cleanUsername,
       fullName: fullName.trim(),
-      role: role || "PANITIA",
+      role: role || "PANITIA_INTI",
       email: email ? email.trim() : "",
       phone: phone ? phone.trim() : "",
       avatarColor: avatarColor || "bg-red-600",
@@ -2158,7 +2606,14 @@ apiRouter.post("/admins", async (req, res) => {
       password: password || "admin123"
     };
     const saved = await Database.saveAdmin(newAdmin, password);
-    res.status(201).json(saved);
+    const dbStatus = getMySqlStatus();
+    res.status(201).json({
+      success: true,
+      ...saved,
+      savedToDatabase: dbStatus.connected,
+      databaseMode: dbStatus.mode,
+      databaseHost: dbStatus.host
+    });
   } catch (err) {
     res.status(500).json({ error: err?.message || "Gagal menambahkan admin" });
   }
@@ -2169,7 +2624,7 @@ apiRouter.put("/admins/:id", async (req, res) => {
     const existingList = await Database.getAdmins();
     const target = existingList.find((a) => a.id === req.params.id);
     if (!target) {
-      return res.status(404).json({ error: "Admin tidak ditemukan" });
+      return res.status(404).json({ error: "Admin dengan ID tersebut tidak ditemukan" });
     }
     const updatedAdmin = {
       ...target,
@@ -2182,7 +2637,14 @@ apiRouter.put("/admins/:id", async (req, res) => {
       password: password || target.password
     };
     const saved = await Database.saveAdmin(updatedAdmin, password);
-    res.json(saved);
+    const dbStatus = getMySqlStatus();
+    res.json({
+      success: true,
+      ...saved,
+      savedToDatabase: dbStatus.connected,
+      databaseMode: dbStatus.mode,
+      databaseHost: dbStatus.host
+    });
   } catch (err) {
     res.status(500).json({ error: err?.message || "Gagal memperbarui admin" });
   }
@@ -2193,7 +2655,8 @@ apiRouter.delete("/admins/:id", async (req, res) => {
     if (!success) {
       return res.status(400).json({ error: "Akun Superadmin utama tidak dapat dihapus demi keamanan sistem." });
     }
-    res.json({ success: true, id: req.params.id });
+    const dbStatus = getMySqlStatus();
+    res.json({ success: true, id: req.params.id, savedToDatabase: dbStatus.connected });
   } catch (err) {
     res.status(500).json({ error: err?.message || "Gagal menghapus admin" });
   }
@@ -2201,17 +2664,16 @@ apiRouter.delete("/admins/:id", async (req, res) => {
 apiRouter.post("/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    const admins = await Database.getAdmins();
-    const user = admins.find((a) => a.username.toLowerCase() === (username || "").trim().toLowerCase());
-    if (user) {
-      const validPass = user.password && user.password === password || password === "admin123" || password === "panitia2026" || password === "admin" || password === "123456";
-      if (validPass) {
-        return res.json({ success: true, user });
-      }
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: "Username dan password wajib diisi" });
     }
-    res.status(401).json({ success: false, message: "Username atau password salah" });
+    const result = await Database.verifyAdminLogin(username, password);
+    if (result.success && result.user) {
+      return res.json({ success: true, user: result.user });
+    }
+    res.status(401).json({ success: false, message: result.error || "Username atau password salah" });
   } catch (err) {
-    res.status(500).json({ success: false, message: err?.message || "Gagal proses login" });
+    res.status(500).json({ success: false, message: err?.message || "Gagal memproses login" });
   }
 });
 

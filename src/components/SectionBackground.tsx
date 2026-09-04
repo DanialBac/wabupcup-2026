@@ -7,11 +7,18 @@ interface SectionBackgroundProps {
 }
 
 export const SectionBackground: React.FC<SectionBackgroundProps> = ({ config, className = '' }) => {
-  if (!config || config.mode === 'DEFAULT') {
+  if (!config) {
     return null;
   }
 
-  if (config.mode === 'COLOR') {
+  const hasImage = Boolean(config.desktopImage?.trim() || config.mobileImage?.trim());
+  const isImageMode = config.mode === 'IMAGE' || (config.mode !== 'COLOR' && hasImage);
+
+  if (!isImageMode && (config.mode === 'DEFAULT' || !config.mode)) {
+    return null;
+  }
+
+  if (config.mode === 'COLOR' && !hasImage) {
     return (
       <div
         className={`absolute inset-0 pointer-events-none transition-colors duration-300 ${className}`}
@@ -22,45 +29,41 @@ export const SectionBackground: React.FC<SectionBackgroundProps> = ({ config, cl
     );
   }
 
-  if (config.mode === 'IMAGE') {
-    const desktopImg = config.desktopImage;
-    const mobileImg = config.mobileImage;
+  if (isImageMode) {
+    const desktopImg = config.desktopImage?.trim() || '';
+    const mobileImg = config.mobileImage?.trim() || '';
     const overlayColor = config.overlayColor || '#000000';
     const overlayOpacity = Math.min(100, Math.max(0, config.overlayOpacity ?? 60)) / 100;
+
+    const effectiveDesktop = desktopImg || mobileImg;
+    const effectiveMobile = mobileImg || desktopImg;
 
     return (
       <div className={`absolute inset-0 pointer-events-none overflow-hidden ${className}`}>
         {/* DESKTOP BACKGROUND IMAGE */}
-        {desktopImg && (
+        {effectiveDesktop && (
           <div
             className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-300 ${
               mobileImg ? 'hidden md:block' : 'block'
             }`}
             style={{
-              backgroundImage: `url("${desktopImg}")`,
+              backgroundImage: `url("${effectiveDesktop}")`,
             }}
           />
         )}
 
         {/* MOBILE BACKGROUND IMAGE */}
-        {mobileImg ? (
+        {effectiveMobile && mobileImg && (
           <div
             className="block md:hidden absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-300"
             style={{
-              backgroundImage: `url("${mobileImg}")`,
+              backgroundImage: `url("${effectiveMobile}")`,
             }}
           />
-        ) : desktopImg ? (
-          <div
-            className="block md:hidden absolute inset-0 bg-cover bg-center bg-no-repeat transition-all duration-300"
-            style={{
-              backgroundImage: `url("${desktopImg}")`,
-            }}
-          />
-        ) : null}
+        )}
 
         {/* FALLBACK COLOR IF IMAGE IS LOADING OR MISSING */}
-        {!desktopImg && !mobileImg && config.bgColor && (
+        {!effectiveDesktop && !effectiveMobile && config.bgColor && (
           <div
             className="absolute inset-0 transition-colors duration-300"
             style={{ backgroundColor: config.bgColor }}
