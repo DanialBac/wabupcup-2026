@@ -222,10 +222,10 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
               <MapPin className="w-6 h-6" />
             </div>
             <div>
-              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none truncate">
+              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
                 LAPANGAN
               </span>
-              <p className="text-xs text-slate-400 font-medium mt-1 truncate">{config.venueName}</p>
+              <p className="text-xs text-slate-400 font-medium mt-1">{config.venueName}</p>
             </div>
           </div>
         </div>
