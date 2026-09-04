@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { useTournament } from '../context/TournamentContext';
+import { compressLogo } from '../utils/imageCompressor';
+import { uploadFileToBlob } from '../utils/blobUpload';
 import {
   RegistrationDocuments,
   TournamentCategory,
@@ -143,49 +145,103 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       : (file.size / 1024).toFixed(0) + ' KB';
     const now = new Date().toISOString().split('T')[0];
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64Data = reader.result as string;
-      const uploadedDoc: UploadedDoc = {
-        name: file.name,
-        size: sizeStr,
-        uploadDate: now,
-        type: 'application/pdf',
-        previewUrl: base64Data,
-        fileData: base64Data,
-      };
+    uploadFileToBlob(file, 'registrations')
+      .then((uploaded) => {
+        const uploadedDoc: UploadedDoc = {
+          name: uploaded.name,
+          size: uploaded.size || sizeStr,
+          uploadDate: now,
+          type: uploaded.type || 'application/pdf',
+          url: uploaded.url,
+          fileData: uploaded.fileData || uploaded.url,
+        };
 
-      setDocs(prev => ({
-        ...prev,
-        [docKey]: uploadedDoc,
-      }));
-    };
-    reader.readAsDataURL(file);
+        setDocs(prev => ({
+          ...prev,
+          [docKey]: uploadedDoc,
+        }));
+      })
+      .catch((err) => {
+        console.error('Upload to blob failed, falling back to local reader:', err);
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64Data = reader.result as string;
+          const uploadedDoc: UploadedDoc = {
+            name: file.name,
+            size: sizeStr,
+            uploadDate: now,
+            type: 'application/pdf',
+            fileData: base64Data,
+          };
+
+          setDocs(prev => ({
+            ...prev,
+            [docKey]: uploadedDoc,
+          }));
+        };
+        reader.readAsDataURL(file);
+      });
   };
 
-  // Logo uploader (PNG, JPG, SVG, WebP)
+  // Logo uploader (PNG, JPG, SVG, WebP) - automatically compressed or uploaded to cloud
   const handleLogoUpload = (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       alert('Format logo tim harus berupa gambar (PNG, JPG, SVG, atau WEBP)!');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setTeamLogo(base64);
-      setDocs(prev => ({
-        ...prev,
-        logoTim: {
-          name: file.name,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          uploadDate: new Date().toISOString().split('T')[0],
-          type: file.type,
-          previewUrl: base64,
-        },
-      }));
-    };
-    reader.readAsDataURL(file);
+    
+    uploadFileToBlob(file, 'logos')
+      .then((uploaded) => {
+        setTeamLogo(uploaded.url);
+        setDocs(prev => ({
+          ...prev,
+          logoTim: {
+            name: uploaded.name,
+            size: uploaded.size,
+            uploadDate: new Date().toISOString().split('T')[0],
+            type: uploaded.type,
+            url: uploaded.url,
+            fileData: uploaded.fileData || uploaded.url,
+          },
+        }));
+      })
+      .catch(() => {
+        // Fallback to local canvas compression if direct upload is unavailable
+        compressLogo(file, 400, 0.85)
+          .then((compressedBase64) => {
+            setTeamLogo(compressedBase64);
+            const approxSizeKb = (compressedBase64.length * 0.75 / 1024).toFixed(1);
+            setDocs(prev => ({
+              ...prev,
+              logoTim: {
+                name: file.name,
+                size: `${approxSizeKb} KB`,
+                uploadDate: new Date().toISOString().split('T')[0],
+                type: 'image/jpeg',
+                fileData: compressedBase64,
+              },
+            }));
+          })
+          .catch(() => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result as string;
+              setTeamLogo(base64);
+              setDocs(prev => ({
+                ...prev,
+                logoTim: {
+                  name: file.name,
+                  size: `${(file.size / 1024).toFixed(1)} KB`,
+                  uploadDate: new Date().toISOString().split('T')[0],
+                  type: file.type,
+                  fileData: base64,
+                },
+              }));
+            };
+            reader.readAsDataURL(file);
+          });
+      });
   };
 
   const handleSubmit = (e: React.FormEvent) => {

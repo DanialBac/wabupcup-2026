@@ -217,8 +217,12 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
           password: decodeURIComponent(parsedUrl.password),
           database: urlDbName,
           waitForConnections: true,
-          connectionLimit: 3,
-          connectTimeout: 3500,
+          connectionLimit: 4,
+          maxIdle: 2,
+          idleTimeout: 30000,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 10000,
+          connectTimeout: 5000,
           queueLimit: 0,
           ssl: ssl || (isTidb ? { minVersion: 'TLSv1.2', rejectUnauthorized: false } : undefined),
         };
@@ -227,8 +231,12 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
         poolOptions = {
           uri: dbUrl,
           waitForConnections: true,
-          connectionLimit: 3,
-          connectTimeout: 3500,
+          connectionLimit: 4,
+          maxIdle: 2,
+          idleTimeout: 30000,
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 10000,
+          connectTimeout: 5000,
           queueLimit: 0,
           ssl,
         };
@@ -242,8 +250,12 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
         database,
         port: port || (isTidb ? 4000 : 3306),
         waitForConnections: true,
-        connectionLimit: 3,
-        connectTimeout: 3500,
+        connectionLimit: 4,
+        maxIdle: 2,
+        idleTimeout: 30000,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000,
+        connectTimeout: 5000,
         queueLimit: 0,
         ssl: ssl || (isTidb ? { minVersion: 'TLSv1.2', rejectUnauthorized: false } : undefined),
       };
@@ -763,7 +775,7 @@ export const Database = {
 
     if (pool && isMySqlConnected) {
       try {
-        await pool.query(
+        await pool.execute(
           `INSERT INTO registrations (id, reg_code, category_id, team_name, team_logo, institution_name, coach_name, coach_phone, coach_email, player_count, official_count, registration_date, status, payment_status, payment_amount, rejection_reason, admin_notes, documents_json, last_updated)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE reg_code=?, category_id=?, team_name=?, team_logo=?, institution_name=?, coach_name=?, coach_phone=?, coach_email=?, player_count=?, official_count=?, status=?, payment_status=?, payment_amount=?, rejection_reason=?, admin_notes=?, documents_json=?, last_updated=?`,
@@ -773,7 +785,7 @@ export const Database = {
           ]
         );
       } catch (err) {
-        console.error('Error saving registration to MySQL:', err);
+        console.error('Error saving registration to MySQL with prepared statement:', err);
       }
     }
     return item;
@@ -784,9 +796,9 @@ export const Database = {
     memStore.registrations = memStore.registrations.filter(r => r.id !== id);
     if (pool && isMySqlConnected) {
       try {
-        await pool.query('DELETE FROM registrations WHERE id = ?', [id]);
+        await pool.execute('DELETE FROM registrations WHERE id = ?', [id]);
       } catch (err) {
-        console.error('Error deleting registration from MySQL:', err);
+        console.error('Error deleting registration from MySQL with prepared statement:', err);
       }
     }
     return true;

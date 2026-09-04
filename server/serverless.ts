@@ -6,8 +6,27 @@ import { ensureDbConnected } from './db';
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ extended: true, limit: '4mb' }));
+
+// Payload Limit & Invalid JSON Error Handler (Prevents FUNCTION_PAYLOAD_TOO_LARGE crashes)
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({
+      success: false,
+      code: 'PAYLOAD_TOO_LARGE',
+      message: 'Ukuran payload data melebihi batas 4MB Vercel. Gunakan unggah berkas langsung ke cloud storage.',
+    });
+  }
+  if (err instanceof SyntaxError && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      code: 'INVALID_JSON',
+      message: 'Format payload JSON tidak valid.',
+    });
+  }
+  next(err);
+});
 
 // Non-blocking auto DB connection trigger for serverless cold-starts
 app.use((req: Request, res: Response, next: NextFunction) => {

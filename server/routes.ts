@@ -1,8 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection, ensureDbConnected } from './db';
 import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem } from '../src/types';
+import { blobRouter } from './blob';
 
 export const apiRouter = Router();
+
+// Mount Vercel Blob direct cloud upload handler
+apiRouter.use(blobRouter);
 
 // 1. Health & Database Status
 apiRouter.get('/health', async (req: Request, res: Response) => {
@@ -153,13 +157,19 @@ apiRouter.get('/registrations', async (req: Request, res: Response) => {
 apiRouter.post('/registrations', async (req: Request, res: Response) => {
   try {
     const data = req.body;
+    if (!data || !data.teamName || !data.category || !data.coachName || !data.coachPhone) {
+      return res.status(400).json({
+        error: 'Data tidak lengkap. Field wajib: teamName, category, coachName, coachPhone.',
+      });
+    }
+
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
     // Auto generate reg code if not present
     const existing = await Database.getRegistrations();
     const count = existing.filter(r => r.category === data.category).length + 1;
-    const regCode = data.regCode || `WBC-${data.category}-${String(count).padStart(3, '0')}`;
+    const regCode = (data.regCode && data.regCode.trim()) || `WBC-${data.category}-${String(count).padStart(3, '0')}`;
     const id = data.id || `reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const newReg: RegistrationItem = {
@@ -175,16 +185,38 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     const saved = await Database.saveRegistration(newReg);
     res.status(201).json(saved);
   } catch (err: any) {
-    res.status(500).json({ error: err?.message });
+    res.status(500).json({ error: err?.message || 'Gagal menyimpan pendaftaran' });
   }
 });
 
 apiRouter.put('/registrations/:id', async (req: Request, res: Response) => {
   try {
-    const saved = await Database.saveRegistration(req.body);
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: 'ID pendaftaran diperlukan.' });
+    }
+
+    const existingList = await Database.getRegistrations();
+    const current = existingList.find(r => r.id === id);
+    if (!current) {
+      return res.status(404).json({ error: 'Data pendaftaran tidak ditemukan.' });
+    }
+
+    const now = new Date();
+    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const updatedItem: RegistrationItem = {
+      ...current,
+      ...req.body,
+      id, // Preserve ID
+      regCode: current.regCode, // Preserve original regCode
+      lastUpdated: formattedDate,
+    };
+
+    const saved = await Database.saveRegistration(updatedItem);
     res.json(saved);
   } catch (err: any) {
-    res.status(500).json({ error: err?.message });
+    res.status(500).json({ error: err?.message || 'Gagal memperbarui pendaftaran' });
   }
 });
 

@@ -10,7 +10,8 @@ export interface UploadedDoc {
   uploadDate: string;
   type: string; // "application/pdf"
   previewUrl?: string;
-  fileData?: string; // base64 or mock blob url
+  fileData?: string; // base64 or blob url
+  url?: string; // Cloud storage URL (e.g. Vercel Blob CDN)
 }
 
 export interface RegistrationDocuments {

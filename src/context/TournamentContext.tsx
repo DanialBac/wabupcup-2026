@@ -294,7 +294,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setConfig(prev => {
       const updated = { ...prev, ...newConfig };
       safeLocalStorageSet('wabupcup_config', JSON.stringify(updated));
-      ApiService.updateConfig(updated).catch(err =>
+      // Send only partial newConfig to backend so massive background images are never resent on small config edits
+      ApiService.updateConfig(newConfig).catch(err =>
         console.warn('Could not sync config update to backend API:', err)
       );
       return updated;
@@ -608,6 +609,67 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     safeLocalStorageSet('wabupcup_registrations', JSON.stringify(sanitized));
   }, [registrations]);
 
+  /**
+   * Sanitizes registration payload before sending over the wire to prevent
+   * Vercel serverless FUNCTION_PAYLOAD_TOO_LARGE (4.5MB limit) or database packet errors.
+   * Full document binaries are already preserved permanently in IndexedDB.
+   */
+  const prepareRegistrationForApi = (item: RegistrationItem): RegistrationItem => {
+    if (!item.documents) return item;
+
+    const sanitizedDocs: any = {};
+    for (const [key, doc] of Object.entries(item.documents)) {
+      if (!doc) continue;
+      const d = doc as any;
+      // Eliminate duplicate base64 across fileData and previewUrl
+      const fileContent = d.fileData || d.previewUrl;
+      sanitizedDocs[key] = {
+        name: d.name,
+        size: d.size,
+        uploadDate: d.uploadDate,
+        type: d.type,
+        fileData: fileContent,
+      };
+    }
+
+    let candidate: RegistrationItem = {
+      ...item,
+      documents: sanitizedDocs,
+    };
+
+    // Calculate approximate payload size
+    try {
+      const jsonStr = JSON.stringify(candidate);
+      // Vercel limit is 4.5MB; keep payload strictly under 3MB
+      if (jsonStr.length > 3 * 1024 * 1024) {
+        const reducedDocs: any = {};
+        for (const [key, doc] of Object.entries(candidate.documents || {})) {
+          if (!doc) continue;
+          const d = doc as any;
+          // Keep receipt and logo if possible; keep metadata for large PDFs
+          if (key === 'buktiPembayaran' || key === 'logoTim') {
+            reducedDocs[key] = d;
+          } else {
+            reducedDocs[key] = {
+              name: d.name,
+              size: d.size,
+              uploadDate: d.uploadDate,
+              type: d.type,
+            };
+          }
+        }
+        candidate = {
+          ...candidate,
+          documents: reducedDocs,
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    return candidate;
+  };
+
   const submitNewRegistration = (
     data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>
   ): RegistrationItem => {
@@ -630,11 +692,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setRegistrations(prev => [newReg, ...prev]);
 
-    // Save to IndexedDB immediately
+    // Save full original registration to IndexedDB immediately
     idbSaveRegistration(newReg).catch(() => {});
 
-    // Send to backend API
-    ApiService.createRegistration(newReg).catch(err =>
+    // Send payload safely to backend API (safe under 4.5MB Vercel limit)
+    const apiPayload = prepareRegistrationForApi(newReg);
+    ApiService.createRegistration(apiPayload).catch(err =>
       console.warn('Could not persist new registration to backend:', err)
     );
 
@@ -666,7 +729,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     idbSaveRegistration(fullUpdated).catch(() => {});
 
-    ApiService.updateRegistration(fullUpdated).catch(err =>
+    const apiPayload = prepareRegistrationForApi(fullUpdated);
+    ApiService.updateRegistration(apiPayload).catch(err =>
       console.warn('Could not sync registration update to backend:', err)
     );
   };

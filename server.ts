@@ -11,8 +11,27 @@ async function startServer() {
 
   // Middlewares
   app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  app.use(express.json({ limit: '4mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '4mb' }));
+
+  // Payload Limit & JSON Error Handler (Prevents FUNCTION_PAYLOAD_TOO_LARGE crashes)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err?.type === 'entity.too.large' || err?.status === 413) {
+      return res.status(413).json({
+        success: false,
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Ukuran payload data melebihi batas 4MB. Gunakan fitur upload file langsung ke cloud storage.',
+      });
+    }
+    if (err instanceof SyntaxError && 'body' in err) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_JSON',
+        message: 'Format payload JSON tidak valid.',
+      });
+    }
+    next(err);
+  });
 
   // API Routes FIRST
   app.use('/api', apiRouter);

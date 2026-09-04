@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTournament } from '../../context/TournamentContext';
 import { SectionKey, SectionBackgroundConfig, SectionsBackgrounds } from '../../types';
 import { ApiService } from '../../services/api';
+import { compressImage } from '../../utils/imageCompressor';
 import {
   Image,
   Upload,
@@ -223,29 +224,42 @@ export const SectionBackgroundManager: React.FC = () => {
     showToast('Semua background section berhasil direset ke default sistem.');
   };
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     type: 'desktop' | 'mobile'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size limit (e.g. 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Ukuran file terlalu besar! Maksimal 5MB.');
+    // Check size limit (e.g. 10MB input before compression)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Ukuran file terlalu besar! Maksimal 10MB.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const base64 = loadEvt.target?.result as string;
+    try {
       if (type === 'desktop') {
-        handleUpdateCurrent({ desktopImage: base64, mode: 'IMAGE' });
+        // Compress desktop wallpaper to 1920x1080 (max ~200KB)
+        const compressedBase64 = await compressImage(file, 1920, 1080, 0.82);
+        handleUpdateCurrent({ desktopImage: compressedBase64, mode: 'IMAGE' });
       } else {
-        handleUpdateCurrent({ mobileImage: base64, mode: 'IMAGE' });
+        // Compress mobile wallpaper to 1080x1920 (max ~150KB)
+        const compressedBase64 = await compressImage(file, 1080, 1920, 0.82);
+        handleUpdateCurrent({ mobileImage: compressedBase64, mode: 'IMAGE' });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      // Fallback to FileReader if Canvas compression fails
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        const base64 = loadEvt.target?.result as string;
+        if (type === 'desktop') {
+          handleUpdateCurrent({ desktopImage: base64, mode: 'IMAGE' });
+        } else {
+          handleUpdateCurrent({ mobileImage: base64, mode: 'IMAGE' });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
     e.target.value = '';
   };
 
