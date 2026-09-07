@@ -650,6 +650,149 @@ export const Database = {
         ...(newConfig.sectionsVisibility || {}),
       },
     };
+
+    // Offload any large Base64 data URIs from config into app_media_storage table
+    // so tournament_config JSON stays tiny (<20KB) and NEVER breaches TiDB max entry size limit (6MB)
+    const offloadMedia = async (
+      dataUri: string | undefined,
+      category: string,
+      filename: string,
+      refId: string,
+      subKey: string
+    ): Promise<string | undefined> => {
+      if (!dataUri || !dataUri.startsWith('data:') || dataUri.length < 200) {
+        return dataUri;
+      }
+      try {
+        const id = `med-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+        const mimeMatch = dataUri.match(/^data:([^;]+);base64,/);
+        const contentType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const base64Content = dataUri.replace(/^data:[^;]+;base64,/, '');
+        const fileSize = Math.round((base64Content.length * 3) / 4);
+
+        await Database.saveMedia({
+          id,
+          category,
+          refId,
+          subKey,
+          filename,
+          contentType,
+          fileSize,
+          fileData: dataUri,
+        });
+
+        return `/api/media/view/${id}`;
+      } catch (err) {
+        console.error('Failed to offload Base64 to app_media_storage:', err);
+        return dataUri;
+      }
+    };
+
+    // 1. Offload downloadable documents
+    if (updated.downloadableDocs && updated.downloadableDocs.length > 0) {
+      for (let i = 0; i < updated.downloadableDocs.length; i++) {
+        const doc = updated.downloadableDocs[i];
+        if (doc.fileUrl && doc.fileUrl.startsWith('data:')) {
+          const offloadedUrl = await offloadMedia(
+            doc.fileUrl,
+            'CMS_DOC',
+            doc.fileName || `${(doc.title || 'dokumen').replace(/\s+/g, '_')}.${(doc.fileType || 'pdf').toLowerCase()}`,
+            'config_doc',
+            doc.id || `doc_${i}`
+          );
+          if (offloadedUrl) doc.fileUrl = offloadedUrl;
+        }
+      }
+    }
+
+    // 2. Offload primary template URLs
+    if (updated.formulirTemplateUrl && updated.formulirTemplateUrl.startsWith('data:')) {
+      const offloaded = await offloadMedia(
+        updated.formulirTemplateUrl,
+        'CMS_DOC',
+        'Formulir_Pendaftaran.pdf',
+        'config_template',
+        'formulir'
+      );
+      if (offloaded) updated.formulirTemplateUrl = offloaded;
+    }
+
+    if (updated.suratPernyataanTemplateUrl && updated.suratPernyataanTemplateUrl.startsWith('data:')) {
+      const offloaded = await offloadMedia(
+        updated.suratPernyataanTemplateUrl,
+        'CMS_DOC',
+        'Surat_Pernyataan.pdf',
+        'config_template',
+        'surat_pernyataan'
+      );
+      if (offloaded) updated.suratPernyataanTemplateUrl = offloaded;
+    }
+
+    if (updated.regulasiPdfUrl && updated.regulasiPdfUrl.startsWith('data:')) {
+      const offloaded = await offloadMedia(
+        updated.regulasiPdfUrl,
+        'CMS_DOC',
+        'Buku_Regulasi.pdf',
+        'config_template',
+        'regulasi'
+      );
+      if (offloaded) updated.regulasiPdfUrl = offloaded;
+    }
+
+    // 3. Offload bank QRIS images
+    const legacyBankAccount = updated.bankAccount as any;
+    if (legacyBankAccount?.qrisImageUrl && typeof legacyBankAccount.qrisImageUrl === 'string' && legacyBankAccount.qrisImageUrl.startsWith('data:')) {
+      const offloaded = await offloadMedia(
+        legacyBankAccount.qrisImageUrl,
+        'CMS_WALLPAPER',
+        'QRIS_Bank.jpg',
+        'config_bank',
+        'qris'
+      );
+      if (offloaded) legacyBankAccount.qrisImageUrl = offloaded;
+    }
+
+    if (updated.bankAccounts && updated.bankAccounts.length > 0) {
+      for (const b of updated.bankAccounts) {
+        if (b.qrisImageUrl && b.qrisImageUrl.startsWith('data:')) {
+          const offloaded = await offloadMedia(
+            b.qrisImageUrl,
+            'CMS_WALLPAPER',
+            `QRIS_${b.id}.jpg`,
+            'config_bank',
+            b.id
+          );
+          if (offloaded) b.qrisImageUrl = offloaded;
+        }
+      }
+    }
+
+    // 4. Offload section background wallpapers
+    if (updated.sectionsBackgrounds) {
+      for (const [secKey, secBg] of Object.entries(updated.sectionsBackgrounds)) {
+        if (secBg?.desktopImage && secBg.desktopImage.startsWith('data:')) {
+          const offloaded = await offloadMedia(
+            secBg.desktopImage,
+            'CMS_WALLPAPER',
+            `bg_${secKey}_desktop.jpg`,
+            'config_bg',
+            `${secKey}_desktop`
+          );
+          if (offloaded) secBg.desktopImage = offloaded;
+        }
+        if (secBg?.mobileImage && secBg.mobileImage.startsWith('data:')) {
+          const offloaded = await offloadMedia(
+            secBg.mobileImage,
+            'CMS_WALLPAPER',
+            `bg_${secKey}_mobile.jpg`,
+            'config_bg',
+            `${secKey}_mobile`
+          );
+          if (offloaded) secBg.mobileImage = offloaded;
+        }
+      }
+    }
+
     memStore.config = updated;
 
     if (pool && isMySqlConnected) {

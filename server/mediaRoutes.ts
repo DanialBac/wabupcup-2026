@@ -33,10 +33,10 @@ mediaRouter.post('/media/upload', async (req: Request, res: Response) => {
     const resolvedContentType = contentType || mimeType || 'application/octet-stream';
     const fileSize = buffer.length;
 
-    // Hard safety check per single file: max 3.5MB to protect Vercel Serverless payload
-    if (fileSize > 3.5 * 1024 * 1024) {
+    // Hard safety check per single file: max 4MB to protect Vercel Serverless & TiDB payload
+    if (fileSize > 4 * 1024 * 1024) {
       return res.status(413).json({
-        error: 'Ukuran berkas melebihi batas 3.5MB. Silakan kompres berkas Anda terlebih dahulu.',
+        error: 'Ukuran berkas melebihi batas 4MB. Untuk file PDF/dokumen di atas 4MB, silakan kompres terlebih dahulu atau gunakan tautan Google Drive.',
       });
     }
 

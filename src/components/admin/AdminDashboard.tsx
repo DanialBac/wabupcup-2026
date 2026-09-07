@@ -350,6 +350,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   });
   const [docFileSource, setDocFileSource] = useState<'UPLOAD' | 'URL'>('UPLOAD');
   const [docFilePreview, setDocFilePreview] = useState<string>('');
+  const [docUploading, setDocUploading] = useState<boolean>(false);
+  const [docUploadProgress, setDocUploadProgress] = useState<number>(0);
 
   // 2. Committee Contact (WA) Form State
   const [contactModalOpen, setContactModalOpen] = useState(false);
@@ -451,12 +453,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     setDocModalOpen(true);
   };
 
-  const handleDocFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      alert('Ukuran file maksimal 15 MB.');
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Ukuran file melebihi batas 4 MB. Untuk file PDF/dokumen di atas 4 MB, silakan kompres terlebih dahulu atau pilih opsi "Link URL / G-Drive".');
       return;
     }
 
@@ -470,24 +472,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     else if (extension === 'PDF') fType = 'PDF';
     else fType = 'OTHER';
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      setDocFilePreview(dataUrl);
+    try {
+      setDocUploading(true);
+      setDocUploadProgress(20);
+
+      // Unggah langsung file-by-file ke TiDB Cloud storage (app_media_storage)
+      const uploadResult = await uploadToTiDbStorage(file, 'downloads', (pct) => {
+        setDocUploadProgress(pct);
+      });
+
+      // Jika sebelumnya sedang edit dan ada berkas lama di TiDB media storage, hapus berkas lama
+      if (editingDoc?.fileUrl && editingDoc.fileUrl.includes('/api/media/view/')) {
+        deleteMediaFromStorage(editingDoc.fileUrl).catch(() => {});
+      }
+
+      setDocFilePreview(uploadResult.url);
       setDocForm(prev => ({
         ...prev,
         fileName: file.name,
-        fileSize: sizeInMb,
+        fileSize: uploadResult.size || sizeInMb,
         fileType: fType,
-        fileUrl: dataUrl,
+        fileUrl: uploadResult.url,
         title: prev.title || file.name.replace(/\.[^/.]+$/, ''),
       }));
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Gagal upload berkas unduhan ke TiDB Cloud:', err);
+      alert(err?.message || 'Gagal mengunggah berkas ke TiDB Cloud. Periksa koneksi atau coba kompres berkas.');
+    } finally {
+      setDocUploading(false);
+      setDocUploadProgress(0);
+    }
   };
 
   const handleSaveDoc = (e: React.FormEvent) => {
     e.preventDefault();
+    if (docUploading) {
+      alert('Mohon tunggu hingga proses unggah berkas ke TiDB Cloud selesai.');
+      return;
+    }
     if (!docForm.title.trim()) {
       alert('Mohon masukkan nama / judul berkas.');
       return;
@@ -3712,6 +3734,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                               <button
                                 onClick={() => {
                                   if (confirm(`Hapus berkas "${doc.title}"?`)) {
+                                    if (doc.fileUrl && doc.fileUrl.includes('/api/media/view/')) {
+                                      deleteMediaFromStorage(doc.fileUrl).catch(() => {});
+                                    }
                                     deleteDownloadableDoc(doc.id);
                                   }
                                 }}
@@ -5273,17 +5298,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
                 {docFileSource === 'UPLOAD' ? (
                   <div className="space-y-2">
-                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-700 rounded-2xl hover:border-cyan-500 bg-slate-950/60 cursor-pointer transition">
-                      <FolderDown className="w-8 h-8 text-cyan-400 mb-1" />
-                      <span className="text-xs font-semibold text-slate-300">
-                        {docForm.fileName ? `Terpilih: ${docForm.fileName}` : 'Klik untuk pilih file berkas (PDF, DOCX, XLSX, dll)'}
-                      </span>
-                      <span className="text-[10px] text-slate-500 mt-0.5">
-                        Maksimal ukuran file 15 MB
-                      </span>
+                    <label className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-2xl transition ${
+                      docUploading ? 'border-cyan-500/50 bg-cyan-950/20 cursor-wait' : 'border-slate-700 hover:border-cyan-500 bg-slate-950/60 cursor-pointer'
+                    }`}>
+                      {docUploading ? (
+                        <div className="flex flex-col items-center py-2 space-y-2">
+                          <div className="w-8 h-8 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-xs font-semibold text-cyan-300">
+                            Mengunggah ke TiDB Cloud ({docUploadProgress}%)...
+                          </span>
+                          <div className="w-48 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-cyan-500 h-full transition-all duration-300" style={{ width: `${docUploadProgress}%` }}></div>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <FolderDown className="w-8 h-8 text-cyan-400 mb-1" />
+                          <span className="text-xs font-semibold text-slate-300 text-center">
+                            {docForm.fileName ? `Terpilih: ${docForm.fileName}` : 'Klik untuk pilih file berkas (PDF, DOCX, XLSX, dll)'}
+                          </span>
+                          <span className="text-[10px] text-slate-500 mt-0.5">
+                            Maksimal 4 MB langsung ke TiDB Cloud (atau gunakan tab Link G-Drive jika &gt; 4 MB)
+                          </span>
+                        </>
+                      )}
                       <input
                         type="file"
                         onChange={handleDocFileUpload}
+                        disabled={docUploading}
                         className="hidden"
                       />
                     </label>
@@ -5341,10 +5383,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold transition flex items-center space-x-1.5 cursor-pointer"
+                  disabled={docUploading}
+                  className={`px-5 py-2 rounded-xl font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    docUploading ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                  }`}
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Berkas</span>
+                  <span>{docUploading ? 'Sedang Mengunggah...' : 'Simpan Berkas'}</span>
                 </button>
               </div>
             </form>

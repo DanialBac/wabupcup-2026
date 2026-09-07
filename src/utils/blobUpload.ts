@@ -44,6 +44,8 @@ export async function uploadToTiDbStorage(
     category = 'SPONSOR_LOGO';
   } else if (folder.includes('wallpaper') || folder.includes('background') || folder === 'cms') {
     category = 'CMS_WALLPAPER';
+  } else if (folder.includes('download') || folder.includes('doc')) {
+    category = 'CMS_DOC';
   }
 
   // Pre-compress images client-side for lightning fast speed & minimal DB footprint
