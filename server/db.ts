@@ -2,13 +2,10 @@ import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
 import {
-  INITIAL_ADMIN_USERS,
-  INITIAL_CATEGORIES,
-  INITIAL_MATCHES,
-  INITIAL_REGISTRATIONS,
-  INITIAL_SPONSORS,
-  INITIAL_TOURNAMENT_CONFIG,
-} from '../src/data/mockData';
+  DEFAULT_ADMIN_USERS,
+  DEFAULT_CATEGORIES,
+  DEFAULT_TOURNAMENT_CONFIG,
+} from './defaultSystemData';
 import {
   CategoryDetail,
   MatchItem,
@@ -36,16 +33,57 @@ export interface AppMediaItem {
 }
 
 class MemoryStore {
-  config: TournamentConfig = { ...INITIAL_TOURNAMENT_CONFIG };
-  categories: CategoryDetail[] = [...INITIAL_CATEGORIES];
-  registrations: RegistrationItem[] = [...INITIAL_REGISTRATIONS];
-  matches: MatchItem[] = [...INITIAL_MATCHES];
-  sponsors: SponsorItem[] = [...INITIAL_SPONSORS];
-  adminUsers: AdminUser[] = [...INITIAL_ADMIN_USERS];
+  config: TournamentConfig = { ...DEFAULT_TOURNAMENT_CONFIG };
+  categories: CategoryDetail[] = [...DEFAULT_CATEGORIES];
+  registrations: RegistrationItem[] = [];
+  matches: MatchItem[] = [];
+  sponsors: SponsorItem[] = [];
+  adminUsers: AdminUser[] = [...DEFAULT_ADMIN_USERS];
   media: Map<string, AppMediaItem> = new Map();
 }
 
 const memStore = new MemoryStore();
+
+const LOCAL_STORE_FILE = path.join(process.cwd(), 'server', 'local-storage.json');
+
+export function loadLocalStore(): void {
+  try {
+    if (fs.existsSync(LOCAL_STORE_FILE)) {
+      const raw = fs.readFileSync(LOCAL_STORE_FILE, 'utf-8');
+      if (raw && raw.trim() !== '') {
+        const data = JSON.parse(raw);
+        if (data.config) memStore.config = data.config;
+        if (Array.isArray(data.categories)) memStore.categories = data.categories;
+        if (Array.isArray(data.registrations)) memStore.registrations = data.registrations;
+        if (Array.isArray(data.matches)) memStore.matches = data.matches;
+        if (Array.isArray(data.sponsors)) memStore.sponsors = data.sponsors;
+        if (Array.isArray(data.adminUsers)) memStore.adminUsers = data.adminUsers;
+        console.log('[Local Store] Loaded local database cache successfully.');
+      }
+    }
+  } catch (err) {
+    console.warn('[Local Store] Warning reading local-storage.json:', err);
+  }
+}
+
+export function persistLocalStore(): void {
+  try {
+    const payload = {
+      config: memStore.config,
+      categories: memStore.categories,
+      registrations: memStore.registrations,
+      matches: memStore.matches,
+      sponsors: memStore.sponsors,
+      adminUsers: memStore.adminUsers,
+    };
+    fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Local Store] Warning saving local-storage.json:', err);
+  }
+}
+
+// Initialize local store immediately
+loadLocalStore();
 
 let pool: mysql.Pool | null = null;
 let isMySqlConnected = false;
@@ -517,7 +555,7 @@ export async function runFullSchemaInit() {
   // Seed default categories if empty
   const [catRows]: any = await pool.query('SELECT COUNT(*) as count FROM categories');
   if (catRows[0].count === 0) {
-    for (const cat of INITIAL_CATEGORIES) {
+    for (const cat of DEFAULT_CATEGORIES) {
       await pool.query(
         `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -541,7 +579,7 @@ export async function runFullSchemaInit() {
   // Seed default admin users if empty
   const [admRows]: any = await pool.query('SELECT COUNT(*) as count FROM admin_users');
   if (admRows[0].count === 0) {
-    for (const adm of INITIAL_ADMIN_USERS) {
+    for (const adm of DEFAULT_ADMIN_USERS) {
       await pool.query(
         `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -559,35 +597,12 @@ export async function runFullSchemaInit() {
     }
   }
 
-  // Seed default sponsors if empty
-  const [sponRows]: any = await pool.query('SELECT COUNT(*) as count FROM sponsors');
-  if (sponRows[0].count === 0) {
-    for (let i = 0; i < INITIAL_SPONSORS.length; i++) {
-      const sp = INITIAL_SPONSORS[i];
-      await pool.query(
-        `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description, sort_order, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          sp.id,
-          sp.name,
-          sp.tier,
-          sp.logoText,
-          sp.logoUrl || null,
-          sp.websiteUrl || null,
-          sp.description || null,
-          i,
-          true,
-        ]
-      );
-    }
-  }
-
   // Seed default config if empty
   const [cfgRows]: any = await pool.query('SELECT COUNT(*) as count FROM tournament_config');
   if (cfgRows[0].count === 0) {
     await pool.query(
       `INSERT INTO tournament_config (config_key, config_value) VALUES (?, ?)`,
-      ['main_config', JSON.stringify(INITIAL_TOURNAMENT_CONFIG)]
+      ['main_config', JSON.stringify(DEFAULT_TOURNAMENT_CONFIG)]
     );
   }
 
@@ -794,6 +809,7 @@ export const Database = {
     }
 
     memStore.config = updated;
+    persistLocalStore();
 
     if (pool && isMySqlConnected) {
       try {
@@ -815,21 +831,19 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM categories ORDER BY sort_order ASC, id ASC');
-        if (rows.length > 0) {
-          return rows.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            badgeTitle: r.badge_title,
-            ageRestriction: r.age_restriction,
-            maxTeams: r.max_teams,
-            registeredTeamsCount: r.registered_teams_count,
-            registrationFee: Number(r.registration_fee),
-            totalPrize: Number(r.total_prize),
-            description: r.description,
-            prizes: typeof r.prizes_json === 'string' ? JSON.parse(r.prizes_json) : (r.prizes_json || []),
-            rules: typeof r.rules_json === 'string' ? JSON.parse(r.rules_json) : (r.rules_json || []),
-          }));
-        }
+        return rows.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          badgeTitle: r.badge_title,
+          ageRestriction: r.age_restriction,
+          maxTeams: r.max_teams,
+          registeredTeamsCount: r.registered_teams_count,
+          registrationFee: Number(r.registration_fee),
+          totalPrize: Number(r.total_prize),
+          description: r.description,
+          prizes: typeof r.prizes_json === 'string' ? JSON.parse(r.prizes_json) : (r.prizes_json || []),
+          rules: typeof r.rules_json === 'string' ? JSON.parse(r.rules_json) : (r.rules_json || []),
+        }));
       } catch (err) {
         console.error('Error getting categories from MySQL:', err);
       }
@@ -845,6 +859,7 @@ export const Database = {
     } else {
       memStore.categories.push(cat);
     }
+    persistLocalStore();
 
     if (pool && isMySqlConnected) {
       try {
@@ -867,6 +882,7 @@ export const Database = {
   async deleteCategory(categoryId: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.categories = memStore.categories.filter(c => c.id !== categoryId);
+    persistLocalStore();
     if (pool && isMySqlConnected) {
       try {
         await pool.query('DELETE FROM categories WHERE id = ?', [categoryId]);
@@ -880,6 +896,7 @@ export const Database = {
   async reorderCategories(categories: CategoryDetail[]): Promise<CategoryDetail[]> {
     await ensureDbConnected();
     memStore.categories = [...categories];
+    persistLocalStore();
     if (pool && isMySqlConnected) {
       try {
         for (let i = 0; i < categories.length; i++) {
@@ -945,6 +962,7 @@ export const Database = {
     } else {
       memStore.registrations.unshift(item);
     }
+    persistLocalStore();
 
     if (pool && isMySqlConnected) {
       try {
@@ -967,6 +985,7 @@ export const Database = {
   async deleteRegistration(id: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.registrations = memStore.registrations.filter(r => r.id !== id);
+    persistLocalStore();
     // Delete in-memory media related to this registration
     for (const [mId, mItem] of memStore.media.entries()) {
       if (mItem.refId === id) {
@@ -1041,6 +1060,7 @@ export const Database = {
     } else {
       memStore.matches.push(match);
     }
+    persistLocalStore();
 
     if (pool && isMySqlConnected) {
       try {
@@ -1063,6 +1083,7 @@ export const Database = {
   async deleteMatch(matchId: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.matches = memStore.matches.filter(m => m.id !== matchId);
+    persistLocalStore();
     if (pool && isMySqlConnected) {
       try {
         await pool.query('DELETE FROM matches WHERE id = ?', [matchId]);
@@ -1077,6 +1098,7 @@ export const Database = {
     await ensureDbConnected();
     // 1. Update in-memory store
     memStore.matches = memStore.matches.filter(m => m.category !== category).concat(newMatches);
+    persistLocalStore();
 
     // 2. Update MySQL database
     if (pool && isMySqlConnected) {
@@ -1133,7 +1155,7 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM sponsors WHERE is_active = TRUE ORDER BY sort_order ASC');
-        if (rows.length > 0) {
+        if (Array.isArray(rows)) {
           return rows.map((r: any) => ({
             id: r.id,
             name: r.name,
@@ -1143,21 +1165,6 @@ export const Database = {
             websiteUrl: r.website_url || undefined,
             description: r.description || undefined,
           }));
-        } else {
-          // If empty in MySQL, seed default sponsors into MySQL
-          for (let i = 0; i < memStore.sponsors.length; i++) {
-            const sp = memStore.sponsors[i];
-            await pool.query(
-              `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description, sort_order, is_active)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE name=?, tier=?, logo_text=?, logo_url=?, website_url=?, description=?, sort_order=?`,
-              [
-                sp.id, sp.name, sp.tier, sp.logoText, sp.logoUrl || null, sp.websiteUrl || null, sp.description || null, i, true,
-                sp.name, sp.tier, sp.logoText, sp.logoUrl || null, sp.websiteUrl || null, sp.description || null, i,
-              ]
-            );
-          }
-          return memStore.sponsors;
         }
       } catch (err) {
         console.error('Error fetching sponsors from MySQL:', err);
@@ -1174,6 +1181,7 @@ export const Database = {
     } else {
       memStore.sponsors.push(sponsor);
     }
+    persistLocalStore();
 
     if (pool && isMySqlConnected) {
       try {
@@ -1196,6 +1204,7 @@ export const Database = {
   async deleteSponsor(id: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.sponsors = memStore.sponsors.filter(s => s.id !== id);
+    persistLocalStore();
     for (const [mId, mItem] of memStore.media.entries()) {
       if (mItem.refId === id) {
         memStore.media.delete(mId);
@@ -1236,7 +1245,7 @@ export const Database = {
           return list;
         } else if (Array.isArray(rows) && rows.length === 0) {
           // Table exists in MySQL but has 0 rows -> Seed default admins
-          for (const adm of INITIAL_ADMIN_USERS) {
+          for (const adm of DEFAULT_ADMIN_USERS) {
             await pool.query(
               `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -1253,7 +1262,7 @@ export const Database = {
               ]
             );
           }
-          memStore.adminUsers = [...INITIAL_ADMIN_USERS];
+          memStore.adminUsers = [...DEFAULT_ADMIN_USERS];
           return memStore.adminUsers;
         }
       } catch (err) {

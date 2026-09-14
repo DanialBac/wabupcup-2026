@@ -73,15 +73,66 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
             <span>Perebutan Total Hadiah Rp {config.totalPrizePool.toLocaleString('id-ID')}</span>
           </div>
           <h2 className="text-4xl sm:text-6xl font-heading font-extrabold uppercase tracking-tight text-slate-900 dark:text-white">
-            {categories.length} KATEGORI TURNAMEN & HADIAH
+            {categories.length > 0 ? `${categories.length} KATEGORI TURNAMEN & HADIAH` : 'KATEGORI TURNAMEN & HADIAH'}
           </h2>
           <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400">
             Pilih kategori tim Anda, lengkapi berkas persyaratan dokumen PDF, dan raih trofi bergilir beserta uang pembinaan.
           </p>
         </div>
 
-        {/* CATEGORIES GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* SKELETON SCREEN WHEN LOADING FROM DATABASE */}
+        {categories.length === 0 ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+              </span>
+              <span>Menyinkronkan data kategori & hadiah resmi dari database...</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map(idx => (
+                <div
+                  key={idx}
+                  className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 shadow-md overflow-hidden flex flex-col justify-between animate-pulse"
+                >
+                  <div className="p-5 bg-gradient-to-r from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-700/80 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="h-5 w-24 bg-slate-300 dark:bg-slate-600 rounded-md" />
+                      <div className="h-4 w-28 bg-slate-300 dark:bg-slate-600 rounded-md" />
+                    </div>
+                    <div className="h-7 w-44 bg-slate-400 dark:bg-slate-500 rounded-md" />
+                    <div className="h-3.5 w-36 bg-slate-300 dark:bg-slate-600 rounded-md" />
+                  </div>
+
+                  <div className="p-5 flex-1 space-y-4">
+                    <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      <div className="space-y-1">
+                        <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+                        <div className="h-5 w-24 bg-slate-300 dark:bg-slate-700 rounded" />
+                      </div>
+                      <div className="space-y-1 pl-3 border-l border-slate-200 dark:border-slate-800">
+                        <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+                        <div className="h-5 w-20 bg-slate-300 dark:bg-slate-700 rounded" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-1">
+                      <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                      <div className="h-3 w-4/5 bg-slate-200 dark:bg-slate-800 rounded" />
+                      <div className="h-3 w-3/5 bg-slate-200 dark:bg-slate-800 rounded" />
+                    </div>
+
+                    <div className="h-11 w-full bg-slate-200 dark:bg-slate-800 rounded-xl mt-4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* CATEGORIES GRID */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {categories.map(cat => {
             const isExpanded = expandedCat === cat.id;
             const activeRegs = registrations.filter(r => r.category === cat.id && r.status !== 'REJECTED');
@@ -264,6 +315,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
             );
           })}
         </div>
+        )}
 
       </div>
     </section>

@@ -518,45 +518,18 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                     ))}
                   </div>
                 ) : (
-                  <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-950/70 border border-amber-200/70 dark:border-amber-900/50">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                        {config.bankAccount.bankName}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyBank(config.bankAccount.accountNumber, 'fallback')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center space-x-1 transition cursor-pointer shrink-0 ${
-                          copiedBankId === 'fallback'
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-800/60 text-amber-900 dark:text-amber-200'
-                        }`}
-                        title="Salin Nomor Rekening"
-                      >
-                        {copiedBankId === 'fallback' ? (
-                          <>
-                            <Check className="w-3 h-3 text-white" />
-                            <span>Tersalin!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span>Salin No. Rek</span>
-                          </>
-                        )}
-                      </button>
+                  <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200">
+                    <div className="flex items-start space-x-2.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                          Rekening Pembayaran Sedang Disinkronkan Dari Database
+                        </p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                          Nomor rekening resmi panitia sedang diambil dari database. Demi mencegah kesalahan transfer atau salah nomor rekening, silakan konfirmasi ke WhatsApp Panitia Resmi untuk mendapatkan rekening transfer resmi.
+                        </p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyBank(config.bankAccount.accountNumber, 'fallback')}
-                      className="font-mono text-sm font-bold text-slate-900 dark:text-amber-200 tracking-wider hover:underline hover:text-amber-600 dark:hover:text-amber-400 block mt-1 cursor-pointer"
-                      title="Klik untuk salin no rekening"
-                    >
-                      {config.bankAccount.accountNumber}
-                    </button>
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
-                      Atas Nama: <strong>{config.bankAccount.accountHolder}</strong>
-                    </p>
                   </div>
                 )}
               </div>
@@ -650,6 +623,35 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 Tutup Jendela
               </button>
             </div>
+          </div>
+        ) : categories.length === 0 ? (
+          /* SKELETON LOADING STATE WHEN CATEGORIES ARE STILL LOADING FROM DATABASE */
+          <div className="p-8 sm:p-12 text-center space-y-6">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 flex items-center justify-center">
+              <span className="relative flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600"></span>
+              </span>
+            </div>
+            <div className="space-y-2 max-w-md mx-auto">
+              <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                Menyinkronkan Kategori & Nominal Resmi...
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Sistem sedang memuat data kategori dan nominal biaya pendaftaran resmi dari database panitia agar bebas dari data dummy.
+              </p>
+            </div>
+            <div className="space-y-3 max-w-sm mx-auto pt-2 animate-pulse">
+              <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+              <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition cursor-pointer"
+            >
+              Tutup Formulir
+            </button>
           </div>
         ) : (
           

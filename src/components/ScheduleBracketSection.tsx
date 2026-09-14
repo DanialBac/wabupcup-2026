@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { MatchItem, TournamentCategory } from '../types';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
@@ -29,9 +29,16 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   onOpenRegister,
 }) => {
   const { matches, categories, registrations, config } = useTournament();
-  const [selectedCat, setSelectedCat] = useState<TournamentCategory>('SMA');
+  const [selectedCat, setSelectedCat] = useState<TournamentCategory>(() => categories[0]?.id || 'SMA');
   const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
+
+  // Keep selected category synced if categories list changes from DB
+  useEffect(() => {
+    if (categories.length > 0 && !categories.some(c => c.id === selectedCat)) {
+      setSelectedCat(categories[0].id);
+    }
+  }, [categories, selectedCat]);
 
   const catMatches = matches.filter(m => m.category === selectedCat);
   const catRegistrations = registrations.filter(r => r.category === selectedCat);
@@ -134,24 +141,33 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
         </div>
 
         {/* CATEGORY TABS */}
-        <div className="flex items-center space-x-2 overflow-x-auto pb-4 mb-8 scrollbar-none border-b border-slate-200 dark:border-slate-800">
-          {(['SD', 'SMP', 'SMA', 'INSTANSI', 'UMUM', 'DESA'] as TournamentCategory[]).map(catKey => {
-            const isSel = selectedCat === catKey;
-            return (
-              <button
-                key={catKey}
-                onClick={() => setSelectedCat(catKey)}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition shrink-0 flex items-center space-x-2 cursor-pointer ${
-                  isSel
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                <span>⚽ {catKey}</span>
-              </button>
-            );
-          })}
-        </div>
+        {categories.length === 0 ? (
+          <div className="flex items-center space-x-3 overflow-x-auto pb-4 mb-8 animate-pulse">
+            <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+            <div className="h-10 w-36 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+            <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2 overflow-x-auto pb-4 mb-8 scrollbar-none border-b border-slate-200 dark:border-slate-800">
+            {categories.map(cat => {
+              const catKey = cat.id;
+              const isSel = selectedCat === catKey;
+              return (
+                <button
+                  key={catKey}
+                  onClick={() => setSelectedCat(catKey)}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition shrink-0 flex items-center space-x-2 cursor-pointer ${
+                    isSel
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <span>⚽ {cat.name || catKey}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* VIEW 1: INTERACTIVE TOURNAMENT BRACKET */}
         {viewMode === 'BRACKET' && (
@@ -494,7 +510,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
 
                           <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-center space-x-1">
                             <MapPin className="w-3.5 h-3.5 text-red-500" />
-                            <span>{fn.pitch || 'Stadion Utama Gelora Wijaya'}</span>
+                            <span>{fn.pitch || config.venueName}</span>
                           </div>
                         </div>
                       );

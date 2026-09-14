@@ -28,30 +28,34 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
   };
 
   // Countdown timer calculation to kickoff date
+  const calculateTimeLeft = (startDate?: string) => {
+    if (!startDate) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    const target = new Date(`${startDate}T08:00:00`).getTime();
+    const now = new Date().getTime();
+    const difference = target - now;
+    if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return {
+      days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+      minutes: Math.floor((difference / 1000 / 60) % 60),
+      seconds: Math.floor((difference / 1000) % 60),
+    };
+  };
+
   const [timeLeft, setTimeLeft] = useState<{
     days: number;
     hours: number;
     minutes: number;
     seconds: number;
-  }>({ days: 45, hours: 14, minutes: 20, seconds: 10 });
+  }>(() => calculateTimeLeft(config.tournamentStartDate));
 
   useEffect(() => {
-    const target = new Date(`${config.tournamentStartDate}T08:00:00`).getTime();
+    const updateCountdown = () => {
+      setTimeLeft(calculateTimeLeft(config.tournamentStartDate));
+    };
 
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const difference = target - now;
-
-      if (difference > 0) {
-        setTimeLeft({
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / 1000 / 60) % 60),
-          seconds: Math.floor((difference / 1000) % 60),
-        });
-      }
-    }, 1000);
-
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
   }, [config.tournamentStartDate]);
 
@@ -100,12 +104,15 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
           <h1 className="text-5xl sm:text-7xl lg:text-8xl font-heading font-extrabold uppercase tracking-tight leading-[0.9] text-white">
             TURNAMEN<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-white to-blue-400">
-              WABUP CUP 2026
+              {config.name ? config.name.toUpperCase() : 'WABUP CUP'} {config.edition || ''}
             </span>
           </h1>
 
           <p className="mt-5 text-base sm:text-xl text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed">
-            Perebutan Piala bergilir Wakil Bupati dalam 6 kategori: <strong className="text-white">SD, SMP, SMA, Instansi/Perbankan, Umum,</strong> dan <strong className="text-white">Desa/Kelurahan</strong>.
+            {config.tagline || 'Turnamen Futsal Perebutan Piala Wakil Bupati'}
+            {categories.length > 0 && (
+              <> dalam {categories.length} kategori: <strong className="text-white">{categories.map(c => c.name || c.id).join(', ')}</strong>.</>
+            )}
           </p>
 
           {/* ACTION BUTTONS */}
@@ -187,7 +194,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             </div>
             <div>
               <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
-                Rp 58 JT
+                {config.totalPrizePool >= 1000000
+                  ? `Rp ${(config.totalPrizePool / 1000000).toLocaleString('id-ID')} JT`
+                  : `Rp ${config.totalPrizePool.toLocaleString('id-ID')}`}
               </span>
               <p className="text-xs text-slate-400 font-medium mt-1">Total Hadiah Tunai</p>
             </div>
@@ -197,11 +206,13 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             <div className="w-12 h-12 rounded-xl bg-blue-950/80 border border-blue-700/50 flex items-center justify-center text-blue-400 shrink-0">
               <Sparkles className="w-6 h-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
-                6 KATEGORI
+                {categories.length > 0 ? `${categories.length} KATEGORI` : 'KATEGORI'}
               </span>
-              <p className="text-xs text-slate-400 font-medium mt-1">SD, SMP, SMA, Instansi, Umum, Desa</p>
+              <p className="text-xs text-slate-400 font-medium mt-1 truncate" title={categories.map(c => c.id).join(', ')}>
+                {categories.length > 0 ? categories.map(c => c.id).join(', ') : 'Sinkronisasi Database...'}
+              </p>
             </div>
           </div>
 
@@ -211,9 +222,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             </div>
             <div>
               <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
-                {totalTeamsCount}+ TIM
+                {totalTeamsCount} TIM
               </span>
-              <p className="text-xs text-slate-400 font-medium mt-1">{approvedTeamsCount} Tim Approved</p>
+              <p className="text-xs text-slate-400 font-medium mt-1">{approvedTeamsCount} Tim Terverifikasi</p>
             </div>
           </div>
 
@@ -221,11 +232,11 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             <div className="w-12 h-12 rounded-xl bg-amber-950/80 border border-amber-700/50 flex items-center justify-center text-amber-400 shrink-0">
               <MapPin className="w-6 h-6" />
             </div>
-            <div>
-              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
-                LAPANGAN
+            <div className="min-w-0">
+              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none truncate">
+                VENUE
               </span>
-              <p className="text-xs text-slate-400 font-medium mt-1">{config.venueName}</p>
+              <p className="text-xs text-slate-400 font-medium mt-1 truncate" title={config.venueName}>{config.venueName}</p>
             </div>
           </div>
         </div>

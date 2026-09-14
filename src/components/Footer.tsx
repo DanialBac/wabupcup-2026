@@ -24,7 +24,7 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenRegistration,
   onOpenAdmin,
 }) => {
-  const { config } = useTournament();
+  const { config, categories } = useTournament();
 
   const bgConfig = config.sectionsBackgrounds?.footer;
   const isCustomImage = bgConfig?.mode === 'IMAGE';
@@ -80,7 +80,7 @@ export const Footer: React.FC<FooterProps> = ({
             </div>
 
             <p className="text-xs leading-relaxed text-slate-400 max-w-sm">
-              Ajang kejuaraan futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'} untuk 6 kategori kompetisi.
+              Ajang kejuaraan futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'}{categories.length > 0 ? ` untuk ${categories.length} kategori kompetisi.` : '.'}
             </p>
 
             <div className="pt-2 text-xs space-y-2 text-slate-400">
@@ -205,42 +205,54 @@ export const Footer: React.FC<FooterProps> = ({
                     </a>
                   </li>
                 ))
-              ) : (
+              ) : config.formulirTemplateUrl || config.regulasiPdfUrl ? (
                 <>
-                  <li>
-                    <a
-                      href={config.formulirTemplateUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Formulir Pemain (PDF)</span>
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href={config.regulasiPdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Buku Regulasi Kompetisi</span>
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href={config.suratPernyataanTemplateUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Format Surat Pernyataan</span>
-                    </a>
-                  </li>
+                  {config.formulirTemplateUrl && (
+                    <li>
+                      <a
+                        href={config.formulirTemplateUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Formulir Pemain (PDF)</span>
+                      </a>
+                    </li>
+                  )}
+                  {config.regulasiPdfUrl && (
+                    <li>
+                      <a
+                        href={config.regulasiPdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Buku Regulasi Kompetisi</span>
+                      </a>
+                    </li>
+                  )}
+                  {config.suratPernyataanTemplateUrl && (
+                    <li>
+                      <a
+                        href={config.suratPernyataanTemplateUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-blue-400 transition flex items-center space-x-1 text-blue-400/90 font-medium"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Format Surat Pernyataan</span>
+                      </a>
+                    </li>
+                  )}
                 </>
+              ) : (
+                <li>
+                  <span className="text-[11px] text-slate-500 italic">
+                    Dokumen resmi akan diunggah panitia
+                  </span>
+                </li>
               )}
             </ul>
 

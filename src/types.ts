@@ -207,14 +207,14 @@ export interface TournamentConfig {
   totalPrizePool: number;
   adminContactPhone: string;
   adminContactEmail: string;
-  bankAccount: {
+  bankAccount?: {
     bankName: string;
     accountNumber: string;
     accountHolder: string;
   };
-  formulirTemplateUrl: string;
-  suratPernyataanTemplateUrl: string;
-  regulasiPdfUrl: string;
+  formulirTemplateUrl?: string;
+  suratPernyataanTemplateUrl?: string;
+  regulasiPdfUrl?: string;
   downloadableDocs?: DownloadableDoc[];
   committeeContacts?: CommitteeContact[];
   committeeEmails?: CommitteeEmail[];

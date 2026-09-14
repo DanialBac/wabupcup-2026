@@ -15,13 +15,10 @@ import {
   TournamentConfig,
 } from '../types';
 import {
-  INITIAL_ADMIN_USERS,
-  INITIAL_CATEGORIES,
-  INITIAL_MATCHES,
-  INITIAL_REGISTRATIONS,
-  INITIAL_SPONSORS,
-  INITIAL_TOURNAMENT_CONFIG,
-} from '../data/mockData';
+  DEFAULT_ADMIN_USERS,
+  DEFAULT_CATEGORIES,
+  DEFAULT_TOURNAMENT_CONFIG,
+} from '../data/defaultConfig';
 import { ApiService } from '../services/api';
 import {
   safeLocalStorageGet,
@@ -33,6 +30,22 @@ import {
   idbDeleteRegistration,
 } from '../utils/storage';
 
+// Helpers to purge legacy mock items from browser local cache
+const filterOutMockRegistrations = (list: RegistrationItem[]): RegistrationItem[] => {
+  if (!Array.isArray(list)) return [];
+  return list.filter(r => !r.id || !/^reg-00\d$/.test(r.id));
+};
+
+const filterOutMockMatches = (list: MatchItem[]): MatchItem[] => {
+  if (!Array.isArray(list)) return [];
+  return list.filter(m => !m.id || (!m.id.startsWith('match-live-') && !m.id.startsWith('match-up-') && !m.id.startsWith('match-fin-')));
+};
+
+const filterOutMockSponsors = (list: SponsorItem[]): SponsorItem[] => {
+  if (!Array.isArray(list)) return [];
+  return list.filter(s => s && s.name && s.name !== '-' && s.id !== '-' && !/^sp-0\d$/.test(s.id));
+};
+
 interface TournamentContextType {
   theme: 'dark' | 'light';
   toggleTheme: () => void;
@@ -40,6 +53,8 @@ interface TournamentContextType {
   updateConfig: (newConfig: Partial<TournamentConfig>) => void;
   refreshDataFromServer: () => Promise<void>;
   isSyncingWithServer: boolean;
+  isInitialLoading: boolean;
+  isLoadingCategories: boolean;
   // Downloadable Documents
   downloadableDocs: DownloadableDoc[];
   addDownloadableDoc: (doc: Omit<DownloadableDoc, 'id' | 'updatedAt'>) => void;
@@ -151,24 +166,26 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const parsed = safeLocalStorageGet<Partial<TournamentConfig> | null>('wabupcup_config', null);
     if (parsed) {
       return {
-        ...INITIAL_TOURNAMENT_CONFIG,
+        ...DEFAULT_TOURNAMENT_CONFIG,
         ...parsed,
         sectionsVisibility: {
           ...DEFAULT_SECTIONS_VISIBILITY,
           ...(parsed.sectionsVisibility || {}),
         },
         sectionsBackgrounds: {
-          ...(INITIAL_TOURNAMENT_CONFIG.sectionsBackgrounds || {}),
+          ...(DEFAULT_TOURNAMENT_CONFIG.sectionsBackgrounds || {}),
           ...(parsed.sectionsBackgrounds || {}),
         },
-        downloadableDocs: parsed.downloadableDocs && parsed.downloadableDocs.length > 0 ? parsed.downloadableDocs : INITIAL_TOURNAMENT_CONFIG.downloadableDocs,
-        committeeContacts: parsed.committeeContacts && parsed.committeeContacts.length > 0 ? parsed.committeeContacts : INITIAL_TOURNAMENT_CONFIG.committeeContacts,
-        committeeEmails: parsed.committeeEmails && parsed.committeeEmails.length > 0 ? parsed.committeeEmails : INITIAL_TOURNAMENT_CONFIG.committeeEmails,
-        bankAccounts: parsed.bankAccounts && parsed.bankAccounts.length > 0 ? parsed.bankAccounts : INITIAL_TOURNAMENT_CONFIG.bankAccounts,
+        // Never restore dummy bank account or dummy fallback arrays
+        bankAccount: undefined,
+        downloadableDocs: Array.isArray(parsed.downloadableDocs) ? parsed.downloadableDocs : [],
+        committeeContacts: Array.isArray(parsed.committeeContacts) ? parsed.committeeContacts : [],
+        committeeEmails: Array.isArray(parsed.committeeEmails) ? parsed.committeeEmails : [],
+        bankAccounts: Array.isArray(parsed.bankAccounts) ? parsed.bankAccounts : [],
       };
     }
     return {
-      ...INITIAL_TOURNAMENT_CONFIG,
+      ...DEFAULT_TOURNAMENT_CONFIG,
       sectionsVisibility: DEFAULT_SECTIONS_VISIBILITY,
     };
   });
@@ -203,6 +220,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Sync with Backend (MySQL / Node API)
   const [isSyncingWithServer, setIsSyncingWithServer] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   const refreshDataFromServer = useCallback(async () => {
     try {
@@ -235,25 +253,25 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             ...(serverConfig.sectionsBackgrounds || {}),
           },
           downloadableDocs:
-            serverConfig.downloadableDocs && serverConfig.downloadableDocs.length > 0
+            serverConfig.downloadableDocs !== undefined && Array.isArray(serverConfig.downloadableDocs)
               ? serverConfig.downloadableDocs
-              : prev.downloadableDocs,
+              : (prev.downloadableDocs || []),
           committeeContacts:
-            serverConfig.committeeContacts && serverConfig.committeeContacts.length > 0
+            serverConfig.committeeContacts !== undefined && Array.isArray(serverConfig.committeeContacts)
               ? serverConfig.committeeContacts
-              : prev.committeeContacts,
+              : (prev.committeeContacts || []),
           committeeEmails:
-            serverConfig.committeeEmails && serverConfig.committeeEmails.length > 0
+            serverConfig.committeeEmails !== undefined && Array.isArray(serverConfig.committeeEmails)
               ? serverConfig.committeeEmails
-              : prev.committeeEmails,
+              : (prev.committeeEmails || []),
           bankAccounts:
             serverConfig.bankAccounts !== undefined && Array.isArray(serverConfig.bankAccounts)
               ? serverConfig.bankAccounts
-              : prev.bankAccounts,
+              : (prev.bankAccounts || []),
         }));
       }
 
-      if (serverCategories && Array.isArray(serverCategories) && serverCategories.length > 0) {
+      if (serverCategories && Array.isArray(serverCategories)) {
         setCategories(serverCategories);
         safeLocalStorageSet('wabupcup_categories', JSON.stringify(serverCategories));
       }
@@ -269,7 +287,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         safeLocalStorageSet('wabupcup_matches', JSON.stringify(serverMatches));
       }
 
-      if (serverSponsors && Array.isArray(serverSponsors) && serverSponsors.length > 0) {
+      if (serverSponsors && Array.isArray(serverSponsors)) {
         setSponsors(serverSponsors);
         safeLocalStorageSet('wabupcup_sponsors', JSON.stringify(serverSponsors));
       }
@@ -282,6 +300,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.warn('Backend server synchronization encountered an error, running with local data:', err);
     } finally {
       setIsSyncingWithServer(false);
+      setIsInitialLoading(false);
     }
   }, []);
 
@@ -303,7 +322,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Downloadable Documents Methods
-  const downloadableDocs = config.downloadableDocs || INITIAL_TOURNAMENT_CONFIG.downloadableDocs || [];
+  const downloadableDocs = config.downloadableDocs || [];
 
   const addDownloadableDoc = (doc: Omit<DownloadableDoc, 'id' | 'updatedAt'>) => {
     const now = new Date();
@@ -332,7 +351,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Committee Contacts (WhatsApp) Methods
-  const committeeContacts = config.committeeContacts || INITIAL_TOURNAMENT_CONFIG.committeeContacts || [];
+  const committeeContacts = config.committeeContacts || [];
 
   const addCommitteeContact = (contact: Omit<CommitteeContact, 'id'>) => {
     const newContact: CommitteeContact = {
@@ -390,7 +409,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Committee Emails Methods
-  const committeeEmails = config.committeeEmails || INITIAL_TOURNAMENT_CONFIG.committeeEmails || [];
+  const committeeEmails = config.committeeEmails || [];
 
   const addCommitteeEmail = (emailItem: Omit<CommitteeEmail, 'id'>) => {
     const newEmail: CommitteeEmail = {
@@ -436,7 +455,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Committee Bank Accounts Methods
-  const bankAccounts = config.bankAccounts || INITIAL_TOURNAMENT_CONFIG.bankAccounts || [];
+  const bankAccounts = config.bankAccounts || [];
 
   const addBankAccount = (bank: Omit<CommitteeBankAccount, 'id'>) => {
     const newBank: CommitteeBankAccount = {
@@ -517,7 +536,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Categories & Prizes
   const [categories, setCategories] = useState<CategoryDetail[]>(() => {
-    return safeLocalStorageGet<CategoryDetail[]>('wabupcup_categories', INITIAL_CATEGORIES);
+    return safeLocalStorageGet<CategoryDetail[]>('wabupcup_categories', DEFAULT_CATEGORIES);
   });
 
   const addCategory = (newCat: CategoryDetail) => {
@@ -565,17 +584,19 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Registrations state
   const [registrations, setRegistrations] = useState<RegistrationItem[]>(() => {
-    return safeLocalStorageGet<RegistrationItem[]>('wabupcup_registrations', INITIAL_REGISTRATIONS);
+    const cached = safeLocalStorageGet<RegistrationItem[]>('wabupcup_registrations', []);
+    return filterOutMockRegistrations(cached);
   });
 
   // Load from IndexedDB on mount to recover full file data (PDF Base64)
   useEffect(() => {
     let isMounted = true;
     idbGetRegistrations().then(idbRegs => {
-      if (isMounted && idbRegs && idbRegs.length > 0) {
+      const realIdbRegs = filterOutMockRegistrations(idbRegs || []);
+      if (isMounted && realIdbRegs.length > 0) {
         setRegistrations(prev => {
           const map = new Map<string, RegistrationItem>();
-          for (const item of idbRegs) {
+          for (const item of realIdbRegs) {
             map.set(item.id, item);
           }
           for (const item of prev) {
@@ -805,7 +826,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Matches & Schedule
   const [matches, setMatches] = useState<MatchItem[]>(() => {
-    return safeLocalStorageGet<MatchItem[]>('wabupcup_matches', INITIAL_MATCHES);
+    const cached = safeLocalStorageGet<MatchItem[]>('wabupcup_matches', []);
+    return filterOutMockMatches(cached);
   });
 
   useEffect(() => {
@@ -1424,7 +1446,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Sponsors
   const [sponsors, setSponsors] = useState<SponsorItem[]>(() => {
-    return safeLocalStorageGet<SponsorItem[]>('wabupcup_sponsors', INITIAL_SPONSORS);
+    const cached = safeLocalStorageGet<SponsorItem[]>('wabupcup_sponsors', []);
+    return filterOutMockSponsors(cached);
   });
 
   useEffect(() => {
@@ -1458,7 +1481,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Admin Users & Auth
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>(() => {
-    return safeLocalStorageGet<AdminUser[]>('wabupcup_admins', INITIAL_ADMIN_USERS);
+    return safeLocalStorageGet<AdminUser[]>('wabupcup_admins', DEFAULT_ADMIN_USERS);
   });
 
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(() => {
@@ -1581,12 +1604,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const resetAllDataToDefaults = () => {
-    setConfig(INITIAL_TOURNAMENT_CONFIG);
-    setCategories(INITIAL_CATEGORIES);
-    setRegistrations(INITIAL_REGISTRATIONS);
-    setMatches(INITIAL_MATCHES);
-    setSponsors(INITIAL_SPONSORS);
-    setAdminUsers(INITIAL_ADMIN_USERS);
+    setConfig(DEFAULT_TOURNAMENT_CONFIG);
+    setCategories(DEFAULT_CATEGORIES);
+    setRegistrations([]);
+    setMatches([]);
+    setSponsors([]);
+    setAdminUsers(DEFAULT_ADMIN_USERS);
     localStorage.clear();
   };
 
@@ -1676,6 +1699,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         getWhatsAppNotificationUrl,
         dbStatus,
         checkDbStatus,
+        isInitialLoading,
+        isLoadingCategories: isInitialLoading && categories.length === 0,
       }}
     >
       {children}

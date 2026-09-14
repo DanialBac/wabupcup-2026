@@ -120,7 +120,20 @@ export const SponsorSection: React.FC = () => {
         </div>
 
         {/* TIERS DISPLAY */}
-        <div className="space-y-16">
+        {sponsors.length === 0 ? (
+          <div className="py-12 px-6 rounded-3xl bg-white dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 text-center max-w-xl mx-auto space-y-3">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto text-2xl">
+              <Handshake className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-heading font-bold uppercase tracking-wide text-slate-800 dark:text-white">
+              Slot Kemitraan & Sponsor Terbuka
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              Daftar mitra sponsor resmi akan dipublikasikan secara langsung melalui sistem database turnamen. Hubungi panitia untuk pengajuan proposal sponsorship.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-16">
           {orderedTiers.map(tierKey => {
             const tierInfo = tierConfig[tierKey];
             const tierSponsors = sponsors.filter(s => s.tier === tierKey);
@@ -253,6 +266,7 @@ export const SponsorSection: React.FC = () => {
             );
           })}
         </div>
+        )}
 
         {/* MODERN BECOME A SPONSOR CALLOUT BANNER */}
         <div className="mt-16 relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-red-950 border-2 border-red-600/40 text-white p-8 sm:p-10 shadow-2xl shadow-red-950/30 flex flex-col lg:flex-row items-center justify-between gap-8">
