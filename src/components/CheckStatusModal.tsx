@@ -20,11 +20,20 @@ interface CheckStatusModalProps {
 }
 
 export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onClose }) => {
-  const { registrations, config, getWhatsAppNotificationUrl } = useTournament();
+  const { registrations, config, committeeContacts } = useTournament();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchedResult, setSearchedResult] = useState<RegistrationItem | null | 'NOT_FOUND'>(null);
 
   if (!isOpen) return null;
+
+  const primaryContact = committeeContacts?.find(c => c.isPrimary) || committeeContacts?.[0] || {
+    name: 'Sekretariat Panitia WABUPCUP',
+    phone: config.adminContactPhone || '085232924449',
+  };
+  const cleanAdminPhone = primaryContact.phone.replace(/\D/g, '');
+  const formattedAdminPhone = cleanAdminPhone.startsWith('0')
+    ? `62${cleanAdminPhone.slice(1)}`
+    : cleanAdminPhone;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,10 +162,28 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
                 </p>
               )}
 
+              {/* INFO NOTICE FOR PENDING PAYMENT */}
+              {searchedResult.status === 'PENDING_PAYMENT' && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                  <p className="font-bold">Menunggu Validasi Berkas & Konfirmasi Pembayaran</p>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Berkas tim Anda sedang dalam proses peninjauan oleh sekretariat panitia. Silakan hubungi admin panitia via WhatsApp di bawah untuk mempercepat validasi dan mendapatkan nomor rekening pembayaran resmi.
+                  </p>
+                </div>
+              )}
+
               {/* WHATSAPP ACTION BUTTON */}
               <div className="pt-2">
                 <a
-                  href={getWhatsAppNotificationUrl(searchedResult, 'CONFIRMATION')}
+                  href={`https://wa.me/${formattedAdminPhone}?text=${encodeURIComponent(
+                    `Halo Panitia *${config.name || 'WABUPCUP 2026'}*, saya *${searchedResult.coachName}* dari tim *${searchedResult.teamName}* (Kategori: *${searchedResult.category}*).\n\n📌 *Kode Registrasi:* ${searchedResult.regCode}\n📊 *Status Berkas:* ${
+                      searchedResult.status === 'APPROVED'
+                        ? 'Telah Disetujui'
+                        : searchedResult.status === 'PENDING_PAYMENT'
+                        ? 'Menunggu Validasi & Pembayaran'
+                        : 'Perlu Perbaikan'
+                    }\n\nSaya ingin menanyakan perihal validasi persyaratan berkas dan konfirmasi pembayaran tim kami. Terima kasih!`
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition shadow-md"
