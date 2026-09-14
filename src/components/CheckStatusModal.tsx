@@ -176,7 +176,7 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
               <div className="pt-2">
                 <a
                   href={`https://wa.me/${formattedAdminPhone}?text=${encodeURIComponent(
-                    `Halo Panitia *${config.name || 'WABUPCUP 2026'}*, saya *${searchedResult.coachName}* dari tim *${searchedResult.teamName}* (Kategori: *${searchedResult.category}*).\n\n📌 *Kode Registrasi:* ${searchedResult.regCode}\n📊 *Status Berkas:* ${
+                    `Halo Panitia *${config.name + '2026' || 'WABUPCUP 2026'}*, saya *${searchedResult.coachName}* dari tim *${searchedResult.teamName}* (Kategori: *${searchedResult.category}*).\n\n📌 *Kode Registrasi:* ${searchedResult.regCode}\n📊 *Status Berkas:* ${
                       searchedResult.status === 'APPROVED'
                         ? 'Telah Disetujui'
                         : searchedResult.status === 'PENDING_PAYMENT'

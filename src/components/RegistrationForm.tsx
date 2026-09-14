@@ -399,7 +399,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 Selamat Datang, Tim {submittedItem.teamName}!
               </h4>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto mt-1">
-                Data pendaftaran dan berkas dokumen Anda telah tersimpan aman di database turnamen.
+                Data pendaftaran dan berkas dokumen Anda telah terkirim ke Admin.
               </p>
             </div>
 
@@ -479,7 +479,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               <a
                 id="btn-whatsapp-confirmation"
                 href={`https://wa.me/${formattedWa}?text=${encodeURIComponent(
-                  `Halo Panitia *${config.name || 'WABUPCUP 2026'}*, saya *${submittedItem.coachName}* dari tim *${submittedItem.teamName}* (Kategori: *${submittedItem.category}*).\n\nSaya telah berhasil mendaftarkan tim secara online dengan rincian:\n📌 *Kode Registrasi:* ${submittedItem.regCode}\n⚽ *Nama Tim:* ${submittedItem.teamName}\n🏷️ *Kategori:* ${submittedItem.category}\n💰 *Estimasi Biaya:* Rp ${submittedItem.paymentAmount.toLocaleString('id-ID')}\n\nSaya ingin melakukan *validasi berkas persyaratan dokumen* dan *konfirmasi pembayaran resmi*. Mohon arahannya panitia, terima kasih!`
+                  `Halo Panitia *${config.name + '2026' || 'WABUPCUP 2026'}*, saya *${submittedItem.coachName}* dari tim *${submittedItem.teamName}* (Kategori: *${submittedItem.category}*).\n\nSaya telah berhasil mendaftarkan tim secara online dengan rincian:\n📌 *Kode Registrasi:* ${submittedItem.regCode}\n⚽ *Nama Tim:* ${submittedItem.teamName}\n🏷️ *Kategori:* ${submittedItem.category}\n💰 *Biaya Pendaftaran:* Rp ${submittedItem.paymentAmount.toLocaleString('id-ID')}\n\nSaya ingin melakukan *validasi berkas persyaratan dokumen* dan *konfirmasi pembayaran resmi*. Mohon arahannya panitia, terima kasih!`
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
