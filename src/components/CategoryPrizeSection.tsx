@@ -85,7 +85,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
           <div className="space-y-6">
             <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 [will-change:transform,opacity]"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
               </span>
               <span>Menyinkronkan data kategori & hadiah resmi dari database...</span>

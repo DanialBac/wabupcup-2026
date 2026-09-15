@@ -90,7 +90,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
         <div className="flex justify-center mb-6">
           <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-red-950/80 via-slate-900/90 to-blue-950/80 border border-red-500/40 text-xs font-semibold text-red-300 shadow-lg shadow-red-950/40">
             <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 [will-change:transform,opacity]"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
             <span className="tracking-wide uppercase">Pendaftaran Resmi Telah Dibuka</span>
@@ -178,7 +178,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
               <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase">Menit</span>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 sm:p-3">
-              <span className="block text-2xl sm:text-4xl font-heading font-bold text-red-400 animate-pulse">
+              <span className="block text-2xl sm:text-4xl font-heading font-bold text-red-400">
                 {String(timeLeft.seconds).padStart(2, '0')}
               </span>
               <span className="text-[10px] sm:text-xs font-medium text-slate-400 uppercase">Detik</span>

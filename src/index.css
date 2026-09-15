@@ -61,20 +61,26 @@
 }
 
 @keyframes pulse-subtle {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.02); }
+  0%, 100% { opacity: 1; transform: scale(1) translateZ(0); }
+  50% { opacity: 0.85; transform: scale(1.02) translateZ(0); }
 }
 
 .animate-pulse-subtle {
   animation: pulse-subtle 3s infinite ease-in-out;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 @keyframes float-ball {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-8px) rotate(15deg); }
+  0%, 100% { transform: translateY(0px) rotate(0deg) translateZ(0); }
+  50% { transform: translateY(-8px) rotate(15deg) translateZ(0); }
 }
 
 .animate-float-ball {
   animation: float-ball 4s ease-in-out infinite;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 

@@ -118,6 +118,10 @@ export const LiveScoreSection: React.FC = () => {
                       <img
                         src={activeLiveMatch.teamA.logo}
                         alt={`Logo ${activeLiveMatch.teamA.name}`}
+                        width="64"
+                        height="64"
+                        loading="lazy"
+                        decoding="async"
                         className="max-h-full max-w-full object-contain"
                       />
                     ) : (
@@ -154,6 +158,10 @@ export const LiveScoreSection: React.FC = () => {
                       <img
                         src={activeLiveMatch.teamB.logo}
                         alt={`Logo ${activeLiveMatch.teamB.name}`}
+                        width="64"
+                        height="64"
+                        loading="lazy"
+                        decoding="async"
                         className="max-h-full max-w-full object-contain"
                       />
                     ) : (
@@ -260,6 +268,10 @@ export const LiveScoreSection: React.FC = () => {
                             <img
                               src={match.teamA.logo}
                               alt={`Logo ${match.teamA.name}`}
+                              width="32"
+                              height="32"
+                              loading="lazy"
+                              decoding="async"
                               className="max-h-full max-w-full object-contain"
                             />
                           ) : (
@@ -292,6 +304,10 @@ export const LiveScoreSection: React.FC = () => {
                             <img
                               src={match.teamB.logo}
                               alt={`Logo ${match.teamB.name}`}
+                              width="32"
+                              height="32"
+                              loading="lazy"
+                              decoding="async"
                               className="max-h-full max-w-full object-contain"
                             />
                           ) : (

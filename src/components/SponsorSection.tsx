@@ -197,6 +197,10 @@ export const SponsorSection: React.FC = () => {
                               <img
                                 src={sponsor.logoUrl}
                                 alt={`Logo ${sponsor.name}`}
+                                width="160"
+                                height="80"
+                                loading="lazy"
+                                decoding="async"
                                 referrerPolicy="no-referrer"
                                 onError={() => handleImageError(sponsor.id)}
                                 className="max-w-full max-h-full w-auto h-auto object-contain object-center filter drop-shadow transition-transform duration-300 group-hover:scale-108"

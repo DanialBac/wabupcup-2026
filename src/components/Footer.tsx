@@ -51,6 +51,10 @@ export const Footer: React.FC<FooterProps> = ({
                   <img
                     src={config.wabupLogoUrl}
                     alt="Logo WabupCup"
+                    width="48"
+                    height="48"
+                    loading="lazy"
+                    decoding="async"
                     className="max-h-12 w-auto object-contain"
                   />
                 </div>
@@ -72,6 +76,10 @@ export const Footer: React.FC<FooterProps> = ({
                   <img
                     src={config.panitiaLogoUrl}
                     alt="Logo Panitia"
+                    width="44"
+                    height="36"
+                    loading="lazy"
+                    decoding="async"
                     className="max-h-9 max-w-[44px] object-contain opacity-90"
                     title="Penyelenggara Resmi"
                   />

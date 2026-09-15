@@ -92,6 +92,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <img
                   src={config.wabupLogoUrl}
                   alt="Logo WabupCup"
+                  width="48"
+                  height="48"
+                  loading="eager"
+                  decoding="async"
                   className="max-h-12 w-auto object-contain"
                 />
               </div>
@@ -99,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-blue-900 shadow-md shadow-red-900/30 border border-red-500/40 group-hover:scale-105 transition-transform shrink-0">
                 <span className="text-2xl select-none animate-float-ball">⚽</span>
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-950 flex items-center justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping [will-change:transform,opacity]"></span>
                 </div>
               </div>
             )}
@@ -133,6 +137,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <img
                   src={config.panitiaLogoUrl}
                   alt="Logo Panitia"
+                  width="44"
+                  height="40"
+                  loading="eager"
+                  decoding="async"
                   className="max-h-10 max-w-[48px] object-contain"
                   title="Penyelenggara Resmi"
                 />
@@ -223,6 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={toggleTheme}
               className="p-2 rounded-lg bg-slate-900/80 text-slate-200 border border-slate-700/80 shadow-sm"
               title={theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
+              aria-label={theme === 'dark' ? 'Beralih ke mode terang' : 'Beralih ke mode gelap'}
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
             </button>
@@ -230,6 +239,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="btn-mobile-menu-toggle"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg bg-slate-900/80 text-slate-200 border border-slate-700/80 shadow-sm"
+              aria-label={mobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>

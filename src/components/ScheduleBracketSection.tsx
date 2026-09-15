@@ -249,7 +249,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           <div className={`flex items-center justify-between py-1 px-2 rounded-lg mb-1 ${winA ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
                             <div className="flex items-center space-x-1.5 min-w-0 pr-1">
                               {r16.teamA.logo ? (
-                                <img src={r16.teamA.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                                <img src={r16.teamA.logo} alt="" width="16" height="16" loading="lazy" decoding="async" className="w-4 h-4 object-contain shrink-0" />
                               ) : (
                                 <span className="text-[10px]">🛡️</span>
                               )}
@@ -267,7 +267,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           <div className={`flex items-center justify-between py-1 px-2 rounded-lg ${winB ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
                             <div className="flex items-center space-x-1.5 min-w-0 pr-1">
                               {r16.teamB.logo ? (
-                                <img src={r16.teamB.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                                <img src={r16.teamB.logo} alt="" width="16" height="16" loading="lazy" decoding="async" className="w-4 h-4 object-contain shrink-0" />
                               ) : (
                                 <span className="text-[10px]">⚽</span>
                               )}
@@ -321,7 +321,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           <div className={`flex items-center justify-between py-1 px-2 rounded-lg mb-1 ${winA ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
                             <div className="flex items-center space-x-1.5 min-w-0 pr-1">
                               {qf.teamA.logo ? (
-                                <img src={qf.teamA.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                                <img src={qf.teamA.logo} alt="" width="16" height="16" loading="lazy" decoding="async" className="w-4 h-4 object-contain shrink-0" />
                               ) : (
                                 <span className="text-[10px]">🛡️</span>
                               )}
@@ -339,7 +339,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           <div className={`flex items-center justify-between py-1 px-2 rounded-lg ${winB ? 'bg-emerald-950/60 border border-emerald-500/40 text-white font-bold' : 'bg-slate-950/60 text-slate-200'}`}>
                             <div className="flex items-center space-x-1.5 min-w-0 pr-1">
                               {qf.teamB.logo ? (
-                                <img src={qf.teamB.logo} alt="" className="w-4 h-4 object-contain shrink-0" />
+                                <img src={qf.teamB.logo} alt="" width="16" height="16" loading="lazy" decoding="async" className="w-4 h-4 object-contain shrink-0" />
                               ) : (
                                 <span className="text-[10px]">⚽</span>
                               )}
@@ -395,7 +395,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           <div className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg mb-1.5 ${winA ? 'bg-emerald-950/80 border border-emerald-500/50 text-white font-bold' : 'bg-slate-950/80 text-slate-200'}`}>
                             <div className="flex items-center space-x-2 min-w-0 pr-1">
                               {sf.teamA.logo ? (
-                                <img src={sf.teamA.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                                <img src={sf.teamA.logo} alt="" width="20" height="20" loading="lazy" decoding="async" className="w-5 h-5 object-contain shrink-0" />
                               ) : (
                                 <span>🛡️</span>
                               )}
@@ -417,7 +417,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           <div className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg ${winB ? 'bg-emerald-950/80 border border-emerald-500/50 text-white font-bold' : 'bg-slate-950/80 text-slate-200'}`}>
                             <div className="flex items-center space-x-2 min-w-0 pr-1">
                               {sf.teamB.logo ? (
-                                <img src={sf.teamB.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                                <img src={sf.teamB.logo} alt="" width="20" height="20" loading="lazy" decoding="async" className="w-5 h-5 object-contain shrink-0" />
                               ) : (
                                 <span>⚽</span>
                               )}
@@ -473,7 +473,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                             <div className={`flex items-center justify-between p-2.5 rounded-xl border ${winA ? 'bg-amber-950/80 border-amber-400 text-amber-200 font-bold' : 'bg-slate-950/90 border-slate-800'}`}>
                               <div className="flex items-center space-x-2 min-w-0 pr-1">
                                 {fn.teamA.logo ? (
-                                  <img src={fn.teamA.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                                  <img src={fn.teamA.logo} alt="" width="20" height="20" loading="lazy" decoding="async" className="w-5 h-5 object-contain shrink-0" />
                                 ) : (
                                   <span>🛡️</span>
                                 )}
@@ -492,7 +492,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                             <div className={`flex items-center justify-between p-2.5 rounded-xl border ${winB ? 'bg-amber-950/80 border-amber-400 text-amber-200 font-bold' : 'bg-slate-950/90 border-slate-800'}`}>
                               <div className="flex items-center space-x-2 min-w-0 pr-1">
                                 {fn.teamB.logo ? (
-                                  <img src={fn.teamB.logo} alt="" className="w-5 h-5 object-contain shrink-0" />
+                                  <img src={fn.teamB.logo} alt="" width="20" height="20" loading="lazy" decoding="async" className="w-5 h-5 object-contain shrink-0" />
                                 ) : (
                                   <span>⚽</span>
                                 )}
@@ -688,6 +688,10 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                               <img
                                 src={team.teamLogo}
                                 alt={`Logo ${team.teamName}`}
+                                width="44"
+                                height="44"
+                                loading="lazy"
+                                decoding="async"
                                 className="max-h-full max-w-full object-contain"
                               />
                             ) : (

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
 import { initDatabaseConnection } from './server/db';
@@ -10,6 +11,7 @@ async function startServer() {
   const PORT = 3000;
 
   // Middlewares
+  app.use(compression());
   app.use(cors());
   app.use(express.json({ limit: '4mb' }));
   app.use(express.urlencoded({ extended: true, limit: '4mb' }));
@@ -50,8 +52,23 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    // Long-term immutable caching for hashed static assets, fresh checks for HTML
+    app.use(
+      express.static(distPath, {
+        maxAge: '1y',
+        immutable: true,
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+          } else if (filePath.match(/\.(js|css|woff2|woff|ttf|png|jpe?g|gif|svg|webp|avif|ico)$/i)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
     app.get('*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

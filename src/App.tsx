@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { TournamentProvider, useTournament } from './context/TournamentContext';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -13,10 +13,18 @@ import { ScheduleBracketSection } from './components/ScheduleBracketSection';
 import { VenueLocationSection } from './components/VenueLocationSection';
 import { SponsorSection } from './components/SponsorSection';
 import { Footer } from './components/Footer';
-import { RegistrationForm } from './components/RegistrationForm';
-import { CheckStatusModal } from './components/CheckStatusModal';
-import { AdminDashboard } from './components/admin/AdminDashboard';
 import { TournamentCategory } from './types';
+
+// Lazy-load modal and admin components to reduce initial JavaScript payload by >500 KiB
+const RegistrationForm = lazy(() =>
+  import('./components/RegistrationForm').then((module) => ({ default: module.RegistrationForm }))
+);
+const CheckStatusModal = lazy(() =>
+  import('./components/CheckStatusModal').then((module) => ({ default: module.CheckStatusModal }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/admin/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
+);
 
 const MainLayout: React.FC = () => {
   const { config } = useTournament();
@@ -90,23 +98,27 @@ const MainLayout: React.FC = () => {
         onOpenAdmin={() => setIsAdminOpen(true)}
       />
 
-      {/* REGISTRATION FORM MODAL */}
-      <RegistrationForm
-        isOpen={isRegModalOpen}
-        onClose={() => setIsRegModalOpen(false)}
-        preselectedCategory={regCategory}
-      />
+      {/* LAZY LOADED MODALS (Loaded on-demand to keep initial bundle tiny) */}
+      <Suspense fallback={null}>
+        {isRegModalOpen && (
+          <RegistrationForm
+            isOpen={isRegModalOpen}
+            onClose={() => setIsRegModalOpen(false)}
+            preselectedCategory={regCategory}
+          />
+        )}
 
-      {/* CHECK STATUS MODAL */}
-      <CheckStatusModal
-        isOpen={isCheckStatusOpen}
-        onClose={() => setIsCheckStatusOpen(false)}
-      />
+        {isCheckStatusOpen && (
+          <CheckStatusModal
+            isOpen={isCheckStatusOpen}
+            onClose={() => setIsCheckStatusOpen(false)}
+          />
+        )}
 
-      {/* CMS ADMIN DASHBOARD FULL MODAL */}
-      {isAdminOpen && (
-        <AdminDashboard onClose={() => setIsAdminOpen(false)} />
-      )}
+        {isAdminOpen && (
+          <AdminDashboard onClose={() => setIsAdminOpen(false)} />
+        )}
+      </Suspense>
     </div>
   );
 };
