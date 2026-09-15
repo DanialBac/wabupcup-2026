@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
@@ -43,15 +44,13 @@ async function startServer() {
     console.warn('[Database] Background init warning:', err);
   });
 
-  // Vite Middleware for development vs Static dist for production
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
+  // Static dist for production or built preview vs Vite Middleware for development
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+  const useStaticDist = process.env.NODE_ENV === 'production' || (hasDist && process.env.VITE_DEV !== 'true');
+
+  if (useStaticDist) {
+    console.log('[Server] Serving optimized production static build from dist/');
     // Long-term immutable caching for hashed static assets, fresh checks for HTML
     app.use(
       express.static(distPath, {
@@ -71,6 +70,13 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  } else {
+    console.log('[Server] Mounting Vite development middleware...');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

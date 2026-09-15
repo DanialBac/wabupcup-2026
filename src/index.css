@@ -65,6 +65,16 @@
   50% { opacity: 0.85; transform: scale(1.02) translateZ(0); }
 }
 
+/* Hardware accelerated composited animations for Lighthouse 100 */
+.animate-pulse,
+.animate-bounce,
+.animate-spin,
+.animate-ping {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
 .animate-pulse-subtle {
   animation: pulse-subtle 3s infinite ease-in-out;
   will-change: transform, opacity;

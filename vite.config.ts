@@ -13,6 +13,7 @@ export default defineConfig(() => {
     },
     build: {
       target: 'esnext',
+      modulePreload: false,
       chunkSizeWarningLimit: 900,
       rollupOptions: {
         output: {

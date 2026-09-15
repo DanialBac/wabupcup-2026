@@ -1,13 +1,11 @@
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { RegistrationItem } from '../types';
 
-export function exportRegistrationsToExcel(
+export async function exportRegistrationsToExcel(
   registrations: RegistrationItem[],
   tournamentName: string = 'WABUP CUP 2026',
   categoryFilter: string = 'ALL'
 ) {
+  const XLSX = await import('xlsx');
   const exportData = registrations.map((r, index) => {
     const docSummary: string[] = [];
     if (r.documents?.suratKeterangan) docSummary.push('Surat Ket');
@@ -87,11 +85,14 @@ export function exportRegistrationsToExcel(
   XLSX.writeFile(workbook, filename);
 }
 
-export function exportRegistrationsToPdf(
+export async function exportRegistrationsToPdf(
   registrations: RegistrationItem[],
   tournamentName: string = 'WABUP CUP 2026',
   categoryFilter: string = 'ALL'
 ) {
+  const { default: jsPDF } = await import('jspdf');
+  const { default: autoTable } = await import('jspdf-autotable');
+
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTournament } from '../context/TournamentContext';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
@@ -17,6 +17,27 @@ import {
 
 export const VenueLocationSection: React.FC = () => {
   const { config } = useTournament();
+  const [shouldLoadMap, setShouldLoadMap] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (shouldLoadMap) return;
+    const element = mapContainerRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setShouldLoadMap(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [shouldLoadMap]);
 
  
   const facilities = [
@@ -63,14 +84,39 @@ export const VenueLocationSection: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* MAP EMBED (7 COLS) */}
-          <div className="lg:col-span-7 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shadow-xl h-[420px] relative">
-            <iframe
-              title="Lokasi WabupCup 2026"
-              src={config.googleMapsEmbedUrl}
-              className="w-full h-full border-0 filter grayscale-[20%] contrast-[105%]"
-              loading="lazy"
-              allowFullScreen
-            ></iframe>
+          <div
+            ref={mapContainerRef}
+            className="lg:col-span-7 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shadow-xl h-[420px] relative"
+          >
+            {shouldLoadMap ? (
+              <iframe
+                title="Lokasi WabupCup 2026"
+                src={config.googleMapsEmbedUrl}
+                width="100%"
+                height="100%"
+                className="w-full h-full border-0 filter grayscale-[20%] contrast-[105%]"
+                loading="lazy"
+                allowFullScreen
+              ></iframe>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-slate-300">
+                <div className="w-14 h-14 rounded-2xl bg-red-600/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-3 shadow-lg shadow-red-950/40">
+                  <MapPin className="w-7 h-7" />
+                </div>
+                <h4 className="font-bold text-white text-base mb-1">{config.venueName}</h4>
+                <p className="text-xs text-slate-400 max-w-sm mb-4">
+                  {config.venueAddress}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShouldLoadMap(true)}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-2 shadow-lg shadow-red-900/30"
+                >
+                  <Navigation className="w-4 h-4" />
+                  <span>Tampilkan Peta Interaktif</span>
+                </button>
+              </div>
+            )}
             
             {/* FLOATING ADDRESS OVERLAY */}
             <div className="absolute bottom-4 left-4 right-4 bg-slate-950/95 backdrop-blur-md p-4 rounded-xl border border-slate-800 text-white shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
