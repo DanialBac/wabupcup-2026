@@ -1714,19 +1714,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
           <div className="hidden sm:block h-6 w-px bg-slate-700"></div>
 
-          <button
-            onClick={() => {
-              if (confirm('Reset seluruh data ke data dummy default awal?')) {
-                resetAllDataToDefaults();
-                alert('Data berhasil di-reset ke default.');
-              }
-            }}
-            className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 border border-slate-700 transition"
-            title="Reset ke Data Dummy Awal"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Reset Data</span>
-          </button>
+          // <button
+          //   onClick={() => {
+          //     if (confirm('Reset seluruh data ke data dummy default awal?')) {
+          //       resetAllDataToDefaults();
+          //       alert('Data berhasil di-reset ke default.');
+          //     }
+          //   }}
+          //   className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 border border-slate-700 transition"
+          //   title="Reset ke Data Dummy Awal"
+          // >
+          //   <RefreshCw className="w-3.5 h-3.5" />
+          //   <span>Reset Data</span>
+          // </button>
 
           <button
             onClick={logoutAdmin}
