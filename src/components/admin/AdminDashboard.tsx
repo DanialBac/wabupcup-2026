@@ -1693,9 +1693,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       {/* CMS TOP BAR - PROFESSIONAL POLISH */}
       <header className="flex items-center justify-between px-6 sm:px-8 py-3.5 bg-[#1E293B] border-b border-slate-700 shadow-lg shrink-0">
         <div className="flex items-center space-x-4">
-          <div className="w-11 h-11 bg-red-600 rounded-full flex items-center justify-center border-2 border-slate-300 shadow-[0_0_15px_rgba(220,38,38,0.5)] shrink-0">
-            <span className="font-black text-lg text-white">WC</span>
-          </div>
+          
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-none">
               WABUP<span className="text-red-500">CUP</span> 2026
