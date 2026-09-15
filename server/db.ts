@@ -17,6 +17,7 @@ import {
   CommitteeBankAccount,
   DownloadableDoc,
 } from '../src/types';
+import { generateUniqueRegCode } from '../src/utils/registrationCode';
 
 // In-Memory Storage Fallback (used when MySQL host is not configured or in preview mode)
 export interface AppMediaItem {
@@ -956,6 +957,15 @@ export const Database = {
 
   async saveRegistration(item: RegistrationItem): Promise<RegistrationItem> {
     await ensureDbConnected();
+
+    // Check if another registration in memory is already using this regCode with a different id
+    const codeConflictMem = memStore.registrations.find(
+      r => r.id !== item.id && r.regCode && item.regCode && r.regCode.trim().toUpperCase() === item.regCode.trim().toUpperCase()
+    );
+    if (codeConflictMem) {
+      item.regCode = generateUniqueRegCode(item.category, memStore.registrations);
+    }
+
     const idx = memStore.registrations.findIndex(r => r.id === item.id);
     if (idx >= 0) {
       memStore.registrations[idx] = item;
@@ -966,17 +976,90 @@ export const Database = {
 
     if (pool && isMySqlConnected) {
       try {
-        await pool.execute(
-          `INSERT INTO registrations (id, reg_code, category_id, team_name, team_logo, institution_name, coach_name, coach_phone, coach_email, player_count, official_count, registration_date, status, payment_status, payment_amount, rejection_reason, admin_notes, documents_json, last_updated)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE reg_code=?, category_id=?, team_name=?, team_logo=?, institution_name=?, coach_name=?, coach_phone=?, coach_email=?, player_count=?, official_count=?, status=?, payment_status=?, payment_amount=?, rejection_reason=?, admin_notes=?, documents_json=?, last_updated=?`,
-          [
-            item.id, item.regCode, item.category, item.teamName, item.teamLogo || null, item.institutionName, item.coachName, item.coachPhone, item.coachEmail || '', item.playerCount, item.officialCount, item.registrationDate, item.status, item.paymentStatus, item.paymentAmount, item.rejectionReason || null, item.adminNotes || null, JSON.stringify(item.documents || {}), item.lastUpdated,
-            item.regCode, item.category, item.teamName, item.teamLogo || null, item.institutionName, item.coachName, item.coachPhone, item.coachEmail || '', item.playerCount, item.officialCount, item.status, item.paymentStatus, item.paymentAmount, item.rejectionReason || null, item.adminNotes || null, JSON.stringify(item.documents || {}), item.lastUpdated,
-          ]
-        );
+        // 1. Check if record with this specific ID already exists in MySQL
+        const [existingById]: any = await pool.query('SELECT id, reg_code FROM registrations WHERE id = ?', [item.id]);
+        
+        if (Array.isArray(existingById) && existingById.length > 0) {
+          // UPDATE existing record strictly by PRIMARY KEY id
+          await pool.execute(
+            `UPDATE registrations SET
+              reg_code=?, category_id=?, team_name=?, team_logo=?, institution_name=?,
+              coach_name=?, coach_phone=?, coach_email=?, player_count=?, official_count=?,
+              status=?, payment_status=?, payment_amount=?, rejection_reason=?, admin_notes=?,
+              documents_json=?, last_updated=?
+             WHERE id = ?`,
+            [
+              item.regCode, item.category, item.teamName, item.teamLogo || null, item.institutionName,
+              item.coachName, item.coachPhone, item.coachEmail || '', item.playerCount, item.officialCount,
+              item.status, item.paymentStatus, item.paymentAmount, item.rejectionReason || null, item.adminNotes || null,
+              JSON.stringify(item.documents || {}), item.lastUpdated,
+              item.id,
+            ]
+          );
+        } else {
+          // 2. INSERT new registration.
+          // First check if another row in MySQL already holds this reg_code
+          const [existingByCode]: any = await pool.query('SELECT id, reg_code FROM registrations WHERE reg_code = ?', [item.regCode]);
+          if (Array.isArray(existingByCode) && existingByCode.length > 0) {
+            // Code already in use by another team in MySQL! Retrieve all codes in category to find next unique
+            const [allCatRows]: any = await pool.query('SELECT reg_code FROM registrations WHERE category_id = ?', [item.category]);
+            const existingCatCodes = Array.isArray(allCatRows) ? allCatRows.map((r: any) => ({ regCode: r.reg_code })) : [];
+            item.regCode = generateUniqueRegCode(item.category, [...memStore.registrations, ...existingCatCodes]);
+            
+            // Sync updated regCode to memStore
+            const mIdx = memStore.registrations.findIndex(r => r.id === item.id);
+            if (mIdx >= 0) memStore.registrations[mIdx].regCode = item.regCode;
+            persistLocalStore();
+          }
+
+          try {
+            await pool.execute(
+              `INSERT INTO registrations (
+                id, reg_code, category_id, team_name, team_logo, institution_name,
+                coach_name, coach_phone, coach_email, player_count, official_count,
+                registration_date, status, payment_status, payment_amount,
+                rejection_reason, admin_notes, documents_json, last_updated
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                item.id, item.regCode, item.category, item.teamName, item.teamLogo || null, item.institutionName,
+                item.coachName, item.coachPhone, item.coachEmail || '', item.playerCount, item.officialCount,
+                item.registrationDate, item.status, item.paymentStatus, item.paymentAmount,
+                item.rejectionReason || null, item.adminNotes || null, JSON.stringify(item.documents || {}), item.lastUpdated,
+              ]
+            );
+          } catch (insertErr: any) {
+            // If duplicate entry error occurs, regenerate code and retry once
+            if (insertErr?.code === 'ER_DUP_ENTRY' || insertErr?.errno === 1062) {
+              console.warn('[Database] Duplicate entry caught on insert, regenerating unique reg_code...');
+              const [allRows]: any = await pool.query('SELECT reg_code FROM registrations WHERE category_id = ?', [item.category]);
+              const existingCodes = Array.isArray(allRows) ? allRows.map((r: any) => ({ regCode: r.reg_code })) : [];
+              item.regCode = generateUniqueRegCode(item.category, existingCodes);
+              
+              const mIdx = memStore.registrations.findIndex(r => r.id === item.id);
+              if (mIdx >= 0) memStore.registrations[mIdx].regCode = item.regCode;
+              persistLocalStore();
+
+              await pool.execute(
+                `INSERT INTO registrations (
+                  id, reg_code, category_id, team_name, team_logo, institution_name,
+                  coach_name, coach_phone, coach_email, player_count, official_count,
+                  registration_date, status, payment_status, payment_amount,
+                  rejection_reason, admin_notes, documents_json, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  item.id, item.regCode, item.category, item.teamName, item.teamLogo || null, item.institutionName,
+                  item.coachName, item.coachPhone, item.coachEmail || '', item.playerCount, item.officialCount,
+                  item.registrationDate, item.status, item.paymentStatus, item.paymentAmount,
+                  item.rejectionReason || null, item.adminNotes || null, JSON.stringify(item.documents || {}), item.lastUpdated,
+                ]
+              );
+            } else {
+              throw insertErr;
+            }
+          }
+        }
       } catch (err) {
-        console.error('Error saving registration to MySQL with prepared statement:', err);
+        console.error('[Database] Error saving registration to MySQL:', err);
       }
     }
     return item;

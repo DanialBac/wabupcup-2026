@@ -26,7 +26,8 @@ import {
   Mail,
   Lock,
   MessageCircle,
-  Info
+  Info,
+  PlusCircle
 } from 'lucide-react';
 
 interface RegistrationFormProps {
@@ -101,6 +102,33 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const submittingRef = useRef(false);
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // Fully reset form state for fresh registration of subsequent teams
+  const resetForm = () => {
+    setTeamName('');
+    setCoachName('');
+    setCoachPhone('');
+    setCoachEmail('');
+    setPlayerCount(12);
+    setOfficialCount(2);
+    setTeamLogo('');
+    setDocs({});
+    setUploadErrors({});
+    setSubmittedItem(null);
+    setCopiedCode(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Ensure modal state clears cleanly whenever closed
+  useEffect(() => {
+    if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -243,7 +271,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Prevent double submission
@@ -310,7 +338,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       const regFee = currentCatDetail?.registrationFee || 350000;
       const cleanTeamName = teamName.trim();
 
-      const newRegistration = submitNewRegistration({
+      const newRegistration = await submitNewRegistration({
         category,
         teamName: cleanTeamName,
         teamLogo: teamLogo || undefined,
@@ -377,7 +405,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="w-8 h-8 rounded-lg bg-black/20 hover:bg-black/40 text-white flex items-center justify-center transition"
           >
             <X className="w-5 h-5" />
@@ -474,7 +502,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
             </div>
 
-            {/* ACTION BUTTON: DIRECT TO WHATSAPP ADMIN */}
+            {/* ACTION BUTTON: DIRECT TO WHATSAPP ADMIN & REGISTER ANOTHER TEAM */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <a
                 id="btn-whatsapp-confirmation"
@@ -483,18 +511,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition flex items-center justify-center space-x-2"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition flex items-center justify-center space-x-2"
               >
                 <Phone className="w-4 h-4" />
-                <span>Hubungi Admin (Validasi & Pembayaran)</span>
+                <span>Hubungi Admin</span>
                 <ExternalLink className="w-4 h-4" />
               </a>
 
               <button
-                onClick={() => {
-                  setSubmittedItem(null);
-                  onClose();
-                }}
+                type="button"
+                id="btn-register-another-team"
+                onClick={resetForm}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-md transition flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Daftar Tim Lainnya</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClose}
                 className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition cursor-pointer"
               >
                 Selesai & Tutup
@@ -1024,8 +1060,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-3">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition"
+                onClick={handleClose}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition cursor-pointer"
               >
                 Batal
               </button>
@@ -1034,10 +1070,10 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 type="submit"
                 id="btn-submit-registration-form"
                 disabled={isSubmitting}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-600/30 transition flex items-center space-x-2 disabled:opacity-50"
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-600/30 transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? (
-                  <span>Mengunggah Berkas...</span>
+                  <span>Menyimpan & Mendaftarkan Tim...</span>
                 ) : (
                   <>
                     <FileCheck className="w-4 h-4" />

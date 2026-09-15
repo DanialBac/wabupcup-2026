@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection, ensureDbConnected } from './db';
 import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem } from '../src/types';
+import { generateUniqueRegCode } from '../src/utils/registrationCode';
 import { blobRouter } from './blob';
 import { r2Router } from './r2';
 import { mediaRouter } from './mediaRoutes';
@@ -210,11 +211,24 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
-    // Auto generate reg code if not present
+    // Fetch latest registrations directly from database
     const existing = await Database.getRegistrations();
-    const count = existing.filter(r => r.category === data.category).length + 1;
-    const regCode = (data.regCode && data.regCode.trim()) || `WBC-${data.category}-${String(count).padStart(3, '0')}`;
-    const id = data.id || `reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // Check if client-provided regCode is non-empty AND genuinely unused
+    const candidateCode = typeof data.regCode === 'string' ? data.regCode.trim().toUpperCase() : '';
+    const isCodeInUse = candidateCode !== '' && existing.some(r => r.regCode && r.regCode.trim().toUpperCase() === candidateCode);
+
+    // If no regCode or candidate code is already in use by any team, generate a brand new unique sequential code
+    const regCode = (!candidateCode || isCodeInUse)
+      ? generateUniqueRegCode(data.category, existing)
+      : candidateCode;
+
+    // Ensure ID is fresh and cannot collide with any existing registration
+    const candidateId = typeof data.id === 'string' ? data.id.trim() : '';
+    const isIdInUse = candidateId !== '' && existing.some(r => r.id === candidateId);
+    const id = (!candidateId || isIdInUse)
+      ? `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+      : candidateId;
 
     const newReg: RegistrationItem = {
       ...data,
@@ -231,6 +245,7 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     await linkRegistrationMedia(newReg.id, newReg.teamLogo, newReg.documents);
     res.status(201).json(saved);
   } catch (err: any) {
+    console.error('[API] Error in POST /api/registrations:', err);
     res.status(500).json({ error: err?.message || 'Gagal menyimpan pendaftaran' });
   }
 });

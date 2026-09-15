@@ -29,6 +29,7 @@ import {
   idbSaveRegistration,
   idbDeleteRegistration,
 } from '../utils/storage';
+import { generateUniqueRegCode } from '../utils/registrationCode';
 
 // Helpers to purge legacy mock items from browser local cache
 const filterOutMockRegistrations = (list: RegistrationItem[]): RegistrationItem[] => {
@@ -84,7 +85,7 @@ interface TournamentContextType {
   deleteCategory: (categoryId: string) => void;
   reorderCategories: (newCategories: CategoryDetail[]) => Promise<void>;
   registrations: RegistrationItem[];
-  submitNewRegistration: (data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>) => RegistrationItem;
+  submitNewRegistration: (data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>) => Promise<RegistrationItem>;
   updateRegistration: (item: RegistrationItem) => void;
   updateRegistrationStatus: (id: string, status: RegistrationStatus, reason?: string, notes?: string) => void;
   updatePaymentStatus: (id: string, paymentStatus: PaymentStatus) => void;
@@ -691,19 +692,19 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return candidate;
   };
 
-  const submitNewRegistration = (
+  const submitNewRegistration = async (
     data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>
-  ): RegistrationItem => {
+  ): Promise<RegistrationItem> => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
-    // Count existing for reg code
-    const existingCount = registrations.filter(r => r.category === data.category).length + 1;
-    const regCode = `WBC-${data.category}-${String(existingCount).padStart(3, '0')}`;
+    // Generate strictly unique sequential code checking all known registrations
+    const regCode = generateUniqueRegCode(data.category, registrations);
+    const generatedId = `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
-    const newReg: RegistrationItem = {
+    let currentReg: RegistrationItem = {
       ...data,
-      id: `reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: generatedId,
       regCode,
       registrationDate: formattedDate,
       status: 'PENDING_PAYMENT',
@@ -711,16 +712,28 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       lastUpdated: formattedDate,
     };
 
-    setRegistrations(prev => [newReg, ...prev]);
+    // Optimistically register in state and IndexedDB
+    setRegistrations(prev => [currentReg, ...prev.filter(r => r.id !== currentReg.id)]);
+    idbSaveRegistration(currentReg).catch(() => {});
 
-    // Save full original registration to IndexedDB immediately
-    idbSaveRegistration(newReg).catch(() => {});
-
-    // Send payload safely to backend API (safe under 4.5MB Vercel limit)
-    const apiPayload = prepareRegistrationForApi(newReg);
-    ApiService.createRegistration(apiPayload).catch(err =>
-      console.warn('Could not persist new registration to backend:', err)
-    );
+    // Send payload safely to backend API and await server response
+    try {
+      const apiPayload = prepareRegistrationForApi(currentReg);
+      const serverSaved = await ApiService.createRegistration(apiPayload);
+      if (serverSaved && serverSaved.id) {
+        currentReg = {
+          ...currentReg,
+          ...serverSaved,
+          // Preserve local documents if server payload trimmed binaries
+          documents: currentReg.documents || serverSaved.documents,
+        };
+        // Reconcile state and storage with server-confirmed registration
+        setRegistrations(prev => [currentReg, ...prev.filter(r => r.id !== currentReg.id && r.id !== generatedId)]);
+        idbSaveRegistration(currentReg).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Could not persist new registration to backend, using local copy:', err);
+    }
 
     // Update category count
     setCategories(prev => {
@@ -736,7 +749,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return next;
     });
 
-    return newReg;
+    return currentReg;
   };
 
   const updateRegistration = (updatedItem: RegistrationItem) => {
