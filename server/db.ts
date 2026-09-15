@@ -1067,25 +1067,146 @@ export const Database = {
 
   async deleteRegistration(id: string): Promise<boolean> {
     await ensureDbConnected();
-    memStore.registrations = memStore.registrations.filter(r => r.id !== id);
-    persistLocalStore();
-    // Delete in-memory media related to this registration
+
+    // 1. Locate registration before deletion to extract all linked media IDs
+    let localReg = memStore.registrations.find(r => r.id === id || r.regCode === id);
+    let mySqlRow: any = null;
+
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.query('SELECT * FROM registrations WHERE id = ? OR reg_code = ? LIMIT 1', [id, id]);
+        if (Array.isArray(rows) && rows.length > 0) {
+          mySqlRow = rows[0];
+          if (!localReg) {
+            localReg = {
+              id: mySqlRow.id,
+              regCode: mySqlRow.reg_code,
+              category: mySqlRow.category_id,
+              teamName: mySqlRow.team_name,
+              teamLogo: mySqlRow.team_logo,
+              institutionName: mySqlRow.institution_name,
+              coachName: mySqlRow.coach_name,
+              coachPhone: mySqlRow.coach_phone,
+              coachEmail: mySqlRow.coach_email,
+              playerCount: Number(mySqlRow.player_count),
+              officialCount: Number(mySqlRow.official_count),
+              registrationDate: mySqlRow.registration_date,
+              status: mySqlRow.status,
+              paymentStatus: mySqlRow.payment_status,
+              paymentAmount: Number(mySqlRow.payment_amount),
+              rejectionReason: mySqlRow.rejection_reason,
+              adminNotes: mySqlRow.admin_notes,
+              documents: typeof mySqlRow.documents_json === 'string' ? JSON.parse(mySqlRow.documents_json) : (mySqlRow.documents_json || {}),
+              lastUpdated: mySqlRow.last_updated,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('[deleteRegistration] Error fetching registration for cascading media cleanup:', err);
+      }
+    }
+
+    const regId = localReg?.id || (mySqlRow?.id ? String(mySqlRow.id) : id);
+    const regCode = localReg?.regCode || (mySqlRow?.reg_code ? String(mySqlRow.reg_code) : undefined);
+
+    // 2. Collect all media IDs associated with this registration
+    const mediaIdsToDelete = new Set<string>();
+
+    const scanForMedia = (data: any) => {
+      if (!data) return;
+      const str = typeof data === 'string' ? data : JSON.stringify(data);
+      const viewMatches = str.match(/\/api\/media\/view\/([a-zA-Z0-9_-]+)/g);
+      if (viewMatches) {
+        for (const m of viewMatches) {
+          const mId = m.replace('/api/media/view/', '').split(/[?#]/)[0];
+          if (mId) mediaIdsToDelete.add(mId);
+        }
+      }
+      const directMatches = str.match(/\bmed-\d+-[a-zA-Z0-9_-]+\b/g);
+      if (directMatches) {
+        for (const m of directMatches) {
+          mediaIdsToDelete.add(m);
+        }
+      }
+    };
+
+    if (localReg) {
+      scanForMedia(localReg.teamLogo);
+      scanForMedia(localReg.documents);
+    }
+    if (mySqlRow) {
+      scanForMedia(mySqlRow.team_logo);
+      scanForMedia(mySqlRow.documents_json);
+    }
+
+    // Check in-memory media storage for matching ref_id
     for (const [mId, mItem] of memStore.media.entries()) {
-      if (mItem.refId === id) {
+      if (mItem.refId === regId || mItem.refId === id || (regCode && mItem.refId === regCode)) {
+        mediaIdsToDelete.add(mId);
+      }
+    }
+
+    // 3. Perform database cascading deletions in MySQL / TiDB Cloud
+    if (pool && isMySqlConnected) {
+      try {
+        const refParams = [regId, id];
+        if (regCode) refParams.push(regCode);
+        const refPlaceholders = refParams.map(() => '?').join(',');
+
+        // Find any media rows in app_media_storage tagged with ref_id
+        const [dbMediaRows]: any = await pool.query(
+          `SELECT id FROM app_media_storage WHERE ref_id IN (${refPlaceholders})`,
+          refParams
+        );
+        if (Array.isArray(dbMediaRows)) {
+          for (const row of dbMediaRows) {
+            if (row.id) mediaIdsToDelete.add(row.id);
+          }
+        }
+
+        // A. Cascading delete from app_media_storage by ref_id
+        await pool.query(
+          `DELETE FROM app_media_storage WHERE ref_id IN (${refPlaceholders})`,
+          refParams
+        );
+
+        // B. Cascading delete from app_media_storage by collected media IDs (in case ref_id was NULL)
+        if (mediaIdsToDelete.size > 0) {
+          const idList = Array.from(mediaIdsToDelete);
+          const idPlaceholders = idList.map(() => '?').join(',');
+          await pool.query(
+            `DELETE FROM app_media_storage WHERE id IN (${idPlaceholders})`,
+            idList
+          );
+        }
+
+        // C. Delete registration record from registrations table
+        await pool.execute(
+          'DELETE FROM registrations WHERE id = ? OR id = ? OR reg_code = ?',
+          [regId, id, regCode || id]
+        );
+
+        console.log(`[Storage Cleanup] Successfully deleted registration ${regId} (${regCode || 'no-code'}) and ${mediaIdsToDelete.size} associated files (${Array.from(mediaIdsToDelete).join(', ')}) from TiDB app_media_storage`);
+      } catch (err) {
+        console.error('[Storage Cleanup] Error deleting registration and associated media from MySQL:', err);
+      }
+    }
+
+    // 4. Clean up in-memory cache
+    for (const mId of mediaIdsToDelete) {
+      memStore.media.delete(mId);
+    }
+    for (const [mId, mItem] of memStore.media.entries()) {
+      if (mItem.refId === regId || mItem.refId === id || (regCode && mItem.refId === regCode)) {
         memStore.media.delete(mId);
       }
     }
 
-    if (pool && isMySqlConnected) {
-      try {
-        await pool.execute('DELETE FROM registrations WHERE id = ?', [id]);
-        // Cascading delete: Automatically remove all uploaded documents and team logo from TiDB app_media_storage
-        await pool.execute('DELETE FROM app_media_storage WHERE ref_id = ?', [id]);
-        console.log(`[Storage Cleanup] Deleted all associated media for registration ${id} from TiDB Cloud`);
-      } catch (err) {
-        console.error('Error deleting registration from MySQL with prepared statement:', err);
-      }
-    }
+    memStore.registrations = memStore.registrations.filter(
+      r => r.id !== regId && r.id !== id && (!regCode || r.regCode !== regCode)
+    );
+    persistLocalStore();
+
     return true;
   },
 
@@ -1672,9 +1793,23 @@ export const Database = {
       if (subKey) memItem.subKey = subKey;
     }
 
+    if (subKey) {
+      // Purge any prior in-memory media with the same refId and subKey
+      for (const [mId, m] of memStore.media.entries()) {
+        if (m.refId === refId && m.subKey === subKey && mId !== id) {
+          memStore.media.delete(mId);
+        }
+      }
+    }
+
     if (pool && isMySqlConnected) {
       try {
         if (subKey) {
+          // Cascading cleanup: delete prior media file for the same ref_id and sub_key if id is different
+          await pool.execute(
+            'DELETE FROM app_media_storage WHERE ref_id = ? AND sub_key = ? AND id != ?',
+            [refId, subKey, id]
+          );
           await pool.execute('UPDATE app_media_storage SET ref_id = ?, sub_key = ? WHERE id = ?', [refId, subKey, id]);
         } else {
           await pool.execute('UPDATE app_media_storage SET ref_id = ? WHERE id = ?', [refId, id]);

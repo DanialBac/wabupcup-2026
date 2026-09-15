@@ -15,22 +15,62 @@ apiRouter.use(mediaRouter);
 apiRouter.use(r2Router);
 apiRouter.use(blobRouter);
 
-// Helper to associate media storage records with parent entities for automatic cascading cleanup
-async function linkRegistrationMedia(regId: string, teamLogo?: string, documents?: Record<string, any>) {
-  try {
-    if (teamLogo && teamLogo.includes('/api/media/view/')) {
-      const match = teamLogo.match(/\/api\/media\/view\/([^/?#]+)/);
-      if (match && match[1]) {
-        await Database.updateMediaRef(match[1], regId, 'teamLogo');
+// Helper to deeply extract media storage IDs from any text or nested data structure
+export function extractMediaIds(data: any): string[] {
+  const ids = new Set<string>();
+  if (!data) return [];
+
+  const checkStr = (str: string) => {
+    if (!str || typeof str !== 'string') return;
+    const viewMatches = str.match(/\/api\/media\/view\/([a-zA-Z0-9_-]+)/g);
+    if (viewMatches) {
+      for (const m of viewMatches) {
+        const id = m.replace('/api/media/view/', '').split(/[?#]/)[0];
+        if (id) ids.add(id);
       }
     }
-    if (documents && typeof documents === 'object') {
-      for (const [key, val] of Object.entries(documents)) {
-        const url = typeof val === 'string' ? val : (val && (val as any).url);
-        if (url && typeof url === 'string' && url.includes('/api/media/view/')) {
-          const match = url.match(/\/api\/media\/view\/([^/?#]+)/);
-          if (match && match[1]) {
-            await Database.updateMediaRef(match[1], regId, key);
+    const directMatches = str.match(/\bmed-\d+-[a-zA-Z0-9_-]+\b/g);
+    if (directMatches) {
+      for (const m of directMatches) {
+        ids.add(m);
+      }
+    }
+  };
+
+  const walk = (item: any) => {
+    if (!item) return;
+    if (typeof item === 'string') {
+      checkStr(item);
+    } else if (Array.isArray(item)) {
+      for (const x of item) walk(x);
+    } else if (typeof item === 'object') {
+      for (const v of Object.values(item)) walk(v);
+    }
+  };
+
+  walk(data);
+  return Array.from(ids);
+}
+
+// Helper to associate media storage records with parent entities for automatic cascading cleanup
+export async function linkRegistrationMedia(regId: string, teamLogo?: string, documents?: Record<string, any>) {
+  try {
+    if (!regId) return;
+
+    if (teamLogo) {
+      const logoIds = extractMediaIds(teamLogo);
+      for (const id of logoIds) {
+        await Database.updateMediaRef(id, regId, 'teamLogo');
+      }
+    }
+
+    if (documents) {
+      const docsObj = typeof documents === 'string' ? (() => { try { return JSON.parse(documents); } catch { return {}; } })() : documents;
+      if (docsObj && typeof docsObj === 'object') {
+        for (const [key, val] of Object.entries(docsObj)) {
+          const docIds = extractMediaIds(val);
+          for (const id of docIds) {
+            await Database.updateMediaRef(id, regId, key);
           }
         }
       }
@@ -273,6 +313,23 @@ apiRouter.put('/registrations/:id', async (req: Request, res: Response) => {
       regCode: current.regCode, // Preserve original regCode
       lastUpdated: formattedDate,
     };
+
+    // Cascading media cleanup: detect any media files from previous registration that were replaced or removed
+    const oldMediaIds = new Set([
+      ...extractMediaIds(current.teamLogo),
+      ...extractMediaIds(current.documents),
+    ]);
+    const newMediaIds = new Set([
+      ...extractMediaIds(updatedItem.teamLogo),
+      ...extractMediaIds(updatedItem.documents),
+    ]);
+
+    for (const oldId of oldMediaIds) {
+      if (!newMediaIds.has(oldId)) {
+        await Database.deleteMedia(oldId);
+        console.log(`[Storage Cleanup] Replaced/removed old media file ${oldId} deleted from TiDB Cloud for registration ${id}`);
+      }
+    }
 
     const saved = await Database.saveRegistration(updatedItem);
     // Link updated media storage records to this registration ID

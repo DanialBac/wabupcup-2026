@@ -29,7 +29,9 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export async function uploadToTiDbStorage(
   file: File,
   folder = 'registrations',
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  refId?: string,
+  subKey?: string
 ): Promise<UploadResult> {
   let base64Data = '';
   let contentType = file.type || 'application/octet-stream';
@@ -76,6 +78,8 @@ export async function uploadToTiDbStorage(
       contentType,
       fileData: base64Data,
       category,
+      refId: refId || undefined,
+      subKey: subKey || undefined,
     }),
   });
 
@@ -104,10 +108,12 @@ export async function uploadToTiDbStorage(
 export async function uploadFileToBlob(
   file: File,
   folder = 'registrations',
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  refId?: string,
+  subKey?: string
 ): Promise<UploadResult> {
   try {
-    return await uploadToTiDbStorage(file, folder, onProgress);
+    return await uploadToTiDbStorage(file, folder, onProgress, refId, subKey);
   } catch (err: any) {
     console.warn('[TiDB Cloud Storage Upload] Server upload encountered an issue, using client-side fallback:', err?.message || err);
 

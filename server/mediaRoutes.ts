@@ -133,6 +133,24 @@ mediaRouter.delete('/media/:id', async (req: Request, res: Response) => {
 });
 
 /**
+ * 3b. Delete all media by reference ID (e.g. registration ID)
+ */
+mediaRouter.delete('/media/ref/:refId', async (req: Request, res: Response) => {
+  try {
+    const { refId } = req.params;
+    if (!refId) {
+      return res.status(400).json({ error: 'Reference ID diperlukan' });
+    }
+
+    await Database.deleteMediaByRef(refId);
+    return res.json({ success: true, message: `Seluruh berkas terkait ${refId} berhasil dihapus dari TiDB Cloud` });
+  } catch (err: any) {
+    console.error('[Media Delete By Ref Error]', err);
+    return res.status(500).json({ error: err?.message || 'Gagal menghapus berkas dari TiDB Cloud' });
+  }
+});
+
+/**
  * 4. Status of Media Storage in TiDB Cloud
  */
 mediaRouter.get('/media/status', async (req: Request, res: Response) => {

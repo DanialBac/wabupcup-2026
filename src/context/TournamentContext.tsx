@@ -30,6 +30,7 @@ import {
   idbDeleteRegistration,
 } from '../utils/storage';
 import { generateUniqueRegCode } from '../utils/registrationCode';
+import { deleteMediaFromStorage } from '../utils/blobUpload';
 
 // Helpers to purge legacy mock items from browser local cache
 const filterOutMockRegistrations = (list: RegistrationItem[]): RegistrationItem[] => {
@@ -645,11 +646,13 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const d = doc as any;
       // Eliminate duplicate base64 across fileData and previewUrl
       const fileContent = d.fileData || d.previewUrl;
+      const fileUrl = d.url || (typeof fileContent === 'string' && fileContent.includes('/api/media/view/') ? fileContent : undefined);
       sanitizedDocs[key] = {
         name: d.name,
         size: d.size,
         uploadDate: d.uploadDate,
         type: d.type,
+        url: fileUrl,
         fileData: fileContent,
       };
     }
@@ -677,6 +680,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               size: d.size,
               uploadDate: d.uploadDate,
               type: d.type,
+              url: d.url || (typeof d.fileData === 'string' && d.fileData.includes('/api/media/view/') ? d.fileData : undefined),
             };
           }
         }
@@ -693,14 +697,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const submitNewRegistration = async (
-    data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>
+    data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'> & { id?: string }
   ): Promise<RegistrationItem> => {
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
     // Generate strictly unique sequential code checking all known registrations
     const regCode = generateUniqueRegCode(data.category, registrations);
-    const generatedId = `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const generatedId = (data as any).id || `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     
     let currentReg: RegistrationItem = {
       ...data,
@@ -757,6 +761,52 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const fullUpdated = { ...updatedItem, lastUpdated: formattedDate };
     
+    // Check for replaced or removed media files to clean up from storage
+    const oldItem = registrations.find(r => r.id === updatedItem.id || r.regCode === updatedItem.id);
+    if (oldItem) {
+      const newMediaUrls = new Set<string>();
+      const oldMediaUrls: string[] = [];
+
+      const extractUrls = (target: any, setOrList: Set<string> | string[], isOld = false) => {
+        if (!target) return;
+        const addUrl = (u: string) => {
+          if (typeof u === 'string' && u.includes('/api/media/view/')) {
+            if (isOld) {
+              if (!newMediaUrls.has(u)) (setOrList as string[]).push(u);
+            } else {
+              (setOrList as Set<string>).add(u);
+            }
+          }
+        };
+
+        if (typeof target === 'string') {
+          addUrl(target);
+        } else if (typeof target === 'object') {
+          if (target.url) addUrl(target.url);
+          if (target.fileData) addUrl(target.fileData);
+        }
+      };
+
+      // 1. Gather all URLs in updated registration
+      extractUrls(fullUpdated.teamLogo, newMediaUrls);
+      if (fullUpdated.documents) {
+        Object.values(fullUpdated.documents).forEach(doc => extractUrls(doc, newMediaUrls));
+      }
+
+      // 2. Identify any URLs from previous registration that are no longer present
+      extractUrls(oldItem.teamLogo, oldMediaUrls, true);
+      if (oldItem.documents) {
+        Object.values(oldItem.documents).forEach(doc => extractUrls(doc, oldMediaUrls, true));
+      }
+
+      // 3. Immediately purge replaced/removed files from TiDB Cloud media storage
+      for (const u of oldMediaUrls) {
+        deleteMediaFromStorage(u).catch(err =>
+          console.warn('[updateRegistration] Could not delete replaced media:', err)
+        );
+      }
+    }
+
     setRegistrations(prev =>
       prev.map(item => (item.id === updatedItem.id ? fullUpdated : item))
     );
@@ -830,8 +880,39 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const deleteRegistration = (id: string) => {
-    setRegistrations(prev => prev.filter(item => item.id !== id));
+    const target = registrations.find(r => r.id === id || r.regCode === id);
+
+    // Filter out registration from state
+    setRegistrations(prev => prev.filter(item => item.id !== id && item.regCode !== id));
     idbDeleteRegistration(id).catch(() => {});
+    if (target?.id && target.id !== id) {
+      idbDeleteRegistration(target.id).catch(() => {});
+    }
+
+    // Defensive client cleanup: remove any connected files from TiDB media storage directly
+    if (target) {
+      const mediaUrls: string[] = [];
+      if (target.teamLogo && target.teamLogo.includes('/api/media/view/')) {
+        mediaUrls.push(target.teamLogo);
+      }
+      if (target.documents && typeof target.documents === 'object') {
+        for (const doc of Object.values(target.documents)) {
+          if (!doc) continue;
+          const d = doc as any;
+          if (d.url && typeof d.url === 'string' && d.url.includes('/api/media/view/')) {
+            mediaUrls.push(d.url);
+          }
+          if (d.fileData && typeof d.fileData === 'string' && d.fileData.includes('/api/media/view/')) {
+            mediaUrls.push(d.fileData);
+          }
+        }
+      }
+      for (const u of mediaUrls) {
+        deleteMediaFromStorage(u).catch(() => {});
+      }
+    }
+
+    // Primary server deletion: triggers cascading delete on MySQL/TiDB registrations AND app_media_storage
     ApiService.deleteRegistration(id).catch(err =>
       console.warn('Could not delete registration on backend:', err)
     );

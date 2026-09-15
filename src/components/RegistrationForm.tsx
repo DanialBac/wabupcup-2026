@@ -103,8 +103,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Stable registration ID generated for this form session so all uploaded files are linked directly to ref_id in TiDB Cloud
+  const generateNewFormId = () => `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const formRegIdRef = useRef<string>(generateNewFormId());
+
   // Fully reset form state for fresh registration of subsequent teams
   const resetForm = () => {
+    formRegIdRef.current = generateNewFormId();
     setTeamName('');
     setCoachName('');
     setCoachPhone('');
@@ -172,7 +177,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       : (file.size / 1024).toFixed(0) + ' KB';
     const now = new Date().toISOString().split('T')[0];
 
-    uploadFileToBlob(file, 'registrations')
+    uploadFileToBlob(file, 'registrations', undefined, formRegIdRef.current, docKey as string)
       .then((uploaded) => {
         const uploadedDoc: UploadedDoc = {
           name: uploaded.name,
@@ -218,7 +223,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       return;
     }
     
-    uploadFileToBlob(file, 'logos')
+    uploadFileToBlob(file, 'logos', undefined, formRegIdRef.current, 'teamLogo')
       .then((uploaded) => {
         setTeamLogo(uploaded.url);
         setDocs(prev => ({
@@ -339,6 +344,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       const cleanTeamName = teamName.trim();
 
       const newRegistration = await submitNewRegistration({
+        id: formRegIdRef.current,
         category,
         teamName: cleanTeamName,
         teamLogo: teamLogo || undefined,
@@ -350,7 +356,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         officialCount,
         paymentAmount: regFee,
         documents: docs,
-      });
+      } as any);
 
       // Launch celebratory confetti
       try {

@@ -71,6 +71,7 @@ import {
   ArrowRight,
   Eye,
   Upload,
+  Loader2,
   Image as ImageIcon,
   Link as LinkIcon,
   Check,
@@ -946,9 +947,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     buktiPembayaran: undefined,
     logoTim: undefined,
   });
+  const [uploadingDocs, setUploadingDocs] = useState<Record<string, boolean>>({});
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const handleOpenEditReg = (item: RegistrationItem) => {
     setEditingReg(item);
+    setUploadingDocs({});
+    setUploadingLogo(false);
     setRegForm({
       teamName: item.teamName,
       category: item.category,
@@ -1015,50 +1020,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     setEditingReg(null);
   };
 
-  const handleRegTeamLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRegTeamLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
       alert('Ukuran logo maksimal 10 MB.');
       return;
     }
-    compressLogo(file, 400, 0.85)
-      .then(dataUrl => {
-        setRegForm(prev => ({ ...prev, teamLogo: dataUrl }));
-      })
-      .catch(() => {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const dataUrl = evt.target?.result as string;
+
+    setUploadingLogo(true);
+    const oldLogoUrl = regForm.teamLogo;
+
+    try {
+      // 1. Upload new logo to TiDB Cloud media storage directly
+      const res = await uploadToTiDbStorage(file, 'logos', editingReg?.id, 'teamLogo');
+
+      // 2. Cascading delete: if previous logo was in storage, delete it immediately from storage
+      if (oldLogoUrl && oldLogoUrl.includes('/api/media/view/') && oldLogoUrl !== res.url) {
+        deleteMediaFromStorage(oldLogoUrl).catch(err =>
+          console.warn('Gagal menghapus logo lama dari TiDB Cloud:', err)
+        );
+      }
+
+      setRegForm(prev => ({ ...prev, teamLogo: res.url }));
+    } catch (err) {
+      console.warn('Upload logo ke cloud gagal, menggunakan fallback kompresi:', err);
+      compressLogo(file, 400, 0.85)
+        .then(dataUrl => {
           setRegForm(prev => ({ ...prev, teamLogo: dataUrl }));
-        };
-        reader.readAsDataURL(file);
-      });
+        })
+        .catch(() => {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const dataUrl = evt.target?.result as string;
+            setRegForm(prev => ({ ...prev, teamLogo: dataUrl }));
+          };
+          reader.readAsDataURL(file);
+        });
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
-  const handleRegDocUpload = (
+  const handleRemoveRegLogo = () => {
+    if (regForm.teamLogo && regForm.teamLogo.includes('/api/media/view/')) {
+      deleteMediaFromStorage(regForm.teamLogo).catch(err =>
+        console.warn('Gagal menghapus logo dari TiDB Cloud:', err)
+      );
+    }
+    setRegForm(prev => ({ ...prev, teamLogo: '' }));
+  };
+
+  const handleRegDocUpload = async (
     docType: keyof typeof regForm,
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const sizeMb = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const dataUrl = evt.target?.result as string;
+    const docKeyStr = String(docType);
+
+    setUploadingDocs(prev => ({ ...prev, [docKeyStr]: true }));
+
+    // Find previous document to delete its media file from storage upon replacement
+    const currentDoc = regForm[docType] as UploadedDoc | undefined;
+    const oldUrl = currentDoc?.url || (currentDoc?.fileData && currentDoc.fileData.includes('/api/media/view/') ? currentDoc.fileData : undefined);
+
+    try {
+      // 1. Upload new document directly to TiDB Cloud media storage
+      const res = await uploadToTiDbStorage(file, 'registrations', editingReg?.id, docKeyStr);
+
+      // 2. Cascading delete: if old file was in TiDB Cloud storage, delete it immediately
+      if (oldUrl && oldUrl !== res.url) {
+        deleteMediaFromStorage(oldUrl).catch(err =>
+          console.warn('Gagal menghapus berkas lama dari TiDB Cloud:', err)
+        );
+      }
+
       const uploadedDoc: UploadedDoc = {
         name: file.name,
         size: sizeMb,
-        fileData: dataUrl,
+        url: res.url,
+        fileData: res.url,
         uploadDate: new Date().toISOString().split('T')[0],
         type: file.type || 'application/pdf',
       };
       setRegForm(prev => ({ ...prev, [docType]: uploadedDoc }));
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.warn('Upload berkas ke cloud gagal, menggunakan fallback lokal:', err);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const dataUrl = evt.target?.result as string;
+        const uploadedDoc: UploadedDoc = {
+          name: file.name,
+          size: sizeMb,
+          fileData: dataUrl,
+          uploadDate: new Date().toISOString().split('T')[0],
+          type: file.type || 'application/pdf',
+        };
+        setRegForm(prev => ({ ...prev, [docType]: uploadedDoc }));
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingDocs(prev => ({ ...prev, [docKeyStr]: false }));
+    }
   };
 
   const handleRemoveRegDoc = (docType: keyof typeof regForm) => {
+    const currentDoc = regForm[docType] as UploadedDoc | undefined;
+    const oldUrl = currentDoc?.url || (currentDoc?.fileData && currentDoc.fileData.includes('/api/media/view/') ? currentDoc.fileData : undefined);
+    if (oldUrl) {
+      deleteMediaFromStorage(oldUrl).catch(err =>
+        console.warn('Gagal menghapus berkas dari TiDB Cloud:', err)
+      );
+    }
     setRegForm(prev => ({ ...prev, [docType]: undefined }));
   };
 
@@ -5700,7 +5775,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   {regForm.teamLogo && (
                     <button
                       type="button"
-                      onClick={() => setRegForm(prev => ({ ...prev, teamLogo: '' }))}
+                      onClick={handleRemoveRegLogo}
                       className="text-[11px] text-rose-400 hover:underline cursor-pointer"
                     >
                       Hapus Logo
@@ -5710,7 +5785,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-20 h-20 rounded-2xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center p-2 overflow-hidden shrink-0">
-                    {regForm.teamLogo ? (
+                    {uploadingLogo ? (
+                      <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+                    ) : regForm.teamLogo ? (
                       <img src={regForm.teamLogo} alt="Logo Tim" className="max-h-full max-w-full object-contain" />
                     ) : (
                       <span className="text-2xl">🛡️</span>
@@ -5718,15 +5795,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   </div>
 
                   <div className="flex-1 w-full space-y-2">
-                    <label className="flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer transition">
-                      <Upload className="w-4 h-4 text-blue-400" />
-                      <span>Ganti / Unggah File Logo Tim</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleRegTeamLogoUpload}
-                        className="hidden"
-                      />
+                    <label className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 cursor-pointer transition ${uploadingLogo ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadingLogo ? (
+                        <>
+                          <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                          <span>Mengunggah Logo ke TiDB Storage...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 text-blue-400" />
+                          <span>{regForm.teamLogo ? 'Ganti File Logo Tim' : 'Unggah File Logo Tim'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingLogo}
+                            onChange={handleRegTeamLogoUpload}
+                            className="hidden"
+                          />
+                        </>
+                      )}
                     </label>
                     <input
                       type="url"
@@ -5892,15 +5979,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                               <span>Lihat</span>
                             </button>
                           )}
-                          <label className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                            <Upload className="w-3 h-3 text-blue-400" />
-                            <span>{doc ? 'Ganti' : 'Unggah'}</span>
-                            <input
-                              type="file"
-                              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx"
-                              onChange={e => handleRegDocUpload(req.key as keyof typeof regForm, e)}
-                              className="hidden"
-                            />
+                          <label className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer ${uploadingDocs[req.key] ? 'opacity-50 pointer-events-none' : ''}`}>
+                            {uploadingDocs[req.key] ? (
+                              <>
+                                <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                                <span>Mengunggah...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3 h-3 text-blue-400" />
+                                <span>{doc ? 'Ganti' : 'Unggah'}</span>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.png,.jpg,.jpeg,.xlsx,.docx"
+                                  disabled={uploadingDocs[req.key]}
+                                  onChange={e => handleRegDocUpload(req.key as keyof typeof regForm, e)}
+                                  className="hidden"
+                                />
+                              </>
+                            )}
                           </label>
                           {doc && (
                             <button
@@ -5944,15 +6041,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                           <span>Lihat</span>
                         </button>
                       )}
-                      <label className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                        <Upload className="w-3 h-3 text-emerald-400" />
-                        <span>{regForm.buktiPembayaran ? 'Ganti' : 'Unggah'}</span>
-                        <input
-                          type="file"
-                          accept=".pdf,.png,.jpg,.jpeg"
-                          onChange={e => handleRegDocUpload('buktiPembayaran', e)}
-                          className="hidden"
-                        />
+                      <label className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer ${uploadingDocs['buktiPembayaran'] ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploadingDocs['buktiPembayaran'] ? (
+                          <>
+                            <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
+                            <span>Mengunggah...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3 h-3 text-emerald-400" />
+                            <span>{regForm.buktiPembayaran ? 'Ganti' : 'Unggah'}</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.png,.jpg,.jpeg"
+                              disabled={uploadingDocs['buktiPembayaran']}
+                              onChange={e => handleRegDocUpload('buktiPembayaran', e)}
+                              className="hidden"
+                            />
+                          </>
+                        )}
                       </label>
                       {regForm.buktiPembayaran && (
                         <button
@@ -5994,15 +6101,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                           <span>Lihat</span>
                         </button>
                       )}
-                      <label className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer">
-                        <Upload className="w-3 h-3 text-purple-400" />
-                        <span>{regForm.logoTim ? 'Ganti' : 'Unggah'}</span>
-                        <input
-                          type="file"
-                          accept=".png,.jpg,.jpeg,.svg,.pdf"
-                          onChange={e => handleRegDocUpload('logoTim', e)}
-                          className="hidden"
-                        />
+                      <label className={`flex-1 flex items-center justify-center space-x-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 cursor-pointer ${uploadingDocs['logoTim'] ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploadingDocs['logoTim'] ? (
+                          <>
+                            <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
+                            <span>Mengunggah...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3 h-3 text-purple-400" />
+                            <span>{regForm.logoTim ? 'Ganti' : 'Unggah'}</span>
+                            <input
+                              type="file"
+                              accept=".png,.jpg,.jpeg,.svg,.pdf"
+                              disabled={uploadingDocs['logoTim']}
+                              onChange={e => handleRegDocUpload('logoTim', e)}
+                              className="hidden"
+                            />
+                          </>
+                        )}
                       </label>
                       {regForm.logoTim && (
                         <button
@@ -6042,10 +6159,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold transition flex items-center space-x-2 shadow-lg shadow-blue-900/40 cursor-pointer"
+                  disabled={uploadingLogo || Object.values(uploadingDocs).some(Boolean)}
+                  className={`px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold transition flex items-center space-x-2 shadow-lg shadow-blue-900/40 cursor-pointer ${uploadingLogo || Object.values(uploadingDocs).some(Boolean) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Perubahan Pendaftar</span>
+                  <span>
+                    {uploadingLogo || Object.values(uploadingDocs).some(Boolean)
+                      ? 'Sedang Mengunggah Berkas...'
+                      : 'Simpan Perubahan Pendaftar'}
+                  </span>
                 </button>
               </div>
             </form>
