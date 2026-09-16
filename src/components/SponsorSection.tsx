@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const SponsorSection: React.FC = () => {
-  const { sponsors, config, committeeContacts } = useTournament();
+  const { sponsors, config, committeeContacts, isInitialLoading } = useTournament();
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   const handleImageError = (id: string) => {
@@ -120,7 +120,27 @@ export const SponsorSection: React.FC = () => {
         </div>
 
         {/* TIERS DISPLAY */}
-        {sponsors.length === 0 ? (
+        {isInitialLoading && sponsors.length === 0 ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+              </span>
+              <span>Menyinkronkan daftar mitra & sponsor resmi dari database...</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                <div
+                  key={i}
+                  className="h-28 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4"
+                >
+                  <div className="w-24 h-8 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : sponsors.length === 0 ? (
           <div className="py-12 px-6 rounded-3xl bg-white dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 text-center max-w-xl mx-auto space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto text-2xl">
               <Handshake className="w-7 h-7" />

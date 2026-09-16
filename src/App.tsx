@@ -27,7 +27,7 @@ const AdminDashboard = lazy(() =>
 );
 
 const MainLayout: React.FC = () => {
-  const { config } = useTournament();
+  const { config, isInitialLoading } = useTournament();
   const [isRegModalOpen, setIsRegModalOpen] = useState(false);
   const [regCategory, setRegCategory] = useState<TournamentCategory>('SMA');
   const [isCheckStatusOpen, setIsCheckStatusOpen] = useState(false);
@@ -51,6 +51,13 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-200">
+      {/* INITIAL SERVER SYNC PROGRESS BAR */}
+      {isInitialLoading && (
+        <div className="fixed top-0 left-0 right-0 z-[100] pointer-events-none">
+          <div className="h-1 bg-gradient-to-r from-red-600 via-amber-500 to-red-600 animate-pulse w-full shadow-sm shadow-red-500/30" />
+        </div>
+      )}
+
       {/* NAVBAR */}
       <Navbar
         onOpenRegister={() => handleOpenRegistration()}

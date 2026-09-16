@@ -88,6 +88,14 @@
         "overlayBlur": false,
         "textColorMode": "AUTO"
       }
+    },
+    "sectionsVisibility": {
+      "hero": true,
+      "liveScore": true,
+      "categories": true,
+      "bracket": true,
+      "venue": true,
+      "sponsors": true
     }
   },
   "categories": [],

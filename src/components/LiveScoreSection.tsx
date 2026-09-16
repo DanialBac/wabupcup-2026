@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const LiveScoreSection: React.FC = () => {
-  const { matches, categories: tourneyCategories, config } = useTournament();
+  const { matches, categories: tourneyCategories, config, isInitialLoading } = useTournament();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING'>('ALL');
 
@@ -200,7 +200,50 @@ export const LiveScoreSection: React.FC = () => {
         </div>
 
         {/* MATCHES GRID */}
-        {filteredMatches.length === 0 ? (
+        {isInitialLoading && filteredMatches.length === 0 ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+              </span>
+              <span>Menyinkronkan jadwal pertandingan & live score dari database...</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-pulse">
+              {[1, 2, 3].map(i => (
+                <div
+                  key={i}
+                  className="rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-sm"
+                >
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                    <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                  </div>
+                  <div className="space-y-3 py-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+                        <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                      </div>
+                      <div className="h-6 w-8 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+                        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                      </div>
+                      <div className="h-6 w-8 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between">
+                    <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                    <div className="h-3 w-24 bg-slate-200 dark:bg-slate-800 rounded"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : filteredMatches.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 space-y-3">
             <p className="text-slate-500 dark:text-slate-400 text-sm">
               Tidak ada pertandingan live atau jadwal aktif pada filter kategori yang dipilih.

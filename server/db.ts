@@ -5,6 +5,7 @@ import {
   DEFAULT_ADMIN_USERS,
   DEFAULT_CATEGORIES,
   DEFAULT_TOURNAMENT_CONFIG,
+  DEFAULT_SECTIONS_VISIBILITY,
 } from './defaultSystemData';
 import {
   CategoryDetail,
@@ -622,13 +623,27 @@ export const Database = {
       try {
         const [rows]: any = await pool.query('SELECT config_value FROM tournament_config WHERE config_key = ?', ['main_config']);
         if (rows.length > 0) {
-          return JSON.parse(rows[0].config_value);
+          const parsed = JSON.parse(rows[0].config_value);
+          return {
+            ...DEFAULT_TOURNAMENT_CONFIG,
+            ...parsed,
+            sectionsVisibility: {
+              ...DEFAULT_SECTIONS_VISIBILITY,
+              ...(parsed.sectionsVisibility || {}),
+            },
+          };
         }
       } catch (err) {
         console.error('Error fetching config from MySQL:', err);
       }
     }
-    return memStore.config;
+    return {
+      ...memStore.config,
+      sectionsVisibility: {
+        ...DEFAULT_SECTIONS_VISIBILITY,
+        ...(memStore.config.sectionsVisibility || {}),
+      },
+    };
   },
 
   async updateConfig(newConfig: Partial<TournamentConfig>): Promise<TournamentConfig> {
@@ -662,6 +677,7 @@ export const Database = {
         ...(newConfig.sectionsBackgrounds || {}),
       },
       sectionsVisibility: {
+        ...DEFAULT_SECTIONS_VISIBILITY,
         ...(current.sectionsVisibility || {}),
         ...(newConfig.sectionsVisibility || {}),
       },

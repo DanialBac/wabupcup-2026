@@ -2,7 +2,17 @@ import {
   AdminUser,
   CategoryDetail,
   TournamentConfig,
+  PageSectionsVisibility,
 } from '../src/types';
+
+export const DEFAULT_SECTIONS_VISIBILITY: PageSectionsVisibility = {
+  hero: true,
+  liveScore: true,
+  categories: true,
+  bracket: true,
+  venue: true,
+  sponsors: true,
+};
 
 export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
   name: 'WabupCup',
@@ -22,6 +32,7 @@ export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
   downloadableDocs: [],
   committeeContacts: [],
   committeeEmails: [],
+  sectionsVisibility: { ...DEFAULT_SECTIONS_VISIBILITY },
   sectionsBackgrounds: {
     hero: {
       mode: 'DEFAULT',

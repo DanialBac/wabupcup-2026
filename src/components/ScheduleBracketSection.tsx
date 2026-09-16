@@ -28,7 +28,7 @@ interface ScheduleBracketSectionProps {
 export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   onOpenRegister,
 }) => {
-  const { matches, categories, registrations, config } = useTournament();
+  const { matches, categories, registrations, config, isInitialLoading } = useTournament();
   const [selectedCat, setSelectedCat] = useState<TournamentCategory>(() => categories[0]?.id || 'SMA');
   const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
@@ -171,7 +171,31 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
 
         {/* VIEW 1: INTERACTIVE TOURNAMENT BRACKET */}
         {viewMode === 'BRACKET' && (
-          catMatches.length === 0 ? (
+          isInitialLoading && catMatches.length === 0 ? (
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 p-8 shadow-2xl text-white space-y-6">
+              <div className="flex items-center justify-center space-x-2 text-xs text-slate-400">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+                </span>
+                <span>Menyinkronkan bagan gugur & jadwal pertandingan dari database...</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse">
+                {[1, 2, 3].map(col => (
+                  <div key={col} className="space-y-4">
+                    <div className="h-9 bg-slate-900 border border-slate-800 rounded-xl" />
+                    {[1, 2].map(row => (
+                      <div key={row} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div className="h-3 w-16 bg-slate-800 rounded" />
+                        <div className="h-5 bg-slate-800 rounded" />
+                        <div className="h-5 bg-slate-800 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : catMatches.length === 0 ? (
             <div className="bg-slate-950 rounded-2xl border border-slate-800 p-10 sm:p-14 text-center shadow-2xl text-white space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-red-950/60 border border-red-800/60 text-red-400 flex items-center justify-center mx-auto text-2xl shadow-lg">
                 <Layers className="w-8 h-8" />
