@@ -177,7 +177,7 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
               )}
 
               {/* INVOICE & KUITANSI RESMI CARD FOR PAID REGISTRANTS */}
-              {(searchedResult.paymentStatus === 'PAID' || searchedResult.status === 'APPROVED') && (
+               {/* {(searchedResult.paymentStatus === 'PAID' || searchedResult.status === 'APPROVED') && (
                 <div className="p-4 rounded-2xl bg-gradient-to-br from-red-950/30 via-slate-900 to-slate-950 border border-red-800/40 text-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -222,7 +222,7 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
                     </a>
                   </div>
                 </div>
-              )}
+              )}*/}
 
               {/* WHATSAPP ACTION BUTTON */}
               <div className="pt-2">
