@@ -340,10 +340,6 @@ Dokumen kuitansi resmi berstempel dan bertanda tangan ketua panitia siap diunduh
                       <p className="font-bold text-slate-900">
                         Biaya Registrasi & Kepesertaan Turnamen Futsal {fullTourneyTitle}
                       </p>
-                      // <ul className="text-[11px] text-slate-500 mt-1 space-y-0.5 list-disc list-inside">
-                      //   <li>Hak bertanding fase gugur/grup resmi turnamen</li>
-                      //   <li>Fasilitas medis lapangan dan asuransi kepesertaan turnamen</li>
-                      // </ul>
                     </td>
                     <td className="py-3 px-3 text-center font-semibold text-slate-700">
                       {item.category}
