@@ -29,14 +29,27 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export async function uploadToTiDbStorage(
   file: File,
   folder = 'registrations',
-  onProgress?: (percent: number) => void,
+  onProgress?: ((percent: number) => void) | string,
   refId?: string,
   subKey?: string
 ): Promise<UploadResult> {
+  // Support flexible argument order if onProgress was passed directly as refId string
+  let progressFn: ((percent: number) => void) | undefined;
+  let finalRefId = refId;
+  let finalSubKey = subKey;
+
+  if (typeof onProgress === 'function') {
+    progressFn = onProgress;
+  } else if (typeof onProgress === 'string') {
+    finalSubKey = refId;
+    finalRefId = onProgress;
+    progressFn = undefined;
+  }
+
   let base64Data = '';
   let contentType = file.type || 'application/octet-stream';
 
-  if (onProgress) onProgress(20);
+  if (progressFn) progressFn(20);
 
   // Map folder to semantic category
   let category = 'REG_DOC';
@@ -68,7 +81,7 @@ export async function uploadToTiDbStorage(
     base64Data = await readFileAsDataUrl(file);
   }
 
-  if (onProgress) onProgress(50);
+  if (progressFn) progressFn(50);
 
   const res = await fetch('/api/media/upload', {
     method: 'POST',
@@ -78,8 +91,8 @@ export async function uploadToTiDbStorage(
       contentType,
       fileData: base64Data,
       category,
-      refId: refId || undefined,
-      subKey: subKey || undefined,
+      refId: finalRefId || undefined,
+      subKey: finalSubKey || undefined,
     }),
   });
 
@@ -89,7 +102,7 @@ export async function uploadToTiDbStorage(
   }
 
   const data = await res.json();
-  if (onProgress) onProgress(100);
+  if (progressFn) progressFn(100);
 
   return {
     url: data.url, // e.g. /api/media/view/med-123456
@@ -153,11 +166,16 @@ export async function uploadFileToBlob(
  */
 export async function deleteMediaFromStorage(urlOrId: string): Promise<boolean> {
   try {
-    if (!urlOrId) return false;
-    let mediaId = urlOrId;
-    if (urlOrId.includes('/api/media/view/')) {
-      mediaId = urlOrId.split('/api/media/view/')[1].split(/[?#]/)[0];
+    if (!urlOrId || typeof urlOrId !== 'string') return false;
+    let mediaId = urlOrId.trim();
+
+    const directMatch = mediaId.match(/\b(med-\d+-[a-zA-Z0-9_-]+)\b/);
+    if (directMatch) {
+      mediaId = directMatch[1];
+    } else if (mediaId.includes('/api/media/view/')) {
+      mediaId = mediaId.split('/api/media/view/')[1].split(/[?#]/)[0];
     }
+
     if (!mediaId.startsWith('med-')) return false;
 
     const res = await fetch(`/api/media/${mediaId}`, { method: 'DELETE' });

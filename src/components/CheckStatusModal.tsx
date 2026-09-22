@@ -11,8 +11,11 @@ import {
   FileText,
   Shield,
   ExternalLink,
-  Copy
+  Copy,
+  Download,
 } from 'lucide-react';
+import { InvoiceModal } from './InvoiceModal';
+import { getWhatsAppInvoiceShareUrl } from '../utils/invoicePdf';
 
 interface CheckStatusModalProps {
   isOpen: boolean;
@@ -23,6 +26,7 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
   const { registrations, config, committeeContacts } = useTournament();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchedResult, setSearchedResult] = useState<RegistrationItem | null | 'NOT_FOUND'>(null);
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
   if (!isOpen) return null;
 
@@ -172,6 +176,54 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
                 </div>
               )}
 
+              {/* INVOICE & KUITANSI RESMI CARD FOR PAID REGISTRANTS */}
+              {(searchedResult.paymentStatus === 'PAID' || searchedResult.status === 'APPROVED') && (
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-red-950/30 via-slate-900 to-slate-950 border border-red-800/40 text-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-8 h-8 rounded-lg bg-red-600/20 border border-red-500/30 text-red-400 flex items-center justify-center">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-xs">
+                          Invoice & Kuitansi Resmi Pelunasan
+                        </h4>
+                        <p className="text-[10px] text-slate-400">
+                          Berstempel Cap Wabup Cup 2026 & Tanda Tangan Ketua Panitia
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-black uppercase">
+                      Lunas
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Pembayaran Anda telah lunas dan terverifikasi secara resmi. Silakan unduh dokumen PDF atau kirimkan salinan invoice ke nomor WhatsApp Anda untuk ditunjukkan saat Technical Meeting.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => setIsInvoiceOpen(true)}
+                      className="w-full py-2 px-3 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition shadow-sm cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Lihat & Unduh PDF</span>
+                    </button>
+
+                    <a
+                      href={getWhatsAppInvoiceShareUrl(searchedResult, config)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition shadow-sm"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Kirim ke WA</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
               {/* WHATSAPP ACTION BUTTON */}
               <div className="pt-2">
                 <a
@@ -186,9 +238,9 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-2 transition shadow-md"
+                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs flex items-center justify-center space-x-2 transition border border-slate-700"
                 >
-                  <Phone className="w-4 h-4" />
+                  <Phone className="w-4 h-4 text-emerald-400" />
                   <span>Hubungi Sekretariat Panitia di WhatsApp</span>
                 </a>
               </div>
@@ -198,6 +250,16 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
 
         </div>
       </div>
+
+      {/* INVOICE MODAL POPUP */}
+      {typeof searchedResult === 'object' && searchedResult !== null && (
+        <InvoiceModal
+          isOpen={isInvoiceOpen}
+          onClose={() => setIsInvoiceOpen(false)}
+          item={searchedResult}
+          config={config}
+        />
+      )}
     </div>
   );
 };

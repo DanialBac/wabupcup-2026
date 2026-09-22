@@ -20,9 +20,12 @@ import {
   UploadedDoc,
 } from '../../types';
 import { PdfViewerModal } from './PdfViewerModal';
+import { InvoiceModal } from '../InvoiceModal';
 import { DatabaseManagerTab } from './DatabaseManagerTab';
 import { AdminUsersManagerTab } from './AdminUsersManagerTab';
 import { SectionBackgroundManager } from './SectionBackgroundManager';
+import { DEFAULT_SIGNATURE_SVG, DEFAULT_STAMP_SVG } from '../../utils/signatureAndStamp';
+import { downloadOfficialInvoicePdf } from '../../utils/invoicePdf';
 import { compressLogo } from '../../utils/imageCompressor';
 import { uploadToTiDbStorage, deleteMediaFromStorage } from '../../utils/blobUpload';
 import {
@@ -290,10 +293,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   };
 
   // Settings Sub-Tab State
-  type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'BACKGROUNDS' | 'GENERAL';
+  type SettingsSubTab = 'DOCS' | 'WHATSAPP' | 'EMAIL' | 'BANK' | 'QUOTA' | 'VISIBILITY' | 'BACKGROUNDS' | 'SIGNATURE_STAMP' | 'GENERAL';
   const [settingsSubTab, setSettingsSubTab] = useState<SettingsSubTab>('DOCS');
   const [quotaSaveSuccess, setQuotaSaveSuccess] = useState(false);
   const [visibilitySaveSuccess, setVisibilitySaveSuccess] = useState(false);
+  const [signatureSaveSuccess, setSignatureSaveSuccess] = useState(false);
+
+  // Official Invoice Modal State
+  const [selectedInvoiceItem, setSelectedInvoiceItem] = useState<RegistrationItem | null>(null);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+
+  const handleOpenInvoice = (item: RegistrationItem) => {
+    setSelectedInvoiceItem(item);
+    setIsInvoiceModalOpen(true);
+  };
 
   // Category CRUD Modal State
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
@@ -985,6 +998,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const handleSaveEditReg = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingReg) return;
+
+    // Prune removed documents and ensure clean document object
+    const cleanDocs: Record<string, UploadedDoc> = {};
+    if (editingReg.documents) {
+      Object.entries(editingReg.documents).forEach(([k, v]) => {
+        if (v && (v as any).name) cleanDocs[k] = v as UploadedDoc;
+      });
+    }
+
+    const docKeys = [
+      'suratKeterangan',
+      'suratPernyataan',
+      'formulirPemain',
+      'aktaKelahiran',
+      'raportKartuPelajar',
+      'ktpGabungan',
+      'bpjsKetenagakerjaan',
+      'buktiPembayaran',
+      'logoTim',
+    ];
+
+    for (const k of docKeys) {
+      const val = (regForm as any)[k];
+      if (val && val.name) {
+        cleanDocs[k] = val;
+      } else {
+        delete cleanDocs[k];
+      }
+    }
+
     const updated: RegistrationItem = {
       ...editingReg,
       teamName: regForm.teamName.trim(),
@@ -1001,18 +1044,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       rejectionReason: regForm.rejectionReason.trim() || undefined,
       adminNotes: regForm.adminNotes.trim() || undefined,
       teamLogo: regForm.teamLogo.trim() || undefined,
-      documents: {
-        ...editingReg.documents,
-        suratKeterangan: regForm.suratKeterangan,
-        suratPernyataan: regForm.suratPernyataan,
-        formulirPemain: regForm.formulirPemain,
-        aktaKelahiran: regForm.aktaKelahiran,
-        raportKartuPelajar: regForm.raportKartuPelajar,
-        ktpGabungan: regForm.ktpGabungan,
-        bpjsKetenagakerjaan: regForm.bpjsKetenagakerjaan,
-        buktiPembayaran: regForm.buktiPembayaran,
-        logoTim: regForm.logoTim,
-      },
+      documents: cleanDocs,
       lastUpdated: new Date().toISOString(),
     };
     updateRegistration(updated);
@@ -1033,7 +1065,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
     try {
       // 1. Upload new logo to TiDB Cloud media storage directly
-      const res = await uploadToTiDbStorage(file, 'logos', editingReg?.id, 'teamLogo');
+      const res = await uploadToTiDbStorage(file, 'logos', undefined, editingReg?.id, 'teamLogo');
 
       // 2. Cascading delete: if previous logo was in storage, delete it immediately from storage
       if (oldLogoUrl && oldLogoUrl.includes('/api/media/view/') && oldLogoUrl !== res.url) {
@@ -1088,7 +1120,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
     try {
       // 1. Upload new document directly to TiDB Cloud media storage
-      const res = await uploadToTiDbStorage(file, 'registrations', editingReg?.id, docKeyStr);
+      const res = await uploadToTiDbStorage(file, 'registrations', undefined, editingReg?.id, docKeyStr);
 
       // 2. Cascading delete: if old file was in TiDB Cloud storage, delete it immediately
       if (oldUrl && oldUrl !== res.url) {
@@ -2540,15 +2572,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                     <a
                                       href={getWhatsAppNotificationUrl(
                                         item,
-                                        item.status === 'APPROVED' ? 'APPROVED' : item.status === 'REJECTED' ? 'REJECTED' : 'PAYMENT_REMINDER'
+                                        item.paymentStatus === 'PAID'
+                                          ? 'INVOICE'
+                                          : item.status === 'APPROVED'
+                                          ? 'APPROVED'
+                                          : item.status === 'REJECTED'
+                                          ? 'REJECTED'
+                                          : 'PAYMENT_REMINDER'
                                       )}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white"
-                                      title="Kirim Notifikasi WhatsApp Resmi ke Pelatih"
+                                      className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer transition shadow-sm"
+                                      title={
+                                        item.paymentStatus === 'PAID'
+                                          ? 'Kirim Pesan Konfirmasi Lunas & Invoice Resmi ke WhatsApp Pelatih'
+                                          : 'Kirim Notifikasi WhatsApp Resmi ke Pelatih'
+                                      }
                                     >
                                       <Phone className="w-4 h-4" />
                                     </a>
+
+                                    {/* Tombol Invoice & Kuitansi Resmi Cap Wabup Cup 2026 & TTD Ketua Panitia */}
+                                    <button
+                                      onClick={() => handleOpenInvoice(item)}
+                                      className={`p-1.5 rounded-lg border cursor-pointer transition shadow-sm flex items-center space-x-1 ${
+                                        item.paymentStatus === 'PAID'
+                                          ? 'bg-red-950 hover:bg-red-800 text-red-300 border-red-600 shadow-red-950/40'
+                                          : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                                      }`}
+                                      title={
+                                        item.paymentStatus === 'PAID'
+                                          ? 'Buka Invoice Resmi Wabup Cup 2026 (PDF Berstempel & TTD Ketua Panitia, Siap Kirim WA)'
+                                          : 'Pratinjau Kuitansi / Invoice Pendaftaran Tim'
+                                      }
+                                    >
+                                      <FileText className={`w-4 h-4 ${item.paymentStatus === 'PAID' ? 'text-red-400' : 'text-slate-400'}`} />
+                                      <span className={`text-[10px] font-black px-0.5 ${item.paymentStatus === 'PAID' ? 'text-red-300' : 'text-slate-400'}`}>
+                                        INV
+                                      </span>
+                                    </button>
 
                                     {/* Edit Data & Dokumen Pendaftar (Super Admin) */}
                                     <button
@@ -3663,15 +3725,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </button>
 
                 <button
+                  onClick={() => setSettingsSubTab('SIGNATURE_STAMP')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
+                    settingsSubTab === 'SIGNATURE_STAMP'
+                      ? 'bg-red-700 text-white shadow-lg shadow-red-900/30'
+                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-red-300" />
+                  <span>8. TTD Ketua & Cap Turnamen</span>
+                </button>
+
+                <button
                   onClick={() => setSettingsSubTab('GENERAL')}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
                     settingsSubTab === 'GENERAL'
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/30'
+                      ? 'bg-cyan-700 text-white shadow-lg shadow-cyan-900/30'
                       : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white border border-slate-800'
                   }`}
                 >
                   <Building className="w-4 h-4" />
-                  <span>8. Informasi Turnamen & Logo</span>
+                  <span>9. Informasi Turnamen & Logo</span>
                 </button>
               </div>
 
@@ -4564,7 +4638,240 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
               )}
 
-              {/* SUB-TAB 8: INFORMASI UMUM TURNAMEN */}
+              {/* SUB-TAB 8: TANDA TANGAN KETUA PANITIA & CAP WABUP CUP 2026 */}
+              {settingsSubTab === 'SIGNATURE_STAMP' && (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* HEADER BANNER */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 via-slate-900 to-slate-900 border border-red-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-white uppercase flex items-center space-x-2">
+                        <FileText className="w-4 h-4 text-red-500" />
+                        <span>Pengesahan Dokumen: Tanda Tangan Ketua Panitia & Cap Wabup Cup 2026</span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Konfigurasi nama pejabat pengesah, tanda tangan resmi, dan stempel basah turnamen yang tertera otomatis pada dokumen Invoice & Kuitansi PDF.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {signatureSaveSuccess && (
+                        <span className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center space-x-1 animate-fadeIn">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Tersimpan!</span>
+                        </span>
+                      )}
+                      {registrations.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const paidOrFirst = registrations.find(r => r.paymentStatus === 'PAID') || registrations[0];
+                            handleOpenInvoice(paidOrFirst);
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-md shadow-red-950/50"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Uji Coba Invoice PDF</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* FORM INPUTS */}
+                    <div className="lg:col-span-7 space-y-5 bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                          Nama Lengkap Ketua Panitia
+                        </label>
+                        <input
+                          type="text"
+                          value={config.committeeChairmanName || ''}
+                          placeholder="Ahmad Fauzi, S.Pd"
+                          onChange={e => updateConfig({ committeeChairmanName: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-red-500 transition font-medium"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Nama terang yang akan tercantum dengan garis bawah tebal pada lembar pengesahan invoice.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                          Jabatan Resmi Pejabat
+                        </label>
+                        <input
+                          type="text"
+                          value={config.committeeChairmanTitle || ''}
+                          placeholder="Ketua Panitia Pelaksana Wabup Cup 2026"
+                          onChange={e => updateConfig({ committeeChairmanTitle: e.target.value })}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-red-500 transition font-medium"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Keterangan titel atau jabatan di bawah nama terang (misal: Ketua Panitia Pelaksana).
+                        </p>
+                      </div>
+
+                      {/* UPLOAD CUSTOM TTD */}
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                            Berkas Tanda Tangan Ketua Panitia
+                          </label>
+                          {config.committeeChairmanSignature && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateConfig({ committeeChairmanSignature: '' });
+                                setSignatureSaveSuccess(true);
+                                setTimeout(() => setSignatureSaveSuccess(false), 2500);
+                              }}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-bold underline cursor-pointer"
+                            >
+                              Reset ke TTD Resmi Default
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                updateConfig({ committeeChairmanSignature: reader.result as string });
+                                setSignatureSaveSuccess(true);
+                                setTimeout(() => setSignatureSaveSuccess(false), 2500);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Format PNG transparan resolusi tinggi (tinta hitam/biru gelap) direkomendasikan. Jika dikosongkan, sistem secara otomatis menggunakan TTD Ketua Panitia resmi yang telah disediakan.
+                        </p>
+                      </div>
+
+                      {/* UPLOAD CUSTOM CAP */}
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                            Berkas Cap / Stempel Turnamen (Red Seal)
+                          </label>
+                          {config.tournamentStampImage && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateConfig({ tournamentStampImage: '' });
+                                setSignatureSaveSuccess(true);
+                                setTimeout(() => setSignatureSaveSuccess(false), 2500);
+                              }}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-bold underline cursor-pointer"
+                            >
+                              Reset ke Cap Resmi Default
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                updateConfig({ tournamentStampImage: reader.result as string });
+                                setSignatureSaveSuccess(true);
+                                setTimeout(() => setSignatureSaveSuccess(false), 2500);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Format PNG bulat transparan stempel merah. Jika dikosongkan, stempel basah resmi "Cap Panitia Pelaksana Wabup Cup 2026 - LUNAS" otomatis digunakan.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* LIVE VISUAL PREVIEW CARD */}
+                    <div className="lg:col-span-5 bg-white text-slate-900 rounded-2xl p-6 shadow-xl border border-slate-200 flex flex-col justify-between">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Pratinjau Pengesahan Invoice
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                            Sah & Terverifikasi
+                          </span>
+                        </div>
+
+                        <div className="text-center space-y-1">
+                          <p className="text-xs text-slate-600">
+                            {config.venueCity || 'Banyuwangi'}, 24 Oktober 2026
+                          </p>
+                          <p className="text-xs font-bold text-slate-900">
+                            Panitia Pelaksana Turnamen Futsal {config.name || 'Wabup Cup'} {config.edition || '2026'}
+                          </p>
+                          <p className="text-[11px] text-slate-600">
+                            {config.committeeChairmanTitle || 'Ketua Panitia Pelaksana'},
+                          </p>
+
+                          {/* OVERLAPPING STAMP & SIGNATURE PREVIEW */}
+                          <div className="relative h-28 w-full flex items-center justify-center my-1 select-none">
+                            {/* OFFICIAL CAP */}
+                            <div className="absolute left-6 top-1 w-24 h-24 pointer-events-none opacity-90 z-20">
+                              {config.tournamentStampImage ? (
+                                <img
+                                  src={config.tournamentStampImage}
+                                  alt="Cap Turnamen"
+                                  className="w-full h-full object-contain -rotate-6"
+                                />
+                              ) : (
+                                <div
+                                  className="w-full h-full"
+                                  dangerouslySetInnerHTML={{ __html: DEFAULT_STAMP_SVG }}
+                                />
+                              )}
+                            </div>
+
+                            {/* TANDA TANGAN */}
+                            <div className="relative w-44 h-24 flex items-center justify-center z-10">
+                              {config.committeeChairmanSignature ? (
+                                <img
+                                  src={config.committeeChairmanSignature}
+                                  alt="Tanda Tangan"
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <div
+                                  className="w-full h-full"
+                                  dangerouslySetInnerHTML={{ __html: DEFAULT_SIGNATURE_SVG }}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-xs font-bold text-slate-900 underline decoration-slate-900 decoration-1 underline-offset-2">
+                            {config.committeeChairmanName || 'Ahmad Fauzi, S.Pd'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium">
+                            {config.committeeChairmanTitle || 'Ketua Panitia Pelaksana'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 text-center">
+                        Tampilan tanda tangan & cap stempel di atas akan tercetak tepat di sudut kanan bawah setiap Invoice PDF resmi.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 9: INFORMASI UMUM TURNAMEN */}
               {settingsSubTab === 'GENERAL' && (
                 <div className="space-y-6 animate-fadeIn">
                   <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex items-center justify-between">
@@ -4931,6 +5238,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         document={selectedDoc}
         documentTitle={selectedDocTitle}
         teamName={selectedTeamName}
+      />
+
+      {/* INVOICE & KUITANSI RESMI MODAL (CAP WABUP CUP 2026 & TTD KETUA PANITIA) */}
+      <InvoiceModal
+        isOpen={isInvoiceModalOpen}
+        onClose={() => {
+          setIsInvoiceModalOpen(false);
+          setSelectedInvoiceItem(null);
+        }}
+        item={selectedInvoiceItem}
+        config={config}
       />
 
       {/* SPONSOR MODAL (TAMBAH / EDIT SPONSOR DENGAN UPLOAD & LINK) */}

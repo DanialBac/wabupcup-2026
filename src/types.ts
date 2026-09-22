@@ -221,6 +221,10 @@ export interface TournamentConfig {
   bankAccounts?: CommitteeBankAccount[];
   sectionsVisibility?: PageSectionsVisibility;
   sectionsBackgrounds?: SectionsBackgrounds;
+  committeeChairmanName?: string;
+  committeeChairmanTitle?: string;
+  committeeChairmanSignature?: string;
+  tournamentStampImage?: string;
 }
 
 export interface PageSectionsVisibility {

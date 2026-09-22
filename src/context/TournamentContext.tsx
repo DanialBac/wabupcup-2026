@@ -119,7 +119,7 @@ interface TournamentContextType {
   updateAdminUser: (user: AdminUser & { password?: string }) => Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }>;
   deleteAdminUser: (id: string) => Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }>;
   resetAllDataToDefaults: () => void;
-  getWhatsAppNotificationUrl: (item: RegistrationItem, type: 'CONFIRMATION' | 'APPROVED' | 'REJECTED' | 'PAYMENT_REMINDER') => string;
+  getWhatsAppNotificationUrl: (item: RegistrationItem, type: 'CONFIRMATION' | 'APPROVED' | 'REJECTED' | 'PAYMENT_REMINDER' | 'INVOICE') => string;
   // Database status and synchronization
   dbStatus: {
     connected: boolean;
@@ -1757,7 +1757,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } else if (type === 'REJECTED') {
       message = `⚠️ *PEMBERITAHUAN VERIFIKASI BERKAS ${tourneyName.toUpperCase()}*\n\nTim *${item.teamName}* (${item.regCode}), berkas pendaftaran Anda memerlukan perbaikan dengan catatan:\n\n❌ *Alasan:* ${item.rejectionReason || 'Berkas dokumen belum sesuai ketentuan regulasi'}\n\nSilakan lakukan upload ulang atau hubungi sekretariat panitia untuk bantuan perbaikan berkas.`;
     } else if (type === 'PAYMENT_REMINDER') {
-      message = `🔔 *PENGINGAT PEMBAYARAN REGISTRASI ${tourneyName.toUpperCase()}*\n\nYth. *${item.coachName}* (${item.teamName}), berkas tim Anda sudah lengkap dan valid. Mohon segera menyelesaikan pembayaran biaya pendaftaran sebesar *Rp ${item.paymentAmount.toLocaleString('id-ID')}* sebelum batas akhir agar slot tim Anda terkunci aman.\n\nRekening: ${primaryBank.bankName} ${primaryBank.accountNumber} a/n ${primaryBank.accountHolder}. Terima kasih!`;
+      message = `🔔 *PENGINGAT PEMBAYARAN REGISTRASI ${tourneyName.toUpperCase()}*\n\nYth. *${item.coachName}* (${item.teamName}), berkas tim Anda sudah lengkap dan valid. Mohon segera menyelesaikan pembayaran biaya pendaftaran sebesar *Rp ${item.paymentAmount.toLocaleString('id-ID')}* sebelum batas akhir agar slot tim Anda terkunci aman.\n\nRekening: ${primaryBank?.bankName || 'Bank'} ${primaryBank?.accountNumber || '-'} a/n ${primaryBank?.accountHolder || 'Panitia'}. Terima kasih!`;
+    } else if (type === 'INVOICE') {
+      const invNumber = `INV/WBC26/${item.category}/${item.regCode}`;
+      message = `🧾 *INVOICE & KUITANSI RESMI PEMBAYARAN ${tourneyName.toUpperCase()}*\n--------------------------------------------------\nKepada Yth. *${item.coachName}*\nPelatih / Official Tim *${item.teamName}*\n\nTerima kasih, pembayaran pendaftaran tim Anda telah berstatus *LUNAS (PAID)* & terverifikasi oleh Panitia Pelaksana.\n\n📋 *RINCIAN KEPESERTAAN:* \n• Nomor Invoice: *${invNumber}*\n• Kode Registrasi: *${item.regCode}*\n• Kategori: *${item.category}*\n• Asal Instansi: *${item.institutionName || '-'}*\n• Total Biaya: *Rp ${item.paymentAmount.toLocaleString('id-ID')} (LUNAS)*\n\n📄 Dokumen kuitansi/invoice resmi berstempel basah dan bertanda tangan Ketua Panitia Pelaksana siap diunduh melalui portal resmi turnamen (Menu *Cek Status* -> Masukkan Kode *${item.regCode}*).\n\nSampai jumpa di sesi Technical Meeting & Screening Pemain! Salam olahraga! ⚽🏆`;
     }
 
     return `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`;
