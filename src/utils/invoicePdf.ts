@@ -72,22 +72,20 @@ export async function generateOfficialInvoicePdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139); // slate-500
-  const venueLine = `Sekretariat: ${config.venueName || 'GOR Tawang Alun'}, ${config.venueCity || 'Banyuwangi'}`;
   const contactLine = `WhatsApp Admin: ${config.adminContactPhone || '-'} | Email: ${config.adminContactEmail || 'infinityorganizer01.22@gmail.com'}`;
-  doc.text(venueLine, pageWidth / 2, 30.5, { align: 'center' });
-  doc.text(contactLine, pageWidth / 2, 34.5, { align: 'center' });
+  doc.text(contactLine, pageWidth / 2, 31, { align: 'center' });
 
   // Double horizontal separator line (Kop line)
   doc.setDrawColor(30, 41, 59); // slate-800
   doc.setLineWidth(1.0);
-  doc.line(margin, 37.5, pageWidth - margin, 37.5);
+  doc.line(margin, 35, pageWidth - margin, 35);
 
   doc.setDrawColor(148, 163, 184); // slate-400
   doc.setLineWidth(0.3);
-  doc.line(margin, 38.8, pageWidth - margin, 38.8);
+  doc.line(margin, 36.3, pageWidth - margin, 36.3);
 
   // 2. INVOICE TITLE & STATUS BANNER
-  let currentY = 44;
+  let currentY = 41.5;
 
   // Invoice Title
   doc.setTextColor(15, 23, 42);
@@ -434,7 +432,7 @@ export async function generateOfficialInvoicePdf(
   }
 
   // Chairman Name & ID Panitia (underneath signature)
-  const chairmanName = config.committeeChairmanName || 'Ahmad Fauzi, S.Pd';
+  const chairmanName = config.committeeChairmanName || 'AHMAT IQBAL FIRDAUS';
   const chairmanTitle = config.committeeChairmanTitle || 'Ketua Panitia Pelaksana';
 
   doc.setFontSize(9);

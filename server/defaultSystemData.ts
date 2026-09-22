@@ -32,7 +32,7 @@ export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
   downloadableDocs: [],
   committeeContacts: [],
   committeeEmails: [],
-  committeeChairmanName: 'Ahmad Fauzi, S.Pd',
+  committeeChairmanName: 'AHMAT IQBAL FIRDAUS',
   committeeChairmanTitle: 'Ketua Panitia Pelaksana Wabup Cup 2026',
   sectionsVisibility: { ...DEFAULT_SECTIONS_VISIBILITY },
   sectionsBackgrounds: {

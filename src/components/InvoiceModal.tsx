@@ -59,7 +59,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         year: 'numeric',
       });
 
-  const chairmanName = config.committeeChairmanName || 'Ahmad Fauzi, S.Pd';
+  const chairmanName = config.committeeChairmanName || 'AHMAT IQBAL FIRDAUS';
   const chairmanTitle = config.committeeChairmanTitle || 'Ketua Panitia Pelaksana';
 
   const handleDownloadPdf = async () => {
@@ -227,9 +227,6 @@ Dokumen kuitansi resmi berstempel dan bertanda tangan ketua panitia siap diunduh
                 {config.tagline || 'Perebutan Piala Wakil Bupati Banyuwangi'}
               </p>
               <p className="text-[10px] sm:text-[11px] text-slate-500 pt-1">
-                Sekretariat: {config.venueName || 'GOR Tawang Alun'}, {config.venueAddress || config.venueCity || 'Banyuwangi'}
-              </p>
-              <p className="text-[10px] sm:text-[11px] text-slate-500">
                 WhatsApp Admin: <span className="font-semibold text-slate-700">{config.adminContactPhone || '-'}</span> • Email: <span className="font-semibold text-slate-700">{config.adminContactEmail || 'infinityorganizer01.22@gmail.com'}</span>
               </p>
               <div className="w-full h-0.5 bg-slate-400 mt-2" />

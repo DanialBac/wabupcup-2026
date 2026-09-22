@@ -4686,7 +4686,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                         <input
                           type="text"
                           value={config.committeeChairmanName || ''}
-                          placeholder="Ahmad Fauzi, S.Pd"
+                          placeholder="AHMAT IQBAL FIRDAUS"
                           onChange={e => updateConfig({ committeeChairmanName: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-red-500 transition font-medium"
                         />
@@ -4855,7 +4855,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                           </div>
 
                           <p className="text-xs font-bold text-slate-900 underline decoration-slate-900 decoration-1 underline-offset-2">
-                            {config.committeeChairmanName || 'Ahmad Fauzi, S.Pd'}
+                            {config.committeeChairmanName || 'AHMAT IQBAL FIRDAUS'}
                           </p>
                           <p className="text-[10px] text-slate-500 font-medium">
                             {config.committeeChairmanTitle || 'Ketua Panitia Pelaksana'}
