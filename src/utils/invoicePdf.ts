@@ -109,7 +109,7 @@ export async function generateOfficialInvoicePdf(
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('✔ LUNAS (PAID)', badgeX + badgeWidth / 2, badgeY + 6, { align: 'center' });
+  doc.text('✔ LUNAS (PAID)', (badgeX + badgeWidth / 2) - 4 , badgeY + 6, { align: 'center' });
 
   // Invoice Meta bar (Invoice No, Dates)
   currentY += 12;
@@ -218,7 +218,7 @@ export async function generateOfficialInvoicePdf(
   const tableBody = [
     [
       '1',
-      `Biaya Pendaftaran & Partisipasi Turnamen Futsal ${fullTourneyTitle}\n• Kepesertaan resmi & hak tanding fase gugur/grup\n`,
+      `Biaya Pendaftaran & Partisipasi Turnamen Futsal ${fullTourneyTitle}\n`,
       `Kategori ${item.category}`,
       '1 Tim',
       `Rp ${item.paymentAmount.toLocaleString('id-ID')}`,
