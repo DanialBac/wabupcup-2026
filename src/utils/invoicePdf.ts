@@ -218,7 +218,7 @@ export async function generateOfficialInvoicePdf(
   const tableBody = [
     [
       '1',
-      `Biaya Pendaftaran & Partisipasi Turnamen Futsal ${fullTourneyTitle}\n• Kepesertaan resmi & hak tanding fase gugur/grup\n• ID Card pemain & official serta fasilitas medis lapangan\n• Asuransi keselamatan bertanding turnamen`,
+      `Biaya Pendaftaran & Partisipasi Turnamen Futsal ${fullTourneyTitle}\n• Kepesertaan resmi & hak tanding fase gugur/grup\n`,
       `Kategori ${item.category}`,
       '1 Tim',
       `Rp ${item.paymentAmount.toLocaleString('id-ID')}`,
