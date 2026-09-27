@@ -29,9 +29,28 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   onOpenRegister,
 }) => {
   const { matches, categories, registrations, config, isInitialLoading } = useTournament();
+  const visibility = config.sectionsVisibility;
+  const isBracketVisible = (visibility?.landingBracket ?? true) !== false;
+  const isScheduleVisible = (visibility?.landingSchedule ?? true) !== false;
+  const isTeamsVisible = (visibility?.landingKlasemen ?? true) !== false;
+
   const [selectedCat, setSelectedCat] = useState<TournamentCategory>(() => categories[0]?.id || 'SMA');
   const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
+
+  // Auto-switch viewMode if currently selected mode is disabled
+  useEffect(() => {
+    const isCurrentActive =
+      (viewMode === 'BRACKET' && isBracketVisible) ||
+      (viewMode === 'TABLE' && isScheduleVisible) ||
+      (viewMode === 'TEAMS' && isTeamsVisible);
+
+    if (!isCurrentActive) {
+      if (isBracketVisible) setViewMode('BRACKET');
+      else if (isScheduleVisible) setViewMode('TABLE');
+      else if (isTeamsVisible) setViewMode('TEAMS');
+    }
+  }, [viewMode, isBracketVisible, isScheduleVisible, isTeamsVisible]);
 
   // Keep selected category synced if categories list changes from DB
   useEffect(() => {
@@ -42,6 +61,14 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
 
   const catMatches = matches.filter(m => m.category === selectedCat);
   const catRegistrations = registrations.filter(r => r.category === selectedCat);
+
+  const getTeamLogo = (teamName: string, existingLogo?: string) => {
+    if (existingLogo && existingLogo.trim()) return existingLogo;
+    const reg = registrations.find(
+      r => r.teamName.trim().toLowerCase() === teamName.trim().toLowerCase()
+    );
+    return reg?.teamLogo || '';
+  };
 
   const filteredTeams = catRegistrations.filter(t => {
     const q = teamSearchQuery.toLowerCase();
@@ -103,39 +130,47 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
           {/* VIEW SWITCHER TABS */}
           <div className="flex items-center space-x-2 overflow-x-auto">
             <div className="p-1 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex shadow-sm">
-              <button
-                onClick={() => setViewMode('BRACKET')}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
-                  viewMode === 'BRACKET'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Bagan Visual</span>
-              </button>
-              <button
-                onClick={() => setViewMode('TABLE')}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
-                  viewMode === 'TABLE'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Tabel Jadwal ({catMatches.length})</span>
-              </button>
-              <button
-                onClick={() => setViewMode('TEAMS')}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
-                  viewMode === 'TEAMS'
-                    ? 'bg-red-600 text-white shadow-md'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Daftar Tim Peserta ({catRegistrations.length})</span>
-              </button>
+              {isBracketVisible && (
+                <button
+                  onClick={() => setViewMode('BRACKET')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                    viewMode === 'BRACKET'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Bagan Visual</span>
+                </button>
+              )}
+
+              {isScheduleVisible && (
+                <button
+                  onClick={() => setViewMode('TABLE')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                    viewMode === 'TABLE'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Tabel Jadwal ({catMatches.length})</span>
+                </button>
+              )}
+
+              {isTeamsVisible && (
+                <button
+                  onClick={() => setViewMode('TEAMS')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                    viewMode === 'TEAMS'
+                      ? 'bg-red-600 text-white shadow-md'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Daftar Tim Peserta ({catRegistrations.length})</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -548,76 +583,173 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
           </div>
         ))}
 
-        {/* VIEW 2: FULL SCHEDULE TABLE */}
+        {/* VIEW 2: FULL SCHEDULE TABLE & MOBILE SYMMETRIC CARDS */}
         {viewMode === 'TABLE' && (
-          <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3.5 px-4">No.</th>
-                    <th className="py-3.5 px-4">Babak</th>
-                    <th className="py-3.5 px-4">Pertandingan (Tim A vs Tim B)</th>
-                    <th className="py-3.5 px-4">Tanggal & Waktu</th>
-                    <th className="py-3.5 px-4">Venue Lapangan</th>
-                    <th className="py-3.5 px-4">Skor / Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {catMatches.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="text-center py-8 text-slate-500">
-                        Belum ada jadwal tersimpan untuk kategori {selectedCat}. Anda dapat menggunakan fitur Drawing Acak Otomatis di CMS Admin.
-                      </td>
-                    </tr>
-                  ) : (
-                    catMatches.map((m, idx) => (
-                      <tr
-                        key={m.id}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition"
-                      >
-                        <td className="py-3 px-4 font-mono font-bold text-slate-500">
-                          #{idx + 1}
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
+          <div className="space-y-4">
+            {/* MOBILE VIEW (HP): Logo di atas, Nama Tim Bold di bawah, Skor Horisontal Simetris */}
+            <div className="block sm:hidden space-y-3">
+              {catMatches.length === 0 ? (
+                <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-500 shadow-md">
+                  Belum ada jadwal tersimpan untuk kategori {selectedCat}.
+                </div>
+              ) : (
+                catMatches.map(m => {
+                  const logoA = getTeamLogo(m.teamA.name, m.teamA.logo);
+                  const logoB = getTeamLogo(m.teamB.name, m.teamB.logo);
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-md space-y-3"
+                    >
+                      {/* Top Meta: Babak, Tanggal, Jam */}
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <span className="font-extrabold text-slate-800 dark:text-slate-200 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                           {m.round}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-900 dark:text-white">
-                            {m.teamA.name} <span className="text-red-500 font-normal">vs</span> {m.teamB.name}
+                        </span>
+                        <div className="flex items-center space-x-1.5 font-medium">
+                          <span>{m.date}</span>
+                          <span>•</span>
+                          <span className="text-red-600 dark:text-red-400 font-bold">{m.time} WIB</span>
+                        </div>
+                      </div>
+
+                      {/* Baris Tim: Logo di atas, Nama Tim Bold di bawah, Skor Horisontal Simetris */}
+                      <div className="flex items-center justify-between gap-2 py-1">
+                        {/* Tim A */}
+                        <div className="flex-1 flex flex-col items-center text-center min-w-0">
+                          <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1.5">
+                            {logoA ? (
+                              <img src={logoA} alt={m.teamA.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <Shield className="w-5 h-5 text-red-500" />
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-500 truncate">
-                            {m.teamA.institution || '-'} vs {m.teamB.institution || '-'}
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-white leading-tight break-words text-center line-clamp-2 px-0.5">
+                            {m.teamA.name}
+                          </span>
+                        </div>
+
+                        {/* Skor Horisontal Simetris / VS */}
+                        <div className="shrink-0 flex flex-col items-center justify-center px-1">
+                          {m.status === 'FINISHED' || m.status === 'LIVE' ? (
+                            <div className="flex flex-col items-center">
+                              <div className="inline-flex items-center justify-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-inner">
+                                <span className="text-base font-black text-slate-900 dark:text-white font-mono">{m.teamA.score ?? 0}</span>
+                                <span className="text-slate-400 font-bold">-</span>
+                                <span className="text-base font-black text-slate-900 dark:text-white font-mono">{m.teamB.score ?? 0}</span>
+                              </div>
+                              {m.status === 'LIVE' ? (
+                                <span className="mt-1 px-1.5 py-0.5 rounded-full bg-red-600 text-white font-black text-[9px] animate-pulse">
+                                  LIVE {m.liveMinute ? `${m.liveMinute}'` : ''}
+                                </span>
+                              ) : (
+                                <span className="mt-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                                  FT
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center">
+                              <div className="inline-block px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-black text-amber-500">
+                                VS
+                              </div>
+                              <span className="mt-1 text-[9px] font-bold text-slate-500 font-mono">
+                                {m.pitch || 'Lapangan Utama'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Tim B */}
+                        <div className="flex-1 flex flex-col items-center text-center min-w-0">
+                          <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1.5">
+                            {logoB ? (
+                              <img src={logoB} alt={m.teamB.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <Shield className="w-5 h-5 text-blue-500" />
+                            )}
                           </div>
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap text-slate-700 dark:text-slate-300">
-                          {m.date} • <strong className="text-red-600 dark:text-red-400">{m.time} WIB</strong>
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {m.pitch}
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          {m.status === 'LIVE' && (
-                            <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 font-bold border border-red-300 dark:border-red-800 animate-pulse">
-                              LIVE {m.teamA.score ?? 0} - {m.teamB.score ?? 0} ({m.liveMinute})
-                            </span>
-                          )}
-                          {m.status === 'FINISHED' && (
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-800">
-                              FT {m.teamA.score ?? 0} - {m.teamB.score ?? 0}
-                            </span>
-                          )}
-                          {m.status === 'UPCOMING' && (
-                            <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-semibold border border-slate-200 dark:border-slate-800">
-                              Akan Datang
-                            </span>
-                          )}
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-white leading-tight break-words text-center line-clamp-2 px-0.5">
+                            {m.teamB.name}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* DESKTOP TABLE VIEW (hidden sm:block) */}
+            <div className="hidden sm:block bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                      <th className="py-3.5 px-4">No.</th>
+                      <th className="py-3.5 px-4">Babak</th>
+                      <th className="py-3.5 px-4">Pertandingan (Tim A vs Tim B)</th>
+                      <th className="py-3.5 px-4">Tanggal & Waktu</th>
+                      <th className="py-3.5 px-4">Venue Lapangan</th>
+                      <th className="py-3.5 px-4">Skor / Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {catMatches.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-slate-500">
+                          Belum ada jadwal tersimpan untuk kategori {selectedCat}. Anda dapat menggunakan fitur Drawing Acak Otomatis di CMS Admin.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      catMatches.map((m, idx) => (
+                        <tr
+                          key={m.id}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition"
+                        >
+                          <td className="py-3 px-4 font-mono font-bold text-slate-500">
+                            #{idx + 1}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                            {m.round}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900 dark:text-white">
+                              {m.teamA.name} <span className="text-red-500 font-normal">vs</span> {m.teamB.name}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">
+                              {m.teamA.institution || '-'} vs {m.teamB.institution || '-'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap text-slate-700 dark:text-slate-300">
+                            {m.date} • <strong className="text-red-600 dark:text-red-400">{m.time} WIB</strong>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
+                            {m.pitch}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {m.status === 'LIVE' && (
+                              <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 font-bold border border-red-300 dark:border-red-800 animate-pulse">
+                                LIVE {m.teamA.score ?? 0} - {m.teamB.score ?? 0} ({m.liveMinute})
+                              </span>
+                            )}
+                            {m.status === 'FINISHED' && (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-800">
+                                FT {m.teamA.score ?? 0} - {m.teamB.score ?? 0}
+                              </span>
+                            )}
+                            {m.status === 'UPCOMING' && (
+                              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-semibold border border-slate-200 dark:border-slate-800">
+                                Akan Datang
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

@@ -5,6 +5,9 @@ import {
   SponsorItem,
   TournamentConfig,
   AdminUser,
+  PlayerItem,
+  GroupStageItem,
+  TeamStandingItem,
 } from '../types';
 
 const API_BASE = '/api';
@@ -367,6 +370,96 @@ export const ApiService = {
     } catch (err: any) {
       return { success: false, message: err?.message || 'Network error during login' };
     }
+  },
+
+  // Players (table_players)
+  async getPlayers(category?: string, teamName?: string): Promise<PlayerItem[]> {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    if (teamName) params.append('teamName', teamName);
+    const res = await safeJsonFetch<PlayerItem[]>(`${API_BASE}/players?${params.toString()}`);
+    return Array.isArray(res) ? res : [];
+  },
+
+  async savePlayer(player: PlayerItem): Promise<PlayerItem | null> {
+    const method = player.id ? 'PUT' : 'POST';
+    const url = player.id ? `${API_BASE}/players/${player.id}` : `${API_BASE}/players`;
+    return safeJsonFetch<PlayerItem>(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(player),
+    });
+  },
+
+  async batchImportPlayers(players: PlayerItem[]): Promise<{ success: boolean; count: number; players?: PlayerItem[] }> {
+    try {
+      const res = await fetch(`${API_BASE}/players/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ players }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, count: 0 };
+    }
+  },
+
+  async deletePlayer(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/players/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async getTopScorers(category?: string): Promise<PlayerItem[]> {
+    const param = category ? `?category=${category}` : '';
+    const res = await safeJsonFetch<PlayerItem[]>(`${API_BASE}/players/top-scorers${param}`);
+    return Array.isArray(res) ? res : [];
+  },
+
+  // Groups
+  async getGroups(category?: string): Promise<GroupStageItem[]> {
+    const param = category ? `?category=${category}` : '';
+    const res = await safeJsonFetch<GroupStageItem[]>(`${API_BASE}/groups${param}`);
+    return Array.isArray(res) ? res : [];
+  },
+
+  async saveGroups(category: string, groups: GroupStageItem[]): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/groups/replace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, groups }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async resetCategoryGroupsAndMatches(category: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch(`${API_BASE}/groups/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      return { success: false, message: 'Gagal mengosongkan grup dan jadwal di server' };
+    } catch {
+      return { success: false, message: 'Koneksi gagal saat mengosongkan grup' };
+    }
+  },
+
+  // Standings
+  async getStandings(category?: string): Promise<Record<string, TeamStandingItem[]>> {
+    const param = category ? `?category=${category}` : '';
+    const res = await safeJsonFetch<Record<string, TeamStandingItem[]>>(`${API_BASE}/standings${param}`);
+    return res || {};
   },
 };
 

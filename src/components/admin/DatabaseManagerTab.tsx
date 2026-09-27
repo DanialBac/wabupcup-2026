@@ -212,11 +212,14 @@ USE \`wabupcup_db\`;
 -- Tabel Utama:
 -- 1. categories (Kategori Usia, Kuota, Biaya & Hadiah)
 -- 2. registrations (Data Pendaftaran Tim, Pelatih, Dokumen Persyaratan)
--- 3. players (Daftar Pemain Tiap Tim)
+-- 3. table_players (Daftar Pemain Tiap Tim, Nomor Punggung, Gol & Kartu)
 -- 4. matches (Jadwal Pertandingan, Live Score & Bagan Turnamen)
--- 5. sponsors (Sponsor & Official Partner)
--- 6. admin_users (Akun Panitia & Hak Akses)
--- 7. tournament_config (Konfigurasi Global & Tampilan)`;
+-- 5. tournament_groups (Pembagian Bagan & Grup Kategori)
+-- 6. table_standings (Klasemen Real-Time Seluruh Grup)
+-- 7. sponsors (Sponsor & Official Partner)
+-- 8. admin_users (Akun Panitia & Hak Akses)
+-- 9. app_media_storage (Penyimpanan Berkas Dokumen & Logo Tim)
+-- 10. tournament_config (Konfigurasi Global & Tampilan)`;
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">

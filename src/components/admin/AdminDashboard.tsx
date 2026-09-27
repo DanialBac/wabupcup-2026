@@ -19,11 +19,15 @@ import {
   TournamentCategory,
   UploadedDoc,
 } from '../../types';
+import { WabupCupLogo } from '../WabupCupLogo';
 import { PdfViewerModal } from './PdfViewerModal';
 import { InvoiceModal } from '../InvoiceModal';
 import { DatabaseManagerTab } from './DatabaseManagerTab';
 import { AdminUsersManagerTab } from './AdminUsersManagerTab';
 import { SectionBackgroundManager } from './SectionBackgroundManager';
+import { GroupStageDragDropManager } from './GroupStageDragDropManager';
+import { PlayerManagerTab } from './PlayerManagerTab';
+import { LiveScoreManagerTab } from './LiveScoreManagerTab';
 import { DEFAULT_SIGNATURE_SVG, DEFAULT_STAMP_SVG } from '../../utils/signatureAndStamp';
 import { downloadOfficialInvoicePdf } from '../../utils/invoicePdf';
 import { compressLogo } from '../../utils/imageCompressor';
@@ -48,6 +52,8 @@ import {
   Award,
   Calendar,
   Layers,
+  Flame,
+  Zap,
   Search,
   CheckCircle2,
   Clock,
@@ -93,15 +99,27 @@ import {
   AlertCircle,
   GripVertical,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Menu,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LayoutGrid,
+  Sun,
+  Moon,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
   onClose: () => void;
+  isStandalonePage?: boolean;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStandalonePage = false }) => {
   const {
+    theme,
+    toggleTheme,
     currentAdmin,
     loginAdmin,
     logoutAdmin,
@@ -151,7 +169,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     deleteBankAccount,
     setPrimaryBankAccount,
     dbStatus,
+    refreshDataFromServer,
+    isSyncingWithServer,
   } = useTournament();
+
+  // Manual Refresh Data state
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [refreshToast, setRefreshToast] = useState<string | null>(null);
+
+  const handleRefreshData = async () => {
+    try {
+      setIsManualRefreshing(true);
+      await refreshDataFromServer();
+      setRefreshToast('Data berhasil diperbarui!');
+      setTimeout(() => {
+        setRefreshToast(null);
+      }, 3000);
+    } catch (err) {
+      console.error('Failed to refresh data from server:', err);
+      setRefreshToast('Gagal menyinkronkan data.');
+      setTimeout(() => {
+        setRefreshToast(null);
+      }, 3000);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   // Login credentials state
   const [username, setUsername] = useState('');
@@ -168,6 +211,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     | 'REJECTED_TEAMS'
     | 'DRAWING_RANDOMIZER'
     | 'SCHEDULE_LIVESCORE'
+    | 'PLAYER_MANAGER'
     | 'CATEGORIES_PRIZES'
     | 'SPONSORS'
     | 'SETTINGS'
@@ -176,6 +220,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     | 'GAS_EXPORT_GUIDE';
 
   const [activeTab, setActiveTab] = useState<CmsTab>('OVERVIEW');
+
+  // Responsive Collapsible Sidebar state (persisted to localStorage)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('wabupcup_admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('wabupcup_admin_sidebar_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Mobile Drawer State
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState<boolean>(false);
 
   // Match Schedule Category Filter
   const [selectedMatchCategory, setSelectedMatchCategory] = useState<string>('ALL');
@@ -784,7 +852,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     updateConfig({ panitiaLogoUrl: '' });
   };
 
-  // Section Visibility Toggle Handler
+  // Section & Module Visibility Toggle Handler
   const handleToggleSectionVisibility = (key: keyof PageSectionsVisibility) => {
     const currentVis = config.sectionsVisibility || {
       hero: true,
@@ -793,11 +861,97 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       bracket: true,
       venue: true,
       sponsors: true,
+      klasemenLanding: true,
+      standaloneKlasemen: true,
+      landingKlasemen: true,
+      landingSchedule: true,
+      landingBracket: true,
+      landingTopScorer: true,
+      standaloneTabKlasemen: true,
+      standaloneTabJadwal: true,
+      standaloneTabKnockout: true,
+      standaloneTabTopScore: true,
     };
-    const updated = {
+    const isCurrentlyVisible = (currentVis[key] ?? true) !== false;
+    const nextVal = !isCurrentlyVisible;
+    const updated: PageSectionsVisibility = {
       ...currentVis,
-      [key]: currentVis[key] === false ? true : false,
+      [key]: nextVal,
     };
+    if (key === 'landingKlasemen' || key === 'klasemenLanding') {
+      updated.landingKlasemen = nextVal;
+      updated.klasemenLanding = nextVal;
+    }
+    updateConfig({ sectionsVisibility: updated });
+    setVisibilitySaveSuccess(true);
+    setTimeout(() => setVisibilitySaveSuccess(false), 2500);
+  };
+
+  // Preset 1-Click Visibility Scheme Handler
+  const handleApplyVisibilityPreset = (preset: 'BOTH' | 'STANDALONE_ONLY' | 'LANDING_ONLY') => {
+    const currentVis = config.sectionsVisibility || {
+      hero: true,
+      liveScore: true,
+      categories: true,
+      bracket: true,
+      venue: true,
+      sponsors: true,
+      klasemenLanding: true,
+      standaloneKlasemen: true,
+      landingKlasemen: true,
+      landingSchedule: true,
+      landingBracket: true,
+      landingTopScorer: true,
+      standaloneTabKlasemen: true,
+      standaloneTabJadwal: true,
+      standaloneTabKnockout: true,
+      standaloneTabTopScore: true,
+    };
+
+    let updated: PageSectionsVisibility;
+    if (preset === 'BOTH') {
+      updated = {
+        ...currentVis,
+        bracket: true,
+        klasemenLanding: true,
+        landingKlasemen: true,
+        landingSchedule: true,
+        landingBracket: true,
+        landingTopScorer: true,
+        standaloneKlasemen: true,
+        standaloneTabKlasemen: true,
+        standaloneTabJadwal: true,
+        standaloneTabKnockout: true,
+        standaloneTabTopScore: true,
+      };
+    } else if (preset === 'STANDALONE_ONLY') {
+      updated = {
+        ...currentVis,
+        bracket: false,
+        klasemenLanding: false,
+        landingKlasemen: false,
+        landingSchedule: false,
+        landingBracket: false,
+        landingTopScorer: false,
+        standaloneKlasemen: true,
+        standaloneTabKlasemen: true,
+        standaloneTabJadwal: true,
+        standaloneTabKnockout: true,
+        standaloneTabTopScore: true,
+      };
+    } else {
+      // LANDING_ONLY
+      updated = {
+        ...currentVis,
+        bracket: true,
+        klasemenLanding: true,
+        landingKlasemen: true,
+        landingSchedule: true,
+        landingBracket: true,
+        landingTopScorer: true,
+        standaloneKlasemen: false,
+      };
+    }
     updateConfig({ sectionsVisibility: updated });
     setVisibilitySaveSuccess(true);
     setTimeout(() => setVisibilitySaveSuccess(false), 2500);
@@ -1218,7 +1372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     teamBPenalties: '',
     date: '2026-10-25',
     time: '14:00',
-    pitch: 'Lapangan 1 - Utama',
+    pitch: config.venueName || 'Gedung Utama GOR Tawang Alun Banyuwangi',
     status: 'UPCOMING',
     liveMinute: '45\'',
     winnerId: 'DRAW',
@@ -1226,6 +1380,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
   const handleOpenAddMatch = (defaultCat?: string) => {
     const chosenCategory = (defaultCat && defaultCat !== 'ALL' ? defaultCat : (categories[0]?.id || 'SMA')) as TournamentCategory;
+    const defaultPitch = config.venueName || 'Gedung Utama GOR Tawang Alun Banyuwangi';
     const newPlaceholder: MatchItem = {
       id: `match-${Date.now()}`,
       matchNumber: matches.length + 1,
@@ -1236,7 +1391,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       teamB: { name: '' },
       date: '2026-10-25',
       time: '14:00',
-      pitch: 'Lapangan 1 - Utama',
+      pitch: defaultPitch,
       status: 'UPCOMING',
     };
     setEditingMatch(newPlaceholder);
@@ -1258,7 +1413,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       teamBPenalties: '',
       date: '2026-10-25',
       time: '14:00',
-      pitch: 'Lapangan 1 - Utama',
+      pitch: defaultPitch,
       status: 'UPCOMING',
       liveMinute: '0\'',
       winnerId: 'DRAW',
@@ -1342,7 +1497,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       },
       date: matchForm.date.trim() || '2026-10-25',
       time: matchForm.time.trim() || '14:00',
-      pitch: matchForm.pitch.trim() || 'Lapangan 1 - Utama',
+      pitch: matchForm.pitch.trim() || config.venueName || 'Gedung Utama GOR Tawang Alun Banyuwangi',
       status: matchForm.status,
       liveMinute: matchForm.liveMinute.trim() || undefined,
       winnerId: finalWinnerId,
@@ -1707,52 +1862,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     return (
       <div
         id="admin-login-overlay"
-        className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+        className={`${
+          isStandalonePage ? 'min-h-screen w-full' : 'fixed inset-0 z-50'
+        } overflow-y-auto bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn transition-colors duration-300 relative`}
       >
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 text-white relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
-          >
-            ✕
-          </button>
+        {/* AMBIENT LIGHT REFLECTIONS FOR STANDALONE LOGIN */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          <div className="absolute -top-32 -left-32 w-96 h-96 bg-red-500/10 dark:bg-red-600/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-1/2 -right-32 w-96 h-96 bg-blue-500/10 dark:bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-32 left-1/3 w-96 h-96 bg-amber-500/10 dark:bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+        </div>
+
+        <div className="w-full max-w-md bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border border-slate-200/80 dark:border-white/10 rounded-3xl shadow-2xl p-8 text-slate-900 dark:text-white relative z-10 transition-all duration-300">
+          <div className="absolute top-4 right-4 flex items-center space-x-1.5">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition cursor-pointer shadow-xs active:scale-95"
+              title={theme === 'dark' ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition cursor-pointer flex items-center space-x-1"
+              title="Kembali ke Landing Page Utama"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-0.5" />
+              <span>Beranda</span>
+            </button>
+          </div>
 
           <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-red-600/20 border border-red-500/30 text-red-500 flex items-center justify-center mx-auto text-2xl mb-3 shadow-lg">
-              <Shield className="w-7 h-7" />
+            <div className="flex items-center justify-center h-10 w-auto max-w-[42px] mx-auto mb-2 shrink-0">
+              {config.wabupLogoUrl ? (
+                <img
+                  src={config.wabupLogoUrl}
+                  alt="Logo Wabup Cup"
+                  className="h-10 w-auto max-w-[40px] object-contain drop-shadow-[0_4px_12px_rgba(220,38,38,0.45)]"
+                />
+              ) : (
+                <WabupCupLogo className="h-10 w-auto max-w-[40px] object-contain drop-shadow-[0_4px_12px_rgba(220,38,38,0.45)]" />
+              )}
             </div>
-            <h3 className="text-2xl font-heading font-bold uppercase tracking-wider">
-              PANEL ADMIN CMS WABUPCUP 2026
+            <h3 className="text-2xl font-heading font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+              LOGIN ADMIN
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Silakan login dengan akun panitia atau administrator resmi.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Silakan login dengan akun resmi panitia atau administrator.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             {loginError && (
-              <div className="p-3 rounded-xl bg-red-950/80 border border-red-700/60 text-red-300 text-xs flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+              <div className="p-3 rounded-xl bg-red-100 dark:bg-red-950/80 border border-red-300 dark:border-red-700/60 text-red-700 dark:text-red-300 text-xs flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500 dark:text-red-400" />
                 <span>{loginError}</span>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase mb-1.5">
-                Username Panitia
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase mb-1.5">
+                Username
               </label>
               <input
                 type="text"
                 required
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="superadmin / panitia"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
+                placeholder="username"
+                className="w-full bg-slate-100/80 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none backdrop-blur-xs transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase mb-1.5">
                 Kata Sandi (Password)
               </label>
               <input
@@ -1761,20 +1946,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
+                className="w-full bg-slate-100/80 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none backdrop-blur-xs transition-colors"
               />
             </div>
-
-            {/* <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-              <p className="font-bold text-slate-300">Akun Demo Panitia Tersedia:</p>
-              <p>• Super Admin: <code className="text-red-400">superadmin</code> / <code className="text-slate-300">admin123</code></p>
-              <p>• Sekretariat: <code className="text-blue-400">panitia</code> / <code className="text-slate-300">panitia2026</code></p>
-            </div> */}
 
             <button
               type="submit"
               disabled={isLoggingIn}
-              className={`w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/40 transition flex items-center justify-center space-x-2 ${
+              className={`w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-900/30 transition flex items-center justify-center space-x-2 cursor-pointer ${
                 isLoggingIn ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >
@@ -1791,295 +1970,642 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     );
   }
 
+  // Helper for rendering navigation items in sidebar (supports both expanded and icon-only collapsed views)
+  const renderSidebarItem = (
+    tab: CmsTab,
+    label: string,
+    icon: React.ReactNode,
+    badgeCount?: number,
+    badgeText?: string,
+    colorTheme: 'red' | 'amber' | 'emerald' | 'gradient' = 'red'
+  ) => {
+    const isActive = activeTab === tab;
+
+    if (isSidebarCollapsed) {
+      return (
+        <button
+          key={tab}
+          type="button"
+          onClick={() => setActiveTab(tab)}
+          title={`${label}${badgeCount !== undefined ? ` (${badgeCount})` : badgeText ? ` [${badgeText}]` : ''}`}
+          className={`w-full flex items-center justify-center p-3 rounded-xl transition cursor-pointer relative group my-1 ${
+            isActive
+              ? colorTheme === 'gradient'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/40 ring-1 ring-blue-400/50'
+                : colorTheme === 'amber'
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/40 ring-1 ring-amber-400/50'
+                : colorTheme === 'emerald'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40 ring-1 ring-emerald-400/50'
+                : 'bg-red-600 text-white shadow-lg shadow-red-900/40 ring-1 ring-red-400/50'
+              : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
+          }`}
+        >
+          <div className="w-5 h-5 flex items-center justify-center shrink-0">
+            {icon}
+          </div>
+          {badgeCount !== undefined && badgeCount > 0 && (
+            <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-slate-900 text-amber-300 text-[9px] font-mono border border-slate-700 font-bold shadow">
+              {badgeCount > 99 ? '99+' : badgeCount}
+            </span>
+          )}
+          {badgeText && (
+            <span className="absolute -top-1 -right-1 px-1 py-0.2 rounded bg-emerald-500/40 text-emerald-200 text-[8px] font-bold border border-emerald-500/50">
+              {badgeText}
+            </span>
+          )}
+        </button>
+      );
+    }
+
+    // Expanded View
+    return (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => setActiveTab(tab)}
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer my-0.5 ${
+          isActive
+            ? colorTheme === 'gradient'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/30'
+              : colorTheme === 'amber'
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20'
+              : colorTheme === 'emerald'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
+              : 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        <div className="flex items-center space-x-3 truncate">
+          <div className="w-4 h-4 flex items-center justify-center shrink-0">
+            {icon}
+          </div>
+          <span className="truncate">{label}</span>
+        </div>
+        {badgeCount !== undefined && (
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+              isActive
+                ? 'bg-black/30 text-white border-transparent'
+                : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+            }`}
+          >
+            {badgeCount}
+          </span>
+        )}
+        {badgeText && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+            {badgeText}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  // Helper for rendering navigation items in mobile slide-out drawer
+  const renderMobileNavItem = (
+    tab: CmsTab,
+    label: string,
+    icon: React.ReactNode,
+    badgeCount?: number,
+    badgeText?: string
+  ) => {
+    const isActive = activeTab === tab;
+    return (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => {
+          setActiveTab(tab);
+          setIsMobileDrawerOpen(false);
+        }}
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer my-0.5 ${
+          isActive
+            ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
+            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="w-4 h-4 flex items-center justify-center shrink-0">
+            {icon}
+          </div>
+          <span>{label}</span>
+        </div>
+        {badgeCount !== undefined && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+            {badgeCount}
+          </span>
+        )}
+        {badgeText && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+            {badgeText}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   // 2. MAIN LOGGED-IN ADMIN CMS PORTAL
   return (
     <div
       id="admin-dashboard-root"
-      className="fixed inset-0 z-50 overflow-hidden bg-[#0F172A] text-slate-200 flex flex-col font-sans animate-fadeIn"
+      className={`${
+        isStandalonePage ? 'min-h-screen w-full' : 'fixed inset-0 z-50'
+      } overflow-hidden bg-slate-50/80 dark:bg-[#0B1120]/80 text-slate-800 dark:text-slate-200 flex flex-col font-sans backdrop-blur-2xl animate-fadeIn transition-colors duration-200 relative`}
     >
-      {/* CMS TOP BAR - PROFESSIONAL POLISH */}
-      <header className="flex items-center justify-between px-6 sm:px-8 py-3.5 bg-[#1E293B] border-b border-slate-700 shadow-lg shrink-0">
-        <div className="flex items-center space-x-4">
-          
+      {/* AMBIENT LIGHT REFLECTIONS FOR TRANSPARENT GLASS EFFECT */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-red-500/10 dark:bg-red-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 -right-32 w-96 h-96 bg-blue-500/10 dark:bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 left-1/3 w-96 h-96 bg-amber-500/10 dark:bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+      </div>
+
+      {/* CMS TOP BAR - GLASS TRANSPARENT HEADER */}
+      <header className="relative z-10 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 shadow-xs shrink-0 transition-colors duration-200">
+        <div className="flex items-center space-x-2.5 sm:space-x-3.5">
+          {/* MOBILE MENU TOGGLE BUTTON (DRAWER) */}
+          <button
+            type="button"
+            onClick={() => setIsMobileDrawerOpen(prev => !prev)}
+            className="md:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white transition border border-slate-300 dark:border-slate-700 flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+            title="Buka Menu Navigasi"
+          >
+            <Menu className="w-4 h-4 text-red-500" />
+          </button>
+
+          {/* DESKTOP/TABLET SIDEBAR COLLAPSE TOGGLE BUTTON */}
+          <button
+            type="button"
+            onClick={toggleSidebarCollapse}
+            className="hidden md:flex p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white transition border border-slate-300 dark:border-slate-700 items-center justify-center cursor-pointer shadow-xs active:scale-95"
+            title={isSidebarCollapsed ? "Perluas Menu Navigasi (Expand)" : "Kecilkan Menu ke Bentuk Ikon (Collapse)"}
+          >
+            {isSidebarCollapsed ? (
+              <PanelLeftOpen className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+            ) : (
+              <PanelLeftClose className="w-4 h-4 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white" />
+            )}
+          </button>
+
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white leading-none">
-              WABUP<span className="text-red-500">CUP</span> 2026
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+              WABUP<span className="text-red-600 dark:text-red-500">CUP</span> 2026
             </h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
               Tournament Management System • {currentAdmin.role}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 sm:space-x-5">
-          <div className="hidden sm:flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-semibold text-slate-300">LIVE STATUS: ACTIVE</span>
+        <div className="flex items-center space-x-2.5 sm:space-x-4">
+          <div className="hidden lg:flex items-center space-x-2 bg-slate-100/80 dark:bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 backdrop-blur-xs">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">LIVE STATUS: ACTIVE</span>
           </div>
 
-          <div className="hidden sm:block h-6 w-px bg-slate-700"></div>
+          {refreshToast && (
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/90 border border-emerald-300 dark:border-emerald-500/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-fadeIn shadow-xs">
+              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>{refreshToast}</span>
+            </div>
+          )}
 
-        
+          {/* THEME TOGGLE BUTTON (DARK / LIGHT SYNCED WITH LANDING & STANDALONE) */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            id="btn-admin-theme-toggle"
+            aria-label={theme === 'dark' ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
+            title={theme === 'dark' ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'}
+            className="p-1.5 sm:px-3 sm:py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:hover:text-white border border-slate-300 dark:border-slate-700 text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer shadow-xs active:scale-95"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden md:inline text-xs">Terang</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="hidden md:inline text-xs">Gelap</span>
+              </>
+            )}
+          </button>
+
+          {/* TOMBOL REFRESH DATA (TANPA RELOAD BROWSER) */}
+          <button
+            type="button"
+            onClick={handleRefreshData}
+            disabled={isManualRefreshing || isSyncingWithServer}
+            title="Segarkan & Sinkronisasi data dari server tanpa me-refresh browser"
+            className={`px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-md shadow-blue-950/20 border border-blue-400/40 cursor-pointer ${
+              (isManualRefreshing || isSyncingWithServer) ? 'opacity-70 cursor-not-allowed' : 'active:scale-95'
+            }`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${(isManualRefreshing || isSyncingWithServer) ? 'animate-spin text-cyan-200' : 'text-blue-100'}`} />
+            <span className="hidden sm:inline">
+              {(isManualRefreshing || isSyncingWithServer) ? 'Menyinkronkan...' : 'Refresh Data'}
+            </span>
+            <span className="sm:hidden">
+              {(isManualRefreshing || isSyncingWithServer) ? '...' : 'Refresh'}
+            </span>
+          </button>
+
+          <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
 
           <button
             onClick={logoutAdmin}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-950/80 border border-slate-700 hover:border-red-800 text-xs font-medium text-slate-300 hover:text-red-300 transition flex items-center space-x-1.5"
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-300 hover:border-red-300 dark:bg-slate-800 dark:hover:bg-red-950/80 dark:border-slate-700 dark:hover:border-red-800 text-xs font-medium dark:text-slate-300 dark:hover:text-red-300 transition flex items-center space-x-1.5 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
+            <span className="hidden sm:inline">Logout</span>
           </button>
 
           <button
             onClick={onClose}
-            className="bg-slate-700 hover:bg-slate-600 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors border border-slate-600 flex items-center space-x-1"
+            className="bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors border border-slate-300 dark:border-slate-600 flex items-center space-x-1 cursor-pointer"
           >
-            <span>Landing Page</span>
+            <span className="hidden sm:inline">Landing Page</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </header>
 
       {/* CMS MAIN CONTAINER WITH SIDEBAR & CONTENT */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative z-10">
         
-        {/* SIDEBAR NAVIGATION - PROFESSIONAL RBAC ENFORCED */}
-        <aside className="w-64 bg-[#111827] border-r border-slate-800 p-4 flex flex-col shrink-0 overflow-y-auto hidden md:flex">
-          <div className="space-y-1 mb-6">
-            
-            {/* ROLE BADGE NOTIFICATION */}
-            <div className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 mb-3 text-[11px]">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Akses Login:</span>
-              <div className="flex items-center space-x-1.5 mt-0.5">
-                <span className={`w-2 h-2 rounded-full ${
-                  currentAdmin.role === 'SUPERADMIN' ? 'bg-red-500' :
-                  currentAdmin.role === 'PANITIA_INTI' || currentAdmin.role === 'PANITIA' ? 'bg-indigo-500' :
-                  currentAdmin.role === 'PANITIA_UMUM' ? 'bg-emerald-500' :
-                  currentAdmin.role === 'WASIT' ? 'bg-amber-500' : 'bg-cyan-500'
-                }`}></span>
-                <strong className="text-white font-bold">{currentAdmin.fullName || currentAdmin.username}</strong>
+        {/* MOBILE RESPONSIVE DRAWER OVERLAY */}
+        {isMobileDrawerOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex animate-fadeIn">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/70 backdrop-blur-xs transition-opacity"
+              onClick={() => setIsMobileDrawerOpen(false)}
+            />
+
+            {/* Drawer container */}
+            <div className="relative w-72 max-w-[85vw] bg-[#111827] border-r border-slate-800 p-4 flex flex-col h-full z-10 overflow-y-auto shadow-2xl">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 shrink-0">
+                <div className="flex items-center space-x-2">
+                  <LayoutGrid className="w-4 h-4 text-red-500" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Menu Navigasi CMS
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                  title="Tutup Menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <span className="text-[10px] text-amber-400 font-semibold uppercase mt-0.5 block">
-                Role: {currentAdmin.role === 'SUPERADMIN' ? 'Super Administrator' :
-                       currentAdmin.role === 'PANITIA_INTI' ? 'Panitia Inti' :
-                       currentAdmin.role === 'PANITIA' ? 'Panitia Inti' :
-                       currentAdmin.role === 'PANITIA_UMUM' ? 'Panitia Umum' :
-                       currentAdmin.role === 'WASIT' ? 'Wasit Turnamen' : 'Operator Live Score'}
-              </span>
+
+              <div className="space-y-1 overflow-y-auto flex-1">
+                {/* Role badge */}
+                <div className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 mb-3 text-[11px]">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    Akses Login:
+                  </span>
+                  <div className="flex items-center space-x-1.5 mt-0.5">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        currentAdmin.role === 'SUPERADMIN'
+                          ? 'bg-red-500'
+                          : currentAdmin.role === 'PANITIA_INTI' || currentAdmin.role === 'PANITIA'
+                          ? 'bg-indigo-500'
+                          : currentAdmin.role === 'PANITIA_UMUM'
+                          ? 'bg-emerald-500'
+                          : currentAdmin.role === 'WASIT'
+                          ? 'bg-amber-500'
+                          : 'bg-cyan-500'
+                      }`}
+                    />
+                    <strong className="text-white font-bold truncate">
+                      {currentAdmin.fullName || currentAdmin.username}
+                    </strong>
+                  </div>
+                  <span className="text-[10px] text-amber-400 font-semibold uppercase mt-0.5 block truncate">
+                    Role: {currentAdmin.role}
+                  </span>
+                </div>
+
+                {/* Mobile menu items based on role */}
+                {(currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR') ? (
+                  <div>
+                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Menu Pertandingan
+                    </p>
+                    {renderMobileNavItem(
+                      'SCHEDULE_LIVESCORE',
+                      'Jadwal & Live Score',
+                      <Calendar className="w-4 h-4 text-white" />
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Dashboard Menu
+                    </p>
+                    {renderMobileNavItem('OVERVIEW', 'Ringkasan & Statistik', <Activity className="w-4 h-4" />)}
+                    {renderMobileNavItem('ALL_REGISTRATIONS', 'Semua Pendaftaran', <Users className="w-4 h-4" />, registrations.length)}
+                    {renderMobileNavItem('PENDING_PAYMENT', 'Menunggu Bayar', <Clock className="w-4 h-4 text-yellow-500" />, pendingList.length)}
+                    {renderMobileNavItem('APPROVED_TEAMS', 'Disetujui (Approved)', <CheckCircle2 className="w-4 h-4 text-emerald-400" />, approvedList.length)}
+                    {renderMobileNavItem('REJECTED_TEAMS', 'Ditolak (Rejected)', <XCircle className="w-4 h-4 text-red-400" />, rejectedList.length)}
+
+                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                      Manajemen Kompetisi
+                    </p>
+                    {canManageDrawing &&
+                      renderMobileNavItem('DRAWING_RANDOMIZER', 'Pembagian Grup & Bagan', <Shuffle className="w-4 h-4 text-amber-400" />)}
+                    {renderMobileNavItem('SCHEDULE_LIVESCORE', 'Jadwal & Live Score', <Calendar className="w-4 h-4 text-blue-400" />)}
+                    {renderMobileNavItem('PLAYER_MANAGER', 'Data Pemain & Excel', <Users className="w-4 h-4 text-emerald-400" />)}
+
+                    {canManageCategories &&
+                      renderMobileNavItem('CATEGORIES_PRIZES', 'Kategori & Hadiah', <Trophy className="w-4 h-4 text-yellow-400" />)}
+                    {canManageSponsors &&
+                      renderMobileNavItem('SPONSORS', 'Sponsorship', <Users className="w-4 h-4 text-purple-400" />)}
+
+                    {canManageSettings && (
+                      <>
+                        <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                          Pengaturan
+                        </p>
+                        {renderMobileNavItem('SETTINGS', 'Pengaturan & Berkas', <Settings className="w-4 h-4 text-cyan-400" />)}
+                      </>
+                    )}
+
+                    {isSuperAdmin && (
+                      <>
+                        <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                          Sistem
+                        </p>
+                        {renderMobileNavItem('ADMIN_USERS', 'Kelola Admin Users', <Shield className="w-4 h-4 text-emerald-400" />)}
+                        {renderMobileNavItem('MYSQL_DATABASE_MANAGER', 'Database', <Database className="w-4 h-4 text-emerald-400" />, undefined, 'PRO')}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
+          </div>
+        )}
+
+        {/* SIDEBAR NAVIGATION - RESPONSIVE & COLLAPSIBLE (ICON ONLY OR FULL) */}
+        <aside
+          className={`${
+            isSidebarCollapsed ? 'w-20 px-2 py-3.5' : 'w-64 p-4'
+          } bg-white/75 dark:bg-[#111827]/75 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col shrink-0 overflow-y-auto hidden md:flex transition-all duration-300 ease-in-out select-none`}
+        >
+          {/* HEADER BAR AT TOP OF SIDEBAR WITH TOGGLE */}
+          <div
+            className={`flex items-center ${
+              isSidebarCollapsed ? 'justify-center' : 'justify-between'
+            } pb-3 mb-3 border-b border-slate-200 dark:border-slate-800 shrink-0`}
+          >
+            {!isSidebarCollapsed && (
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <LayoutGrid className="w-3.5 h-3.5 text-red-500" />
+                <span>Navigasi Menu</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={toggleSidebarCollapse}
+              title={
+                isSidebarCollapsed
+                  ? 'Perluas Menu Navigasi (Expand)'
+                  : 'Kecilkan Menu ke Bentuk Ikon (Collapse)'
+              }
+              className={`p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:hover:text-white transition flex items-center justify-center cursor-pointer border border-slate-300 dark:border-slate-700 active:scale-95 shadow-xs ${
+                isSidebarCollapsed ? 'w-10 h-10' : ''
+              }`}
+            >
+              {isSidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              ) : (
+                <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-300" />
+              )}
+            </button>
+          </div>
+
+          <div className="space-y-1 mb-6 flex-1">
+            {/* ROLE BADGE NOTIFICATION */}
+            {isSidebarCollapsed ? (
+              <div
+                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-3 flex flex-col items-center justify-center text-center cursor-help"
+                title={`Akses Login: ${currentAdmin.fullName || currentAdmin.username} (${currentAdmin.role})`}
+              >
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center text-xs font-black text-slate-800 dark:text-white uppercase">
+                    {(currentAdmin.username || 'A').slice(0, 2)}
+                  </div>
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full absolute -top-0.5 -right-0.5 border border-white dark:border-slate-900 ${
+                      currentAdmin.role === 'SUPERADMIN'
+                        ? 'bg-red-500'
+                        : currentAdmin.role === 'PANITIA_INTI' || currentAdmin.role === 'PANITIA'
+                        ? 'bg-indigo-500'
+                        : currentAdmin.role === 'PANITIA_UMUM'
+                        ? 'bg-emerald-500'
+                        : currentAdmin.role === 'WASIT'
+                        ? 'bg-amber-500'
+                        : 'bg-cyan-500'
+                    }`}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="px-3 py-2 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 mb-3 text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">
+                  Akses Login:
+                </span>
+                <div className="flex items-center space-x-1.5 mt-0.5">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      currentAdmin.role === 'SUPERADMIN'
+                        ? 'bg-red-500'
+                        : currentAdmin.role === 'PANITIA_INTI' || currentAdmin.role === 'PANITIA'
+                        ? 'bg-indigo-500'
+                        : currentAdmin.role === 'PANITIA_UMUM'
+                        ? 'bg-emerald-500'
+                        : currentAdmin.role === 'WASIT'
+                        ? 'bg-amber-500'
+                        : 'bg-cyan-500'
+                    }`}
+                  ></span>
+                  <strong className="text-slate-900 dark:text-white font-bold truncate">
+                    {currentAdmin.fullName || currentAdmin.username}
+                  </strong>
+                </div>
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold uppercase mt-0.5 block truncate">
+                  Role:{' '}
+                  {currentAdmin.role === 'SUPERADMIN'
+                    ? 'Super Administrator'
+                    : currentAdmin.role === 'PANITIA_INTI'
+                    ? 'Panitia Inti'
+                    : currentAdmin.role === 'PANITIA'
+                    ? 'Panitia Inti'
+                    : currentAdmin.role === 'PANITIA_UMUM'
+                    ? 'Panitia Umum'
+                    : currentAdmin.role === 'WASIT'
+                    ? 'Wasit Turnamen'
+                    : 'Operator Live Score'}
+                </span>
+              </div>
+            )}
 
             {/* WASIT / OPERATOR: ONLY JADWAL PERTANDINGAN */}
-            {(currentAdmin.role === 'WASIT' || currentAdmin.role === 'OPERATOR') ? (
+            {isWasitOrOperator ? (
               <div>
-                <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Menu Pertandingan
-                </p>
-                <button
-                  onClick={() => setActiveTab('SCHEDULE_LIVESCORE')}
-                  className="w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold bg-red-600 text-white shadow-lg shadow-red-900/20"
-                >
+                {!isSidebarCollapsed ? (
+                  <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Menu Pertandingan
+                  </p>
+                ) : (
+                  <div className="my-2 border-t border-slate-800/80" />
+                )}
+                {renderSidebarItem(
+                  'SCHEDULE_LIVESCORE',
+                  'Jadwal & Live Score',
                   <Calendar className="w-4 h-4 text-white" />
-                  <span>Jadwal & Live Score</span>
-                </button>
+                )}
               </div>
             ) : (
               <>
-                {/* MENU DASHBOARD & PENDAFTARAN (SUPERADMIN & PANITIA) */}
-                <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Dashboard Menu
-                </p>
+                {/* MENU DASHBOARD & PENDAFTARAN */}
+                {!isSidebarCollapsed ? (
+                  <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Dashboard Menu
+                  </p>
+                ) : (
+                  <div className="my-1.5 border-t border-slate-800/80" />
+                )}
 
-                <button
-                  onClick={() => setActiveTab('OVERVIEW')}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === 'OVERVIEW'
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
+                {renderSidebarItem(
+                  'OVERVIEW',
+                  'Ringkasan & Statistik',
                   <Activity className="w-4 h-4" />
-                  <span>Ringkasan & Statistik</span>
-                </button>
+                )}
 
-                <button
-                  onClick={() => setActiveTab('ALL_REGISTRATIONS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === 'ALL_REGISTRATIONS'
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Users className="w-4 h-4" />
-                    <span>Pendaftaran</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 font-mono border border-slate-700">
-                    {registrations.length}
-                  </span>
-                </button>
+                {renderSidebarItem(
+                  'ALL_REGISTRATIONS',
+                  'Pendaftaran',
+                  <Users className="w-4 h-4" />,
+                  registrations.length
+                )}
 
-                <button
-                  onClick={() => setActiveTab('PENDING_PAYMENT')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === 'PENDING_PAYMENT'
-                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <Clock className="w-4 h-4 text-yellow-500" />
-                    <span>Menunggu Bayar</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 font-mono border border-yellow-500/20">
-                    {pendingList.length}
-                  </span>
-                </button>
+                {renderSidebarItem(
+                  'PENDING_PAYMENT',
+                  'Menunggu Bayar',
+                  <Clock className="w-4 h-4 text-yellow-500" />,
+                  pendingList.length,
+                  undefined,
+                  'amber'
+                )}
 
-                <button
-                  onClick={() => setActiveTab('APPROVED_TEAMS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === 'APPROVED_TEAMS'
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Disetujui (Approved)</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-mono border border-green-500/20">
-                    {approvedList.length}
-                  </span>
-                </button>
+                {renderSidebarItem(
+                  'APPROVED_TEAMS',
+                  'Disetujui (Approved)',
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+                  approvedList.length,
+                  undefined,
+                  'emerald'
+                )}
 
-                <button
-                  onClick={() => setActiveTab('REJECTED_TEAMS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === 'REJECTED_TEAMS'
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <XCircle className="w-4 h-4 text-red-400" />
-                    <span>Ditolak (Rejected)</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 font-mono border border-red-500/20">
-                    {rejectedList.length}
-                  </span>
-                </button>
+                {renderSidebarItem(
+                  'REJECTED_TEAMS',
+                  'Ditolak (Rejected)',
+                  <XCircle className="w-4 h-4 text-red-400" />,
+                  rejectedList.length
+                )}
 
-                <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
-                  Manajemen Kompetisi
-                </p>
+                {/* MANAJEMEN KOMPETISI */}
+                {!isSidebarCollapsed ? (
+                  <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                    Manajemen Kompetisi
+                  </p>
+                ) : (
+                  <div className="my-2 border-t border-slate-800/80" />
+                )}
 
-                {canManageDrawing && (
-                  <button
-                    onClick={() => setActiveTab('DRAWING_RANDOMIZER')}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                      activeTab === 'DRAWING_RANDOMIZER'
-                        ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
+                {canManageDrawing &&
+                  renderSidebarItem(
+                    'DRAWING_RANDOMIZER',
+                    'Pembagian Grup & Bagan',
                     <Shuffle className="w-4 h-4 text-amber-400" />
-                    <span>Sistem Acak & Bracket</span>
-                  </button>
-                )}
+                  )}
 
-                <button
-                  onClick={() => setActiveTab('SCHEDULE_LIVESCORE')}
-                  className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                    activeTab === 'SCHEDULE_LIVESCORE'
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
+                {renderSidebarItem(
+                  'SCHEDULE_LIVESCORE',
+                  'Jadwal & Live Score',
                   <Calendar className="w-4 h-4 text-blue-400" />
-                  <span>Jadwal Pertandingan</span>
-                </button>
+                )}
 
-                {/* MENU KATEGORI & SPONSOR (SUPERADMIN & PANITIA INTI) */}
-                {canManageCategories && (
-                  <button
-                    onClick={() => setActiveTab('CATEGORIES_PRIZES')}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                      activeTab === 'CATEGORIES_PRIZES'
-                        ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
+                {renderSidebarItem(
+                  'PLAYER_MANAGER',
+                  'Data Pemain & Excel',
+                  <Users className="w-4 h-4 text-emerald-400" />
+                )}
+
+                {/* KATEGORI & SPONSOR */}
+                {canManageCategories &&
+                  renderSidebarItem(
+                    'CATEGORIES_PRIZES',
+                    'Kategori & Hadiah',
                     <Trophy className="w-4 h-4 text-yellow-400" />
-                    <span>Kategori & Hadiah</span>
-                  </button>
-                )}
+                  )}
 
-                {canManageSponsors && (
-                  <button
-                    onClick={() => setActiveTab('SPONSORS')}
-                    className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                      activeTab === 'SPONSORS'
-                        ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
+                {canManageSponsors &&
+                  renderSidebarItem(
+                    'SPONSORS',
+                    'Sponsorship',
                     <Users className="w-4 h-4 text-purple-400" />
-                    <span>Sponsorship</span>
-                  </button>
-                )}
+                  )}
 
-                {/* MENU PENGATURAN & BERKAS (SUPERADMIN & PANITIA INTI) */}
+                {/* PENGATURAN TURNAMEN */}
                 {canManageSettings && (
                   <>
-                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
-                      Pengaturan Turnamen
-                    </p>
-                    <button
-                      onClick={() => setActiveTab('SETTINGS')}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                        activeTab === 'SETTINGS'
-                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
+                    {!isSidebarCollapsed ? (
+                      <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                        Pengaturan Turnamen
+                      </p>
+                    ) : (
+                      <div className="my-2 border-t border-slate-800/80" />
+                    )}
+                    {renderSidebarItem(
+                      'SETTINGS',
+                      'Pengaturan & Berkas',
                       <Settings className="w-4 h-4 text-cyan-400" />
-                      <span>Pengaturan & Berkas</span>
-                    </button>
+                    )}
                   </>
                 )}
 
-                {/* MENU KHUSUS SUPERADMIN: ADMIN USERS & DATABASE */}
+                {/* SISTEM & SINKRONISASI (SUPERADMIN) */}
                 {isSuperAdmin && (
                   <>
-                    <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
-                      Sistem & Sinkronisasi
-                    </p>
+                    {!isSidebarCollapsed ? (
+                      <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider pt-4 mb-2">
+                        Sistem & Sinkronisasi
+                      </p>
+                    ) : (
+                      <div className="my-2 border-t border-slate-800/80" />
+                    )}
 
-                    <button
-                      onClick={() => setActiveTab('ADMIN_USERS')}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                        activeTab === 'ADMIN_USERS'
-                          ? 'bg-red-600 text-white shadow-lg shadow-red-900/20'
-                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
+                    {renderSidebarItem(
+                      'ADMIN_USERS',
+                      'Kelola Admin Users',
                       <Shield className="w-4 h-4 text-emerald-400" />
-                      <span>Kelola Admin Users</span>
-                    </button>
+                    )}
 
-                    <button
-                      onClick={() => setActiveTab('MYSQL_DATABASE_MANAGER')}
-                      className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition ${
-                        activeTab === 'MYSQL_DATABASE_MANAGER'
-                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-900/30'
-                          : 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300'
-                      }`}
-                    >
-                      <Database className="w-4 h-4 text-emerald-400" />
-                      <span className="flex-1 text-left">Database</span>
-                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        PRO
-                      </span>
-                    </button>
+                    {renderSidebarItem(
+                      'MYSQL_DATABASE_MANAGER',
+                      'Database',
+                      <Database className="w-4 h-4 text-emerald-400" />,
+                      undefined,
+                      'PRO',
+                      'gradient'
+                    )}
                   </>
                 )}
               </>
@@ -2087,49 +2613,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           </div>
 
           {/* DATABASE SYNC STATUS WIDGET */}
-          <div className="mt-auto p-3.5 bg-slate-800/60 rounded-xl border border-slate-700">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-                <Database className="w-3.5 h-3.5 text-blue-400" />
-                <span>Database Sync</span>
-              </span>
-              <span
-                className={`w-2.5 h-2.5 rounded-full ${
-                  dbStatus?.connected
-                    ? 'bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse'
-                    : 'bg-amber-400'
-                }`}
-              ></span>
+          {isSidebarCollapsed ? (
+            <div
+              className="mt-auto p-2 bg-slate-800/60 rounded-xl border border-slate-700 flex flex-col items-center justify-center space-y-2 shrink-0"
+              title={`Database Sync: ${dbStatus?.connected ? 'Online' : 'Offline'} - Klik untuk segarkan`}
+            >
+              <div className="relative">
+                <Database className="w-5 h-5 text-blue-400" />
+                <span
+                  className={`w-2 h-2 rounded-full absolute -top-0.5 -right-0.5 ${
+                    dbStatus?.connected
+                      ? 'bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse'
+                      : 'bg-amber-400'
+                  }`}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleRefreshData}
+                disabled={isManualRefreshing || isSyncingWithServer}
+                title="Segarkan Data Server"
+                className="p-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition cursor-pointer disabled:opacity-50 active:scale-95"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${
+                    isManualRefreshing || isSyncingWithServer
+                      ? 'animate-spin text-cyan-400'
+                      : 'text-slate-300'
+                  }`}
+                />
+              </button>
             </div>
-            <p className="text-[11px] text-slate-300 font-medium truncate">
-              {dbStatus?.connected
-                ? `Online: ${dbStatus.host.split('.')[0] || 'TiDB/MySQL'}`
-                : 'Mode Cache / Fallback'}
-            </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              {dbStatus?.connected
-                ? 'Semua data tersinkron langsung ke database'
-                : (dbStatus?.error ? 'Periksa kredensial database di tab Database' : 'Menghubungkan...')}
-            </p>
-            <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2">
-              <div
-                className={`h-full rounded-full ${
-                  dbStatus?.connected ? 'bg-emerald-500 w-full' : 'bg-amber-500 w-1/2'
-                }`}
-              ></div>
+          ) : (
+            <div className="mt-auto p-3.5 bg-slate-800/60 rounded-xl border border-slate-700 shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+                  <Database className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Database Sync</span>
+                </span>
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    dbStatus?.connected
+                      ? 'bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse'
+                      : 'bg-amber-400'
+                  }`}
+                ></span>
+              </div>
+              <p className="text-[11px] text-slate-300 font-medium truncate">
+                {dbStatus?.connected
+                  ? `Online: ${dbStatus.host.split('.')[0] || 'TiDB/MySQL'}`
+                  : 'Mode Cache / Fallback'}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {dbStatus?.connected
+                  ? 'Semua data tersinkron langsung ke database'
+                  : dbStatus?.error
+                  ? 'Periksa kredensial database di tab Database'
+                  : 'Menghubungkan...'}
+              </p>
+              <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2">
+                <div
+                  className={`h-full rounded-full ${
+                    dbStatus?.connected
+                      ? 'bg-emerald-500 w-full'
+                      : 'bg-amber-500 w-1/2'
+                  }`}
+                ></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRefreshData}
+                disabled={isManualRefreshing || isSyncingWithServer}
+                title="Sinkronisasi data langsung dari database server tanpa reload browser"
+                className="w-full mt-2.5 py-1.5 px-2.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 hover:text-white text-[11px] font-semibold text-slate-200 transition flex items-center justify-center space-x-1.5 border border-slate-600/80 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${
+                    isManualRefreshing || isSyncingWithServer
+                      ? 'animate-spin text-cyan-400'
+                      : 'text-slate-300'
+                  }`}
+                />
+                <span>
+                  {isManualRefreshing || isSyncingWithServer
+                    ? 'Menyegarkan Data...'
+                    : 'Segarkan Data'}
+                </span>
+              </button>
             </div>
-          </div>
+          )}
         </aside>
 
         {/* CMS CONTENT AREA */}
-        <main className="flex-1 bg-[#0F172A] overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col space-y-6">
+        <main className="flex-1 bg-slate-100/70 dark:bg-[#0B1120]/80 backdrop-blur-2xl overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col space-y-6 transition-colors duration-200">
           
           {/* MOBILE TABS SELECTOR - RBAC ENFORCED */}
           <div className="md:hidden mb-2">
             <select
               value={activeTab}
               onChange={e => setActiveTab(e.target.value as CmsTab)}
-              className="w-full bg-[#1E293B] border border-slate-700 rounded-xl p-3 text-xs font-bold text-white focus:outline-none"
+              className="w-full bg-white/85 dark:bg-[#1E293B]/85 border border-slate-200/80 dark:border-slate-700 rounded-xl p-3 text-xs font-bold text-slate-900 dark:text-white focus:outline-none backdrop-blur-md"
             >
               {isWasitOrOperator ? (
                 <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan & Live Score</option>
@@ -2140,10 +2724,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   <option value="PENDING_PAYMENT">⏳ Menunggu Pembayaran ({pendingList.length})</option>
                   <option value="APPROVED_TEAMS">✅ Tim Disetujui ({approvedList.length})</option>
                   <option value="REJECTED_TEAMS">❌ Pendaftaran Ditolak ({rejectedList.length})</option>
-                  <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan</option>
                   {canManageDrawing && (
-                    <option value="DRAWING_RANDOMIZER">🎲 Sistem Acak & Bracket</option>
+                    <option value="DRAWING_RANDOMIZER">🎲 Pembagian Grup & Drag-Drop</option>
                   )}
+                  <option value="SCHEDULE_LIVESCORE">📅 Jadwal Pertandingan & Live Score</option>
+                  <option value="PLAYER_MANAGER">👥 Manajemen Data Pemain & Excel</option>
                   {canManageCategories && (
                     <option value="CATEGORIES_PRIZES">🏆 Kategori & Hadiah</option>
                   )}
@@ -2168,64 +2753,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           {activeTab === 'OVERVIEW' && (
             <div className="space-y-6 animate-fadeIn">
               <div>
-                <h3 className="text-2xl font-bold tracking-tight text-white uppercase">
+                <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
                   DASHBOARD RINGKASAN TURNAMEN
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Pantau pertumbuhan registrasi, verifikasi berkas, dan pergerakan peserta secara real-time.
                 </p>
               </div>
 
               {/* 4 STATS CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-[#1E293B] border border-slate-700 rounded-2xl p-5 shadow-xl">
-                  <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                <div className="bg-white/80 dark:bg-[#1E293B]/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
                     <span className="font-semibold">Total Tim Mendaftar</span>
-                    <Users className="w-4 h-4 text-blue-400" />
+                    <Users className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                   </div>
-                  <div className="text-3xl font-black text-white">
+                  <div className="text-3xl font-black text-slate-900 dark:text-white">
                     {registrations.length} <span className="text-xs text-slate-500 font-normal">Tim</span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Seluruh 6 kategori kompetisi</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Seluruh 6 kategori kompetisi</p>
                 </div>
 
-                <div className="bg-[#1E293B] border border-slate-700 rounded-2xl p-5 shadow-xl">
-                  <div className="flex items-center justify-between text-xs text-green-400 mb-2">
+                <div className="bg-white/80 dark:bg-[#1E293B]/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-green-400 mb-2">
                     <span className="font-semibold">Disetujui (Approved)</span>
-                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-green-400" />
                   </div>
-                  <div className="text-3xl font-black text-emerald-400">
+                  <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
                     {approvedList.length} <span className="text-xs text-slate-500 font-normal">Tim</span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Siap masuk drawing bracket</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Siap masuk drawing bracket</p>
                 </div>
 
-                <div className="bg-[#1E293B] border border-slate-700 rounded-2xl p-5 shadow-xl">
-                  <div className="flex items-center justify-between text-xs text-yellow-400 mb-2">
+                <div className="bg-white/80 dark:bg-[#1E293B]/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center justify-between text-xs text-amber-600 dark:text-yellow-400 mb-2">
                     <span className="font-semibold">Menunggu Bayar</span>
-                    <Clock className="w-4 h-4 text-yellow-400" />
+                    <Clock className="w-4 h-4 text-amber-500 dark:text-yellow-400" />
                   </div>
-                  <div className="text-3xl font-black text-amber-400">
+                  <div className="text-3xl font-black text-amber-600 dark:text-amber-400">
                     {pendingList.length} <span className="text-xs text-slate-500 font-normal">Tim</span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Perlu verifikasi transfer</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Perlu verifikasi transfer</p>
                 </div>
 
-                <div className="bg-[#1E293B] border border-slate-700 rounded-2xl p-5 shadow-xl">
-                  <div className="flex items-center justify-between text-xs text-red-400 mb-2">
+                <div className="bg-white/80 dark:bg-[#1E293B]/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center justify-between text-xs text-red-500 dark:text-red-400 mb-2">
                     <span className="font-semibold">Total Uang Registrasi</span>
-                    <DollarSign className="w-4 h-4 text-red-400" />
+                    <DollarSign className="w-4 h-4 text-red-500 dark:text-red-400" />
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
+                  <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
                     Rp {totalCollectedRevenue.toLocaleString('id-ID')}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Dari tim berstatus lunas (PAID)</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Dari tim berstatus lunas (PAID)</p>
                 </div>
               </div>
 
               {/* CATEGORY DISTRIBUTION BARS */}
-              <div className="bg-[#1E293B] border border-slate-700 rounded-2xl p-6 shadow-xl">
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">
+              <div className="bg-white/80 dark:bg-[#1E293B]/80 backdrop-blur-md border border-slate-200/80 dark:border-slate-700 rounded-2xl p-6 shadow-sm dark:shadow-xl">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4">
                   Distribusi Pendaftaran Berdasarkan Kategori
                 </h4>
 
@@ -2237,14 +2822,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     return (
                       <div key={cat.id} className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-semibold">
-                          <span className="text-slate-200">
+                          <span className="text-slate-800 dark:text-slate-200">
                             {cat.name} ({cat.id})
                           </span>
-                          <span className="text-slate-400 font-mono">
+                          <span className="text-slate-500 dark:text-slate-400 font-mono">
                             {count} / {cat.maxTeams} Tim ({percent}%)
                           </span>
                         </div>
-                        <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
+                        <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-900 overflow-hidden border border-slate-300 dark:border-slate-800">
                           <div
                             className="h-full bg-gradient-to-r from-red-600 to-blue-600 rounded-full"
                             style={{ width: `${percent}%` }}
@@ -2306,8 +2891,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                     <option value="DESA">Desa</option>
                   </select>
 
-                  {/* TOMBOL UNDUH EXCEL & PDF RESMI */}
+                  {/* TOMBOL REFRESH, UNDUH EXCEL & PDF RESMI */}
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRefreshData}
+                      disabled={isManualRefreshing || isSyncingWithServer}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center space-x-1.5 border border-slate-700 shadow-sm transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                      title="Segarkan daftar pendaftaran dari database tanpa reload browser"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${(isManualRefreshing || isSyncingWithServer) ? 'animate-spin text-cyan-400' : 'text-slate-300'}`} />
+                      <span>{(isManualRefreshing || isSyncingWithServer) ? 'Menyinkronkan...' : 'Refresh'}</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -2652,428 +3248,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             </div>
           )}
 
-          {/* TAB 6: SISTEM ACAK / DRAWING PERTANDINGAN (REQ #8) */}
+          {/* TAB 6: SISTEM FASE GRUP & DRAG AND DROP KLASEMEN */}
           {activeTab === 'DRAWING_RANDOMIZER' && (
             <div className="space-y-6 animate-fadeIn">
-              <div>
-                <h3 className="text-2xl font-heading font-bold uppercase tracking-wide flex items-center space-x-2">
-                  <Shuffle className="w-6 h-6 text-amber-400" />
-                  <span>SISTEM ACAK PERTANDINGAN (DRAWING GENERATOR)</span>
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Pengacakan otomatis sistem gugur (Knockout Draw) menggunakan algoritma Fisher-Yates yang adil dan transparan untuk seluruh kategori.
-                </p>
-              </div>
-
-              {/* DRAWING CONTROL PANEL */}
-              {(() => {
-                const drawCheck = checkCanDrawNextRound(drawCategory);
-                const approvedCount = registrations.filter(r => r.category === drawCategory && r.status === 'APPROVED').length;
-
-                return (
-                  <div className="space-y-4">
-                    {/* Warning if no approved teams in chosen category */}
-                    {approvedCount === 0 && (
-                      <div className="p-4 rounded-xl bg-rose-950/60 border border-rose-600/50 flex items-start space-x-3 text-rose-200 animate-fadeIn">
-                        <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                        <div className="text-xs space-y-1">
-                          <p className="font-bold uppercase tracking-wider text-rose-300">
-                            Peringatan: Belum Ada Tim Approved di Kategori {drawCategory}
-                          </p>
-                          <p>
-                            Sistem acak hanya mengundi tim yang telah disetujui (Status: <strong className="text-white">APPROVED</strong>). Silakan verifikasi pendaftar di menu <strong>Data Pendaftar</strong> terlebih dahulu sebelum melakukan pengundian bagan.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Status Alert if ongoing matches */}
-                    {!drawCheck.canDraw && (
-                      <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-600/50 flex items-start space-x-3 text-amber-200">
-                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                        <div className="text-xs space-y-1">
-                          <p className="font-bold uppercase tracking-wider text-amber-300">
-                            Peringatan Status Pertandingan Aktif
-                          </p>
-                          <p>
-                            Masih ada <strong className="text-white">{drawCheck.pendingMatchesCount} pertandingan</strong> pada kategori {drawCategory} yang belum berstatus <strong>SELESAI (FINISHED)</strong>. Pengundian babak berikutnya disarankan menunggu semua match selesai agar tim pemenang terintegrasi otomatis ke bagan lanjutan.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-                      {/* Step 1: Pilih Kategori */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-xs font-bold text-slate-300 uppercase">
-                            1. Pilih Kategori Pertandingan:
-                          </label>
-                          <span className="text-xs text-slate-400">
-                            Tim Approved ({drawCategory}):{' '}
-                            <strong className={approvedCount > 0 ? 'text-emerald-400 font-mono font-bold' : 'text-rose-400 font-mono font-bold'}>
-                              {approvedCount} Tim
-                            </strong>
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {categories.map(c => {
-                            const catApproved = registrations.filter(r => r.category === c.id && r.status === 'APPROVED').length;
-                            const isSelected = drawCategory === c.id;
-
-                            return (
-                              <button
-                                key={c.id}
-                                onClick={() => {
-                                  setDrawCategory(c.id as TournamentCategory);
-                                  setDrawResultMatches(null);
-                                }}
-                                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-2 ${
-                                  isSelected
-                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                                }`}
-                              >
-                                <span>{c.name} ({c.id})</span>
-                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                                  catApproved > 0 ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-slate-500'
-                                }`}>
-                                  {catApproved}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Step 2: Pilih Struktur Babak Undian */}
-                      <div className="space-y-2">
-                        <label className="block text-xs font-bold text-slate-300 uppercase">
-                          2. Pilih Format & Babak Pengacakan:
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                          {[
-                            { id: 'AUTO', label: 'Otomatis Sesuai Kuota', desc: 'Bagan adaptif sesuai jumlah tim terdaftar' },
-                            { id: '16_BESAR', label: 'Babak Penyisihan (16 Besar)', desc: '8 Match Penyisihan -> 4 QF -> 2 SF -> Final' },
-                            { id: '8_BESAR', label: 'Perempat Final (8 Besar)', desc: '4 Match QF -> 2 SF -> Final' },
-                            { id: 'SEMIFINAL', label: 'Babak Semifinal (4 Besar)', desc: '2 Match SF -> Final' },
-                          ].map((opt) => (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => setDrawStageOption(opt.id as any)}
-                              className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-                                drawStageOption === opt.id
-                                  ? 'bg-red-950/70 border-red-500 text-white shadow-md'
-                                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                              }`}
-                            >
-                              <span className="block text-xs font-bold">{opt.label}</span>
-                              <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">{opt.desc}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Step 3: Tombol Acak */}
-                      <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/80">
-                        <p className="text-xs text-slate-400">
-                          Algoritma Fisher-Yates akan mengacak slot pertandingan dan menyinkronkan bagan sistem gugur ke landing page secara instan.
-                        </p>
-                        <button
-                          onClick={handleRunDrawing}
-                          disabled={isDrawing}
-                          className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer shrink-0"
-                        >
-                          <Shuffle className={`w-4 h-4 ${isDrawing ? 'animate-spin' : ''}`} />
-                          <span>{isDrawing ? 'Mengacak Tim...' : `🎲 Acak Bagan Match ${drawCategory}`}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* DRAWING RESULTS PREVIEW */}
-              {drawResultMatches && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-base font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>Hasil Undian Match Resmi Kategori {drawCategory}:</span>
-                    </h4>
-                    <span className="text-xs text-emerald-400 font-semibold">
-                      ✓ Tersimpan Otomatis ke Jadwal Publik
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {drawResultMatches.map((m, idx) => (
-                      <div
-                        key={m.id}
-                        className="p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-md flex items-center justify-between"
-                      >
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-500 uppercase block">
-                            Match #{m.matchNumber} • {m.round}
-                          </span>
-                          <p className="font-bold text-white text-sm mt-1">
-                            {m.teamA.name} <span className="text-red-500 font-normal">vs</span> {m.teamB.name}
-                          </p>
-                          <span className="text-[11px] text-slate-400">
-                            {m.date} • {m.time} WIB • {m.pitch}
-                          </span>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-950 font-mono font-bold text-xs text-amber-400 border border-slate-800">
-                          VS
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <GroupStageDragDropManager />
             </div>
           )}
 
-          {/* TAB 7: KELOLA JADWAL & LIVE SCORE (REQ #9) */}
+          {/* TAB 7: KELOLA JADWAL, LIVE SCORE & OTOMATISASI KLASEMEN */}
           {activeTab === 'SCHEDULE_LIVESCORE' && (
             <div className="space-y-6 animate-fadeIn">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800">
-                <div>
-                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide text-white flex items-center space-x-2">
-                    <Calendar className="w-6 h-6 text-red-500" />
-                    <span>KELOLA JADWAL & LIVE SCORE PER KATEGORI</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Jadwal terpisah per kategori turnamen. Atur skor langsung, status, menit bertanding, dan nama tim approved.
-                  </p>
-                </div>
+              <LiveScoreManagerTab />
+            </div>
+          )}
 
-                <div className="flex items-center space-x-2 shrink-0">
-                  <button
-                    onClick={() => handleOpenAddMatch(selectedMatchCategory)}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold transition flex items-center space-x-2 shadow-lg shadow-red-950/50 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>
-                      {selectedMatchCategory === 'ALL'
-                        ? 'Tambah Pertandingan Baru'
-                        : `Tambah Match (${selectedMatchCategory})`}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* CATEGORY FILTER TABS */}
-              <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-                <button
-                  onClick={() => setSelectedMatchCategory('ALL')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
-                    selectedMatchCategory === 'ALL'
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-950/50'
-                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                  }`}
-                >
-                  <span>Semua Kategori</span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-950 font-mono">
-                    {matches.length}
-                  </span>
-                </button>
-
-                {categories.map(c => {
-                  const catMatchCount = matches.filter(m => m.category === c.id).length;
-                  const isSelected = selectedMatchCategory === c.id;
-
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedMatchCategory(c.id)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
-                        isSelected
-                          ? 'bg-red-600 text-white shadow-lg shadow-red-950/50'
-                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                      }`}
-                    >
-                      <span>{c.name} ({c.id})</span>
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-950 font-mono">
-                        {catMatchCount}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* MATCHES LIST FOR ADMIN */}
-              {(() => {
-                const displayedMatches = selectedMatchCategory === 'ALL'
-                  ? matches
-                  : matches.filter(m => m.category === selectedMatchCategory);
-
-                if (displayedMatches.length === 0) {
-                  return (
-                    <div className="p-10 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-4">
-                      <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
-                        <Calendar className="w-7 h-7" />
-                      </div>
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-white text-base">Belum Ada Pertandingan Terjadwal</h4>
-                        <p className="text-xs text-slate-400 max-w-md mx-auto">
-                          {selectedMatchCategory === 'ALL'
-                            ? 'Belum ada jadwal pertandingan yang dibuat atau diundi.'
-                            : `Belum ada jadwal pertandingan untuk kategori ${selectedMatchCategory}. Gunakan tombol di bawah untuk menambah jadwal baru atau undi di Sistem Acak.`}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleOpenAddMatch(selectedMatchCategory)}
-                        className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition inline-flex items-center space-x-2 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Tambah Pertandingan Kategori {selectedMatchCategory === 'ALL' ? 'Pertama' : selectedMatchCategory}</span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {displayedMatches.map(m => {
-                      const isLive = m.status === 'LIVE';
-
-                      return (
-                        <div
-                          key={m.id}
-                          className={`p-5 rounded-2xl border transition shadow-lg ${
-                            isLive
-                              ? 'bg-gradient-to-b from-slate-900 to-red-950/40 border-red-500'
-                              : 'bg-slate-900 border-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800 mb-3">
-                            <span className="font-bold text-red-400">Match #{m.matchNumber} • {m.category} • {m.round}</span>
-                            <select
-                              value={m.status}
-                              onChange={e => updateMatch({ ...m, status: e.target.value as MatchStatus })}
-                              className="bg-slate-950 text-[10px] font-bold text-white rounded px-2 py-0.5 border border-slate-700"
-                            >
-                              <option value="UPCOMING">UPCOMING</option>
-                              <option value="LIVE">🔴 LIVE</option>
-                              <option value="FINISHED">FINISHED</option>
-                            </select>
-                          </div>
-
-                      {/* TEAMS AND SCORE INPUT */}
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center justify-between">
-                          <input
-                            type="text"
-                            value={m.teamA.name}
-                            onChange={e =>
-                              updateMatch({
-                                ...m,
-                                teamA: { ...m.teamA, name: e.target.value },
-                              })
-                            }
-                            className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white w-40"
-                          />
-                          <input
-                            type="number"
-                            min={0}
-                            value={m.teamA.score ?? 0}
-                            onChange={e =>
-                              updateMatch({
-                                ...m,
-                                teamA: { ...m.teamA, score: Number(e.target.value) },
-                              })
-                            }
-                            className="w-12 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-sm text-red-400"
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <input
-                            type="text"
-                            value={m.teamB.name}
-                            onChange={e =>
-                              updateMatch({
-                                ...m,
-                                teamB: { ...m.teamB, name: e.target.value },
-                              })
-                            }
-                            className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white w-40"
-                          />
-                          <input
-                            type="number"
-                            min={0}
-                            value={m.teamB.score ?? 0}
-                            onChange={e =>
-                              updateMatch({
-                                ...m,
-                                teamB: { ...m.teamB, score: Number(e.target.value) },
-                              })
-                            }
-                            className="w-12 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center font-bold text-sm text-blue-400"
-                          />
-                        </div>
-                      </div>
-
-                      {/* DATE & VENUE INPUTS */}
-                      <div className="grid grid-cols-2 gap-2 text-[11px] mb-3">
-                        <input
-                          type="date"
-                          value={m.date}
-                          onChange={e => updateMatch({ ...m, date: e.target.value })}
-                          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300"
-                        />
-                        <input
-                          type="time"
-                          value={m.time}
-                          onChange={e => updateMatch({ ...m, time: e.target.value })}
-                          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs gap-2">
-                        <input
-                          type="text"
-                          value={m.pitch}
-                          onChange={e => updateMatch({ ...m, pitch: e.target.value })}
-                          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-400 flex-1 truncate"
-                        />
-                        
-                        {/* Edit Match & Penalti Modal Button */}
-                        <button
-                          onClick={() => handleOpenEditMatch(m)}
-                          className="px-2 py-1 rounded bg-blue-950 hover:bg-blue-800 text-blue-300 border border-blue-700 text-[10px] font-bold flex items-center space-x-1 cursor-pointer shrink-0"
-                          title="Edit Lengkap Skor, Penalti, Tim, Status & Menit"
-                        >
-                          <Edit className="w-3 h-3" />
-                          <span>Edit</span>
-                        </button>
-
-                        {/* Hapus Match (Super Admin, Panitia Inti & Panitia Umum) */}
-                        {canCrudMatches && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Hapus pertandingan Match #${m.matchNumber} (${m.teamA.name} vs ${m.teamB.name})?`)) {
-                                deleteMatch(m.id);
-                              }
-                            }}
-                            className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/60 cursor-pointer shrink-0"
-                            title="Hapus Match"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
-      )}
+          {/* TAB BARU: MANAJEMEN DATA PEMAIN & IMPORT EXCEL */}
+          {activeTab === 'PLAYER_MANAGER' && (
+            <div className="space-y-6 animate-fadeIn">
+              <PlayerManagerTab />
+            </div>
+          )}
 
           {/* TAB 8: KELOLA KATEGORI & TOTAL HADIAH (CRUD LENGKAP) */}
           {activeTab === 'CATEGORIES_PRIZES' && (
@@ -3709,7 +3903,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   }`}
                 >
                   <Eye className="w-4 h-4 text-purple-300" />
-                  <span>6. Visibilitas Section Landing Page</span>
+                  <span>6. Visibilitas Landing Page & Standalone</span>
                 </button>
 
                 <button
@@ -4472,160 +4666,542 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
               )}
 
-              {/* SUB-TAB 6: VISIBILITAS SECTION LANDING PAGE */}
+              {/* SUB-TAB 6: VISIBILITAS LANDING PAGE & STANDALONE */}
               {settingsSubTab === 'VISIBILITY' && (
-                <div className="space-y-6 animate-fadeIn">
-                  <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-6 animate-fadeIn w-full">
+                  {/* TOP HEADER PANEL */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
                     <div>
-                      <h4 className="text-sm font-bold text-white uppercase flex items-center space-x-2">
-                        <Eye className="w-4 h-4 text-purple-400" />
-                        <span>Pengaturan Visibilitas Section Landing Page & Navbar</span>
+                      <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-black uppercase tracking-wider mb-2">
+                        <span>CMS KONTROL VISIBILITAS TERPISAH</span>
+                      </div>
+                      <h4 className="text-base sm:text-lg font-black text-white flex items-center space-x-2 tracking-wide">
+                        <Eye className="w-5 h-5 text-purple-400 shrink-0" />
+                        <span>Pengaturan Klasemen &amp; Jadwal: Landing Page vs Standalone</span>
                       </h4>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Aktifkan atau nonaktifkan section di halaman utama. Jika dinonaktifkan, section disembunyikan dan tautan pada Navbar otomatis tidak ditampilkan.
+                      <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
+                        Pisahkan kontrol tampilan modul Klasemen, Jadwal Pertandingan, Bagan Knockout, dan Top Skor. Anda dapat menyembunyikan modul di Halaman Depan (Landing Page) dan hanya memfokuskannya pada Layar Mandiri (Standalone Page / #klasemen), atau sebaliknya.
                       </p>
                     </div>
 
-                    {visibilitySaveSuccess && (
-                      <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center space-x-1.5 animate-fadeIn shrink-0">
-                        <Check className="w-4 h-4" />
-                        <span>Visibilitas Diperbarui!</span>
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      {visibilitySaveSuccess && (
+                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center space-x-1.5 animate-fadeIn">
+                          <Check className="w-4 h-4" />
+                          <span>Visibilitas Diperbarui!</span>
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.open(window.location.origin + window.location.pathname, '_blank');
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-white/10 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-sm hover:border-white/20"
+                      >
+                        <span>Cek Landing Page</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.open(window.location.origin + window.location.pathname + '#klasemen', '_blank');
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-lg shadow-red-600/40"
+                      >
+                        <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Buka Layar Standalone</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* VISIBILITY TOGGLES GRID */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {[
-                      {
-                        key: 'hero' as keyof PageSectionsVisibility,
-                        title: '1. Hero Header & Registrasi',
-                        desc: 'Banner visual utama turnamen, tagline, countdown waktu, dan tombol CTA pendaftaran cepat.',
-                        icon: Sparkles,
-                        color: 'text-red-400',
-                        bgColor: 'bg-red-500/10',
-                        borderColor: 'border-red-500/30',
-                      },
-                      {
-                        key: 'liveScore' as keyof PageSectionsVisibility,
-                        title: '2. Live Score & Match Center',
-                        desc: 'Papan skor pertandingan real-time, status LIVE/FINISHED, jadwal kick-off, dan match tracker.',
-                        icon: Activity,
-                        color: 'text-amber-400',
-                        bgColor: 'bg-amber-500/10',
-                        borderColor: 'border-amber-500/30',
-                      },
-                      {
-                        key: 'categories' as keyof PageSectionsVisibility,
-                        title: '3. Kategori & Total Hadiah',
-                        desc: 'Daftar kategori usia, rincian hadiah juara, biaya registrasi, dan syarat batasan usia.',
-                        icon: Award,
-                        color: 'text-emerald-400',
-                        bgColor: 'bg-emerald-500/10',
-                        borderColor: 'border-emerald-500/30',
-                      },
-                      {
-                        key: 'bracket' as keyof PageSectionsVisibility,
-                        title: '4. Bagan Pertandingan & Tim',
-                        desc: 'Bagan turnamen knockout beserta daftar direktori tim peserta yang terdaftar.',
-                        icon: Shuffle,
-                        color: 'text-blue-400',
-                        bgColor: 'bg-blue-500/10',
-                        borderColor: 'border-blue-500/30',
-                      },
-                      {
-                        key: 'venue' as keyof PageSectionsVisibility,
-                        title: '5. Lokasi Stadion & Venue Peta',
-                        desc: 'Informasi stadion pertandingan, alamat lengkap, fasilitas lapangan, dan peta interaktif Google Maps.',
-                        icon: MapPin,
-                        color: 'text-cyan-400',
-                        bgColor: 'bg-cyan-500/10',
-                        borderColor: 'border-cyan-500/30',
-                      },
-                      {
-                        key: 'sponsors' as keyof PageSectionsVisibility,
-                        title: '6. Mitra Sponsor & Kerjasama',
-                        desc: 'Grid logo sponsor resmi turnamen beserta tombol ajakan kerjasama sponsor.',
-                        icon: Building,
-                        color: 'text-purple-400',
-                        bgColor: 'bg-purple-500/10',
-                        borderColor: 'border-purple-500/30',
-                      },
-                    ].map(sec => {
-                      const isVisible = (config.sectionsVisibility?.[sec.key] ?? true) !== false;
-                      const IconComp = sec.icon;
+                  {/* PRESET QUICK TOGGLE SCHEMES */}
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900/70 border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+                    <div className="text-xs text-slate-300">
+                      <span className="font-black text-white">Tombol Cepat Mode Tampilan:</span>{' '}
+                      <span className="text-slate-400">Pilih skema tampilan yang diinginkan dengan 1-klik:</span>
+                    </div>
 
-                      return (
-                        <div
-                          key={sec.key}
-                          className={`p-5 rounded-2xl bg-slate-900 border transition shadow-lg flex flex-col justify-between space-y-4 ${
-                            isVisible ? 'border-slate-700/80 shadow-slate-950/50' : 'border-slate-800/40 opacity-70'
-                          }`}
-                        >
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className={`w-10 h-10 rounded-xl ${sec.bgColor} ${sec.color} flex items-center justify-center font-bold border ${sec.borderColor}`}>
-                                <IconComp className="w-5 h-5" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyVisibilityPreset('BOTH')}
+                        className="px-3 py-1.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+                      >
+                        Tampilkan Semua di Keduanya
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyVisibilityPreset('STANDALONE_ONLY')}
+                        className="px-3 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 text-purple-200 border border-purple-800/40 text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+                      >
+                        Fokus Layar Standalone Saja
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyVisibilityPreset('LANDING_ONLY')}
+                        className="px-3 py-1.5 rounded-xl bg-blue-950/60 hover:bg-blue-900/80 text-blue-200 border border-blue-800/40 text-xs font-bold transition cursor-pointer shadow-sm active:scale-95"
+                      >
+                        Hanya Landing Page
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ================================================================= */}
+                  {/* [1] PENGATURAN MODUL DI LANDING PAGE (HALAMAN UTAMA)              */}
+                  {/* ================================================================= */}
+                  <div className="space-y-4 pt-1">
+                    <div className="border-b border-white/10 pb-3">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="w-6 h-6 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-400 font-black text-xs flex items-center justify-center shrink-0">
+                          1
+                        </span>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h5 className="text-sm font-black text-white uppercase tracking-wide">
+                              PENGATURAN MODUL DI LANDING PAGE (HALAMAN UTAMA)
+                            </h5>
+                            <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-extrabold uppercase">
+                              BERANDA
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Pilih modul mana yang ingin ditampilkan atau disembunyikan bagi pengunjung di halaman muka turnamen.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SUB-SECTION 1A: MODUL PERTANDINGAN DI LANDING PAGE */}
+                    <div className="space-y-3">
+                      <div className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                        <span>MODUL PERTANDINGAN DI BAGIAN JADWAL &amp; KLASEMEN LANDING PAGE:</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[
+                          {
+                            key: 'landingKlasemen' as keyof PageSectionsVisibility,
+                            title: 'Tabel Klasemen Grup',
+                            desc: 'Tampilkan tabel poin, selisih gol, dan peringkat grup di section landing page.',
+                            icon: Trophy,
+                            color: 'text-amber-400',
+                            activeTextColor: 'text-amber-400',
+                            bgColor: 'bg-amber-500/10',
+                            borderColor: 'border-amber-500/30',
+                            toggleBg: 'bg-amber-500',
+                          },
+                          {
+                            key: 'landingSchedule' as keyof PageSectionsVisibility,
+                            title: 'Jadwal & Hasil Laga',
+                            desc: 'Tampilkan agenda jadwal jam kick-off dan rekap skor pertandingan di landing page.',
+                            icon: Calendar,
+                            color: 'text-blue-400',
+                            activeTextColor: 'text-blue-400',
+                            bgColor: 'bg-blue-500/10',
+                            borderColor: 'border-blue-500/30',
+                            toggleBg: 'bg-blue-500',
+                          },
+                          {
+                            key: 'landingBracket' as keyof PageSectionsVisibility,
+                            title: 'Bagan Babak Knockout',
+                            desc: 'Tampilkan skema bagan gugur juara grup menuju babak final di landing page.',
+                            icon: Layers,
+                            color: 'text-purple-400',
+                            activeTextColor: 'text-purple-400',
+                            bgColor: 'bg-purple-500/10',
+                            borderColor: 'border-purple-500/30',
+                            toggleBg: 'bg-purple-500',
+                          },
+                          {
+                            key: 'landingTopScorer' as keyof PageSectionsVisibility,
+                            title: 'Top Skor & Fairplay',
+                            desc: 'Tampilkan peringkat pencetak gol terbanyak dan rekap kartu di landing page.',
+                            icon: Flame,
+                            color: 'text-rose-400',
+                            activeTextColor: 'text-rose-400',
+                            bgColor: 'bg-rose-500/10',
+                            borderColor: 'border-rose-500/30',
+                            toggleBg: 'bg-rose-500',
+                          },
+                        ].map(mod => {
+                          const isVis = (config.sectionsVisibility?.[mod.key] ?? true) !== false;
+                          const IconComp = mod.icon;
+
+                          return (
+                            <div
+                              key={mod.key}
+                              className={`p-4 rounded-2xl bg-slate-900/90 border transition-all duration-200 flex flex-col justify-between space-y-3 ${
+                                isVis ? 'border-slate-700/90 shadow-md shadow-black/40' : 'border-slate-800/40 opacity-70'
+                              }`}
+                            >
+                              <div className="space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <div className={`w-9 h-9 rounded-xl ${mod.bgColor} ${mod.color} flex items-center justify-center font-bold border ${mod.borderColor}`}>
+                                    <IconComp className="w-4 h-4" />
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleSectionVisibility(mod.key)}
+                                    className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                      isVis ? mod.toggleBg : 'bg-slate-700'
+                                    }`}
+                                    role="switch"
+                                    aria-checked={isVis}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                        isVis ? 'translate-x-5' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+
+                                <div>
+                                  <h6 className="font-bold text-xs sm:text-sm text-white">{mod.title}</h6>
+                                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">{mod.desc}</p>
+                                </div>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => handleToggleSectionVisibility(sec.key)}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                  isVisible ? 'bg-emerald-500' : 'bg-slate-700'
-                                }`}
-                                role="switch"
-                                aria-checked={isVisible}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                                    isVisible ? 'translate-x-5' : 'translate-x-0'
-                                  }`}
-                                />
-                              </button>
-                            </div>
+                              <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                                <span className={`text-[11px] font-bold ${isVis ? mod.activeTextColor : 'text-slate-500'}`}>
+                                  {isVis ? 'Tampil di Landing' : 'Disembunyikan'}
+                                </span>
 
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSectionVisibility(mod.key)}
+                                  className="text-[10px] font-semibold text-slate-400 hover:text-white underline cursor-pointer"
+                                >
+                                  {isVis ? 'Sembunyikan' : 'Aktifkan'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* SUB-SECTION 1B: SECTION PENDUKUNG LAINNYA DI LANDING PAGE */}
+                    <div className="space-y-3 pt-2">
+                      <div className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>SECTION PENDUKUNG LAINNYA DI LANDING PAGE:</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[
+                          {
+                            key: 'hero' as keyof PageSectionsVisibility,
+                            title: 'Hero Banner & Registrasi',
+                            desc: 'Header visual utama turnamen, tagline, hitung mundur, dan tombol CTA pendaftaran.',
+                            icon: Sparkles,
+                            color: 'text-rose-400',
+                            bgColor: 'bg-rose-500/10',
+                            borderColor: 'border-rose-500/30',
+                          },
+                          {
+                            key: 'liveScore' as keyof PageSectionsVisibility,
+                            title: 'Live Score & Quick Match',
+                            desc: 'Widget ringkasan skor pertandingan langsung (LIVE) dan jadwal hari ini di atas beranda.',
+                            icon: Activity,
+                            color: 'text-amber-400',
+                            bgColor: 'bg-amber-500/10',
+                            borderColor: 'border-amber-500/30',
+                          },
+                          {
+                            key: 'categories' as keyof PageSectionsVisibility,
+                            title: 'Kategori & Total Hadiah',
+                            desc: 'Daftar kategori usia, rincian hadiah juara, biaya registrasi, dan syarat batasan usia.',
+                            icon: Award,
+                            color: 'text-emerald-400',
+                            bgColor: 'bg-emerald-500/10',
+                            borderColor: 'border-emerald-500/30',
+                          },
+                          {
+                            key: 'bracket' as keyof PageSectionsVisibility,
+                            title: 'Section Induk Jadwal & Bagan',
+                            desc: 'Sakelar global seluruh section jadwal, klasemen, dan direktori tim di landing page.',
+                            icon: Shuffle,
+                            color: 'text-blue-400',
+                            bgColor: 'bg-blue-500/10',
+                            borderColor: 'border-blue-500/30',
+                          },
+                          {
+                            key: 'venue' as keyof PageSectionsVisibility,
+                            title: 'Lokasi Stadion & Maps Venue',
+                            desc: 'Informasi stadion pertandingan, alamat lengkap, dan peta lokasi Google Maps.',
+                            icon: MapPin,
+                            color: 'text-cyan-400',
+                            bgColor: 'bg-cyan-500/10',
+                            borderColor: 'border-cyan-500/30',
+                          },
+                          {
+                            key: 'sponsors' as keyof PageSectionsVisibility,
+                            title: 'Mitra Sponsor & Kerjasama',
+                            desc: 'Grid logo sponsor resmi turnamen beserta tombol kontak kerjasama sponsor.',
+                            icon: Building,
+                            color: 'text-purple-400',
+                            bgColor: 'bg-purple-500/10',
+                            borderColor: 'border-purple-500/30',
+                          },
+                        ].map(sec => {
+                          const isVis = (config.sectionsVisibility?.[sec.key] ?? true) !== false;
+                          const IconComp = sec.icon;
+
+                          return (
+                            <div
+                              key={sec.key}
+                              className={`p-4 rounded-2xl bg-slate-900/90 border transition-all duration-200 flex flex-col justify-between space-y-3 ${
+                                isVis ? 'border-slate-700/80 shadow-md shadow-black/40' : 'border-slate-800/40 opacity-70'
+                              }`}
+                            >
+                              <div className="space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <div className={`w-9 h-9 rounded-xl ${sec.bgColor} ${sec.color} flex items-center justify-center font-bold border ${sec.borderColor}`}>
+                                    <IconComp className="w-4 h-4" />
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleSectionVisibility(sec.key)}
+                                    className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                      isVis ? 'bg-emerald-500' : 'bg-slate-700'
+                                    }`}
+                                    role="switch"
+                                    aria-checked={isVis}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                        isVis ? 'translate-x-5' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+
+                                <div>
+                                  <h6 className="font-bold text-xs sm:text-sm text-white">{sec.title}</h6>
+                                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">{sec.desc}</p>
+                                </div>
+                              </div>
+
+                              <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                                <span className={`text-[11px] font-bold ${isVis ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                  {isVis ? 'Aktif di Landing' : 'Disembunyikan'}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSectionVisibility(sec.key)}
+                                  className="text-[10px] font-semibold text-slate-400 hover:text-white underline cursor-pointer"
+                                >
+                                  {isVis ? 'Sembunyikan' : 'Aktifkan'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ================================================================= */}
+                  {/* [2] PENGATURAN HALAMAN STANDALONE (LAYAR MANDIRI / #KLASEMEN)     */}
+                  {/* ================================================================= */}
+                  <div className="space-y-4 pt-2">
+                    <div className="border-b border-white/10 pb-3">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="w-6 h-6 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 font-black text-xs flex items-center justify-center shrink-0">
+                          2
+                        </span>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h5 className="text-sm font-black text-white uppercase tracking-wide">
+                              PENGATURAN HALAMAN STANDALONE (LAYAR MANDIRI / #KLASEMEN)
+                            </h5>
+                            <span className="px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-extrabold uppercase">
+                              STANDALONE PAGE
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Atur menu, tab, dan hak akses layar mandiri khusus Klasemen &amp; Jadwal (cocok untuk monitor TV venue pertandingan).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SAKELAR MASTER AKSES HALAMAN STANDALONE */}
+                    {(() => {
+                      const isStandaloneActive = (config.sectionsVisibility?.standaloneKlasemen ?? true) !== false;
+                      return (
+                        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-950/40 via-slate-900 to-slate-900/90 border border-red-900/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex items-start sm:items-center space-x-3.5">
+                            <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center shrink-0">
+                              <Globe className="w-5 h-5" />
+                            </div>
                             <div>
-                              <h5 className="font-bold text-sm text-white flex items-center space-x-1.5">
-                                <span>{sec.title}</span>
-                              </h5>
-                              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                                {sec.desc}
+                              <div className="flex items-center space-x-2 flex-wrap">
+                                <h6 className="font-black text-sm text-white">
+                                  Sakelar Master Akses Halaman Publik Standalone
+                                </h6>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                                  isStandaloneActive
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                }`}>
+                                  {isStandaloneActive ? 'AKSES TERBUKA' : 'DITUTUP'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
+                                Jika diaktifkan, pengunjung dapat membuka URL langsung <span className="text-red-400 font-semibold font-mono">#klasemen</span>. Jika ditutup, pengunjung akan diarahkan kembali ke beranda dengan pesan info panitia.
                               </p>
                             </div>
                           </div>
 
-                          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                            <span className="text-[11px] font-semibold flex items-center space-x-1.5">
-                              <span className={`w-2 h-2 rounded-full ${isVisible ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-                              <span className={isVisible ? 'text-emerald-300' : 'text-slate-400'}>
-                                {isVisible ? 'Aktif (Tampil di Landing & Nav)' : 'Dinonaktifkan (Disembunyikan)'}
-                              </span>
-                            </span>
-
+                          <div className="flex items-center space-x-3 shrink-0 self-end sm:self-center">
                             <button
                               type="button"
-                              onClick={() => handleToggleSectionVisibility(sec.key)}
-                              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                                isVisible
-                                  ? 'bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/40'
-                                  : 'bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/40'
+                              onClick={() => handleToggleSectionVisibility('standaloneKlasemen')}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                isStandaloneActive ? 'bg-red-600' : 'bg-slate-700'
                               }`}
+                              role="switch"
+                              aria-checked={isStandaloneActive}
                             >
-                              {isVisible ? 'Sembunyikan' : 'Tampilkan'}
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                  isStandaloneActive ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                              />
                             </button>
                           </div>
                         </div>
                       );
-                    })}
+                    })()}
+
+                    {/* SUB-SECTION 2A: VISIBILITAS TAB NAVIGASI STANDALONE */}
+                    <div className="space-y-3 pt-1">
+                      <div className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Sliders className="w-3.5 h-3.5 text-purple-400" />
+                        <span>VISIBILITAS TAB NAVIGASI DI HALAMAN STANDALONE:</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[
+                          {
+                            key: 'standaloneTabKlasemen' as keyof PageSectionsVisibility,
+                            title: 'Tab Klasemen (Standalone)',
+                            desc: 'Aktifkan tab tabel klasemen per grup & per kategori di layar standalone.',
+                            icon: Trophy,
+                            color: 'text-amber-400',
+                            activeTextColor: 'text-amber-400',
+                            bgColor: 'bg-amber-500/10',
+                            borderColor: 'border-amber-500/30',
+                            toggleBg: 'bg-amber-500',
+                          },
+                          {
+                            key: 'standaloneTabJadwal' as keyof PageSectionsVisibility,
+                            title: 'Tab Jadwal & Hasil (Standalone)',
+                            desc: 'Aktifkan tab jadwal laga dan rekap hasil pertandingan di layar standalone.',
+                            icon: Calendar,
+                            color: 'text-blue-400',
+                            activeTextColor: 'text-blue-400',
+                            bgColor: 'bg-blue-500/10',
+                            borderColor: 'border-blue-500/30',
+                            toggleBg: 'bg-blue-500',
+                          },
+                          {
+                            key: 'standaloneTabKnockout' as keyof PageSectionsVisibility,
+                            title: 'Tab Bagan Knockout (Standalone)',
+                            desc: 'Aktifkan tab visual pohon bagan gugur per kategori di layar standalone.',
+                            icon: Layers,
+                            color: 'text-purple-400',
+                            activeTextColor: 'text-purple-400',
+                            bgColor: 'bg-purple-500/10',
+                            borderColor: 'border-purple-500/30',
+                            toggleBg: 'bg-purple-500',
+                          },
+                          {
+                            key: 'standaloneTabTopScore' as keyof PageSectionsVisibility,
+                            title: 'Tab Top Skor & Kartu (Standalone)',
+                            desc: 'Aktifkan tab papan top scorer dan rekap kartu pelanggaran di layar standalone.',
+                            icon: Flame,
+                            color: 'text-rose-400',
+                            activeTextColor: 'text-rose-400',
+                            bgColor: 'bg-rose-500/10',
+                            borderColor: 'border-rose-500/30',
+                            toggleBg: 'bg-rose-500',
+                          },
+                        ].map(tab => {
+                          const isVis = (config.sectionsVisibility?.[tab.key] ?? true) !== false;
+                          const IconComp = tab.icon;
+
+                          return (
+                            <div
+                              key={tab.key}
+                              className={`p-4 rounded-2xl bg-slate-900/90 border transition-all duration-200 flex flex-col justify-between space-y-3 ${
+                                isVis ? 'border-slate-700/90 shadow-md shadow-black/40' : 'border-slate-800/40 opacity-70'
+                              }`}
+                            >
+                              <div className="space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                  <div className={`w-9 h-9 rounded-xl ${tab.bgColor} ${tab.color} flex items-center justify-center font-bold border ${tab.borderColor}`}>
+                                    <IconComp className="w-4 h-4" />
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleSectionVisibility(tab.key)}
+                                    className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                      isVis ? tab.toggleBg : 'bg-slate-700'
+                                    }`}
+                                    role="switch"
+                                    aria-checked={isVis}
+                                  >
+                                    <span
+                                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                        isVis ? 'translate-x-5' : 'translate-x-0'
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+
+                                <div>
+                                  <h6 className="font-bold text-xs sm:text-sm text-white">{tab.title}</h6>
+                                  <p className="text-[11px] text-slate-400 mt-1 leading-snug">{tab.desc}</p>
+                                </div>
+                              </div>
+
+                              <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                                <span className={`text-[11px] font-bold ${isVis ? tab.activeTextColor : 'text-slate-500'}`}>
+                                  {isVis ? 'Tampil di Standalone' : 'Disembunyikan'}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSectionVisibility(tab.key)}
+                                  className="text-[10px] font-semibold text-slate-400 hover:text-white underline cursor-pointer"
+                                >
+                                  {isVis ? 'Sembunyikan' : 'Aktifkan'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* QUICK INFO BANNER */}
-                  <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-800/30 flex items-start space-x-3 text-xs text-purple-200">
+                  {/* BOTTOM REAL-TIME SYNCHRONIZATION BANNER */}
+                  <div className="p-4 rounded-2xl bg-purple-950/25 border border-purple-800/30 flex items-start space-x-3 text-xs text-purple-200 shadow-md">
                     <CheckSquare className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="block text-white font-bold mb-0.5">Sinkronisasi Otomatis</strong>
-                      Setiap perubahan visibilitas section langsung tersimpan secara permanen dan merefleksikan tampilan landing page serta menu navigasi atas (Navbar) seketika tanpa perlu reload browser.
+                      <strong className="block text-white font-bold mb-0.5">Sinkronisasi Real-Time Dua Layar</strong>
+                      Pengaturan visibilitas langsung tersimpan secara permanen ke database turnamen. Pengunjung yang sedang membuka Landing Page atau Layar Standalone akan melihat perubahan seketika tanpa memerlukan restart server.
                     </div>
                   </div>
                 </div>
@@ -6817,6 +7393,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                   <label className="font-bold text-slate-300">Lokasi Lapangan / Venue</label>
                   <input
                     type="text"
+                    placeholder={config.venueName || 'Gedung Utama GOR Tawang Alun Banyuwangi'}
                     value={matchForm.pitch}
                     onChange={e => setMatchForm({ ...matchForm, pitch: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white"

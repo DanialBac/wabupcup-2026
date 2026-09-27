@@ -12,6 +12,8 @@ export const DEFAULT_SECTIONS_VISIBILITY: PageSectionsVisibility = {
   bracket: true,
   venue: true,
   sponsors: true,
+  klasemenLanding: true,
+  standaloneKlasemen: true,
 };
 
 export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
@@ -113,6 +115,17 @@ export const DEFAULT_CATEGORIES: CategoryDetail[] = [];
 
 export const DEFAULT_ADMIN_USERS: AdminUser[] = [
   {
+    id: 'adm-00',
+    username: 'admin',
+    fullName: 'Administrator Resmi WabupCup',
+    role: 'SUPERADMIN',
+    email: 'admin@wabupcup2026.id',
+    phone: '081234567890',
+    createdAt: '2026-08-01',
+    avatarColor: 'bg-red-600',
+    password: 'admin123',
+  },
+  {
     id: 'adm-01',
     username: 'superadmin',
     fullName: 'Ketua Panitia WabupCup 2026',
@@ -121,6 +134,7 @@ export const DEFAULT_ADMIN_USERS: AdminUser[] = [
     phone: '081234567890',
     createdAt: '2026-08-01',
     avatarColor: 'bg-red-600',
+    password: 'admin123',
   },
   {
     id: 'adm-02',
@@ -131,6 +145,7 @@ export const DEFAULT_ADMIN_USERS: AdminUser[] = [
     phone: '081398765432',
     createdAt: '2026-08-05',
     avatarColor: 'bg-indigo-600',
+    password: 'admin123',
   },
   {
     id: 'adm-03',
@@ -141,6 +156,7 @@ export const DEFAULT_ADMIN_USERS: AdminUser[] = [
     phone: '085288990011',
     createdAt: '2026-08-08',
     avatarColor: 'bg-emerald-600',
+    password: 'admin123',
   },
   {
     id: 'adm-04',
@@ -151,6 +167,7 @@ export const DEFAULT_ADMIN_USERS: AdminUser[] = [
     phone: '085211223344',
     createdAt: '2026-08-10',
     avatarColor: 'bg-amber-600',
+    password: 'admin123',
   },
   {
     id: 'adm-05',
@@ -161,5 +178,6 @@ export const DEFAULT_ADMIN_USERS: AdminUser[] = [
     phone: '085277889900',
     createdAt: '2026-08-12',
     avatarColor: 'bg-cyan-600',
+    password: 'admin123',
   },
 ];

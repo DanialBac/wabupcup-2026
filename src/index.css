@@ -29,6 +29,29 @@
   background: rgba(220, 38, 38, 0.8);
 }
 
+/* Luxury UI Glass scrollbar */
+.glass-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.03);
+}
+.glass-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.glass-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 9999px;
+  margin: 0 4px;
+}
+.glass-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  backdrop-filter: blur(8px);
+}
+.glass-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.6);
+}
+
 /* Metallic silver sheen */
 .silver-gradient {
   background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 50%, #94a3b8 100%);
@@ -93,4 +116,162 @@
   transform: translateZ(0);
   backface-visibility: hidden;
 }
+
+/* ========================================================================= */
+/* GLASSMORPHISM TRANSPARENT SYSTEM (LIGHT & DARK MODES)                    */
+/* ========================================================================= */
+
+.glass-surface {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+.dark .glass-surface {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Frosted glass styling for Landing Page & Modals */
+.glass-panel {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+}
+
+.dark .glass-panel {
+  background-color: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ADMIN CMS AUTOMATIC GLASS TRANSPARENT STYLING FOR LIGHT MODE */
+html:not(.dark) #admin-dashboard-root {
+  background-color: rgba(248, 250, 252, 0.82) !important;
+  color: #0f172a !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+html:not(.dark) #admin-dashboard-root header {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-bottom-color: rgba(226, 232, 240, 0.85) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+html:not(.dark) #admin-dashboard-root aside {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-right-color: rgba(226, 232, 240, 0.85) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+html:not(.dark) #admin-dashboard-root main {
+  background-color: rgba(241, 245, 249, 0.65) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Glass cards and containers inside Admin CMS */
+html:not(.dark) #admin-dashboard-root .bg-slate-900,
+html:not(.dark) #admin-dashboard-root .bg-slate-950,
+html:not(.dark) #admin-dashboard-root .bg-\[\#1E293B\],
+html:not(.dark) #admin-dashboard-root .bg-\[\#0F172A\],
+html:not(.dark) #admin-dashboard-root .bg-\[\#111827\] {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(226, 232, 240, 0.9) !important;
+  color: #0f172a !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), inset 0 1px 0 0 rgba(255, 255, 255, 0.8) !important;
+}
+
+html:not(.dark) #admin-dashboard-root .bg-slate-800,
+html:not(.dark) #admin-dashboard-root .bg-slate-800\/60,
+html:not(.dark) #admin-dashboard-root .bg-slate-800\/80,
+html:not(.dark) #admin-dashboard-root .bg-slate-800\/90 {
+  background-color: rgba(241, 245, 249, 0.82) !important;
+  border-color: rgba(226, 232, 240, 0.85) !important;
+  color: #1e293b !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Inputs, Selects, Textareas inside Admin CMS */
+html:not(.dark) #admin-dashboard-root input:not([type="checkbox"]):not([type="radio"]),
+html:not(.dark) #admin-dashboard-root select,
+html:not(.dark) #admin-dashboard-root textarea {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  color: #0f172a !important;
+  border-color: rgba(203, 213, 225, 0.9) !important;
+}
+
+html:not(.dark) #admin-dashboard-root select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Text adjustments for Light Mode CMS */
+html:not(.dark) #admin-dashboard-root h1,
+html:not(.dark) #admin-dashboard-root h2,
+html:not(.dark) #admin-dashboard-root h3,
+html:not(.dark) #admin-dashboard-root h4,
+html:not(.dark) #admin-dashboard-root h5 {
+  color: #0f172a !important;
+}
+
+html:not(.dark) #admin-dashboard-root .text-slate-400 {
+  color: #64748b !important;
+}
+
+html:not(.dark) #admin-dashboard-root .text-slate-300 {
+  color: #475569 !important;
+}
+
+html:not(.dark) #admin-dashboard-root .text-slate-200 {
+  color: #334155 !important;
+}
+
+html:not(.dark) #admin-dashboard-root .border-slate-800,
+html:not(.dark) #admin-dashboard-root .border-slate-700 {
+  border-color: rgba(226, 232, 240, 0.85) !important;
+}
+
+html:not(.dark) #admin-dashboard-root .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+html:not(.dark) #admin-dashboard-root .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(226, 232, 240, 0.85) !important;
+}
+
+html:not(.dark) #admin-dashboard-root thead tr {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+  color: #334155 !important;
+}
+
+html:not(.dark) #admin-dashboard-root tbody tr:hover {
+  background-color: rgba(248, 250, 252, 0.85) !important;
+}
+
+/* Preserve bright white text inside vibrant buttons and badges */
+html:not(.dark) #admin-dashboard-root button.bg-red-600,
+html:not(.dark) #admin-dashboard-root button.bg-blue-600,
+html:not(.dark) #admin-dashboard-root button.bg-emerald-600,
+html:not(.dark) #admin-dashboard-root button[class*="from-red"],
+html:not(.dark) #admin-dashboard-root button[class*="from-blue"],
+html:not(.dark) #admin-dashboard-root button[class*="from-emerald"],
+html:not(.dark) #admin-dashboard-root [class*="bg-red-600"] > span,
+html:not(.dark) #admin-dashboard-root [class*="bg-emerald-600"] > span,
+html:not(.dark) #admin-dashboard-root [class*="bg-blue-600"] > span,
+html:not(.dark) #admin-dashboard-root [class*="from-red"] > span,
+html:not(.dark) #admin-dashboard-root [class*="from-blue"] > span {
+  color: #ffffff !important;
+}
+
 

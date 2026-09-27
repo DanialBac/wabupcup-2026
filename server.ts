@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -6,6 +7,7 @@ import compression from 'compression';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
 import { initDatabaseConnection } from './server/db';
+import { sitemapHandler, robotsHandler } from './server/sitemap';
 
 async function startServer() {
   const app = express();
@@ -35,6 +37,10 @@ async function startServer() {
     }
     next(err);
   });
+
+  // Dynamic XML Sitemap & Robots.txt for Search Engine Crawlers
+  app.get('/sitemap.xml', sitemapHandler);
+  app.get('/robots.txt', robotsHandler);
 
   // API Routes FIRST
   app.use('/api', apiRouter);

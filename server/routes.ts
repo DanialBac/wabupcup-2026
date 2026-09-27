@@ -1,12 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection, ensureDbConnected } from './db';
-import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem } from '../src/types';
+import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem, PlayerItem, GroupStageItem } from '../src/types';
 import { generateUniqueRegCode } from '../src/utils/registrationCode';
 import { blobRouter } from './blob';
 import { r2Router } from './r2';
 import { mediaRouter } from './mediaRoutes';
+import { sitemapHandler, robotsHandler } from './sitemap';
 
 export const apiRouter = Router();
+
+// Dynamic Sitemap & Robots.txt endpoints under /api as well
+apiRouter.get('/sitemap.xml', sitemapHandler);
+apiRouter.get('/robots.txt', robotsHandler);
 
 // Mount TiDB Centralized Media Storage Router
 apiRouter.use(mediaRouter);
@@ -588,5 +593,152 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     res.status(401).json({ success: false, message: result.error || 'Username atau password salah' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err?.message || 'Gagal memproses login' });
+  }
+});
+
+// 11. Players Management & Excel Import (table_players)
+apiRouter.get('/players', async (req: Request, res: Response) => {
+  try {
+    const { category, teamName } = req.query;
+    const players = await Database.getPlayers(
+      category as string | undefined,
+      teamName as string | undefined
+    );
+    res.json(players);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal memuat data pemain' });
+  }
+});
+
+apiRouter.post('/players', async (req: Request, res: Response) => {
+  try {
+    const id = req.body.id || `ply-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const saved = await Database.savePlayer({ ...req.body, id });
+    res.status(201).json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal menyimpan pemain' });
+  }
+});
+
+apiRouter.post('/players/batch', async (req: Request, res: Response) => {
+  try {
+    const rawList = Array.isArray(req.body) ? req.body : req.body.players;
+    if (!Array.isArray(rawList)) {
+      return res.status(400).json({ error: 'Array pemain wajib disertakan' });
+    }
+    const formatted: PlayerItem[] = rawList.map((p, idx) => ({
+      id: p.id || `ply-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+      teamId: p.teamId,
+      teamName: p.teamName || 'Tim',
+      category: p.category || 'SMA',
+      name: p.name || 'Pemain',
+      jerseyNumber: Number(p.jerseyNumber) || 0,
+      position: p.position || 'Flank',
+      goals: Number(p.goals) || 0,
+      yellowCards: Number(p.yellowCards) || 0,
+      redCards: Number(p.redCards) || 0,
+      photoUrl: p.photoUrl,
+    }));
+    const saved = await Database.savePlayersBatch(formatted);
+    res.json({ success: true, count: saved.length, players: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal import pemain batch' });
+  }
+});
+
+apiRouter.put('/players/:id', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id || req.body.id;
+    const saved = await Database.savePlayer({ ...req.body, id });
+    res.json(saved);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal memperbarui pemain' });
+  }
+});
+
+apiRouter.delete('/players/:id', async (req: Request, res: Response) => {
+  try {
+    await Database.deletePlayer(req.params.id);
+    res.json({ success: true, id: req.params.id });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal menghapus pemain' });
+  }
+});
+
+apiRouter.get('/players/top-scorers', async (req: Request, res: Response) => {
+  try {
+    const { category } = req.query;
+    const players = await Database.getPlayers(category as string | undefined);
+    const topScorers = [...players]
+      .filter(p => p.goals > 0)
+      .sort((a, b) => b.goals - a.goals || a.yellowCards - b.yellowCards);
+    res.json(topScorers);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+// 12. Groups & Group Stages
+apiRouter.get('/groups', async (req: Request, res: Response) => {
+  try {
+    const { category } = req.query;
+    const groups = await Database.getGroupStages(category as string | undefined);
+    res.json(groups);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/groups', async (req: Request, res: Response) => {
+  try {
+    const { category, groups } = req.body;
+    if (!category || !Array.isArray(groups)) {
+      return res.status(400).json({ error: 'category and groups array are required' });
+    }
+    const saved = await Database.saveGroupStages(category, groups);
+    res.json({ success: true, count: saved.length, groups: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/groups/replace', async (req: Request, res: Response) => {
+  try {
+    const { category, groups } = req.body;
+    if (!category || !Array.isArray(groups)) {
+      return res.status(400).json({ error: 'category and groups array are required' });
+    }
+    const saved = await Database.saveGroupStages(category, groups);
+    res.json({ success: true, count: saved.length, groups: saved });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/groups/reset', async (req: Request, res: Response) => {
+  try {
+    const { category } = req.body;
+    if (!category) {
+      return res.status(400).json({ error: 'category is required' });
+    }
+    const result = await Database.resetCategoryGroupsAndMatches(category);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal mereset grup dan jadwal' });
+  }
+});
+
+// 13. Standings (Klasemen Real-time & Sinkronisasi table_standings)
+apiRouter.get('/standings', async (req: Request, res: Response) => {
+  try {
+    const { category, source } = req.query;
+    if (source === 'db') {
+      const dbStandings = await Database.getStandingsFromDb(category as string | undefined);
+      return res.json(dbStandings);
+    }
+    const standings = await Database.calculateStandings(category as string | undefined);
+    res.json(standings);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
   }
 });

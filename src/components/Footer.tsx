@@ -17,12 +17,14 @@ interface FooterProps {
   onOpenCheckStatus: () => void;
   onOpenRegistration: () => void;
   onOpenAdmin: () => void;
+  onNavigateKlasemen?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onOpenCheckStatus,
   onOpenRegistration,
   onOpenAdmin,
+  onNavigateKlasemen,
 }) => {
   const { config, categories } = useTournament();
 
@@ -32,16 +34,16 @@ export const Footer: React.FC<FooterProps> = ({
 
   return (
     <footer
-      className={`relative overflow-hidden border-t border-slate-800 transition-colors duration-300 pt-16 pb-12 ${
-        isCustomColor || isCustomImage ? '' : 'bg-slate-950 text-slate-400'
+      className={`relative overflow-hidden border-t border-slate-200 dark:border-slate-800 transition-colors duration-300 pt-16 pb-12 ${
+        isCustomColor || isCustomImage ? '' : 'bg-slate-100/80 dark:bg-slate-950 text-slate-600 dark:text-slate-400'
       }`}
       style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
     >
       {/* CUSTOM SECTION BACKGROUND */}
       <SectionBackground config={bgConfig} />
 
-      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig, 'text-slate-400')}`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800/80">
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${getSectionTextClass(bgConfig, 'text-slate-600 dark:text-slate-400')}`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-200 dark:border-slate-800/80">
           
           {/* BRAND & ABOUT (2 COLS) */}
           <div className="lg:col-span-2 space-y-4">
@@ -64,15 +66,15 @@ export const Footer: React.FC<FooterProps> = ({
                 </div>
               )}
               <div className="leading-tight">
-                <span className="font-heading text-xl font-bold tracking-wider text-white uppercase block">
+                <span className="font-heading text-xl font-bold tracking-wider text-slate-900 dark:text-white uppercase block">
                   {config.name || 'WABUP CUP 2026'}
                 </span>
-                <span className="text-[10px] font-bold text-red-500 tracking-widest uppercase block">
+                <span className="text-[10px] font-bold text-red-600 dark:text-red-500 tracking-widest uppercase block">
                   {config.tagline || 'Turnamen Akbar Futsal'}
                 </span>
               </div>
               {config.panitiaLogoUrl && (
-                <div className="pl-3 border-l border-slate-800 flex items-center">
+                <div className="pl-3 border-l border-slate-300 dark:border-slate-800 flex items-center">
                   <img
                     src={config.panitiaLogoUrl}
                     alt="Logo Panitia"
@@ -87,11 +89,11 @@ export const Footer: React.FC<FooterProps> = ({
               )}
             </div>
 
-            <p className="text-xs leading-relaxed text-slate-400 max-w-sm">
+            <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400 max-w-sm">
               Ajang kejuaraan futsal memperebutkan Piala Bergilir Wakil Bupati {config.edition || '2026'}{categories.length > 0 ? ` untuk ${categories.length} kategori kompetisi.` : '.'}
             </p>
 
-            <div className="pt-2 text-xs space-y-2 text-slate-400">
+            <div className="pt-2 text-xs space-y-2 text-slate-600 dark:text-slate-400">
               <div className="flex items-start space-x-2">
                 <MapPin className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <span>{config.venueName}, {config.venueAddress}, {config.venueCity}</span>
@@ -109,10 +111,10 @@ export const Footer: React.FC<FooterProps> = ({
                         href={`https://wa.me/${formattedWa}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center space-x-2 hover:text-emerald-400 transition"
+                        className="flex items-center space-x-2 hover:text-emerald-500 dark:hover:text-emerald-400 transition"
                       >
                         <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
-                        <span>WA {c.name} ({c.role}): <strong className="text-emerald-400 font-mono">+{formattedWa}</strong></span>
+                        <span>WA {c.name} ({c.role}): <strong className="text-emerald-600 dark:text-emerald-400 font-mono">+{formattedWa}</strong></span>
                       </a>
                     );
                   })}
@@ -148,6 +150,17 @@ export const Footer: React.FC<FooterProps> = ({
               Navigasi Halaman
             </h4>
             <ul className="space-y-2 text-xs">
+              {onNavigateKlasemen && config.sectionsVisibility?.standaloneKlasemen !== false && (
+                <li>
+                  <button
+                    onClick={onNavigateKlasemen}
+                    className="hover:text-amber-400 text-amber-300 font-bold transition flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Trophy className="w-3 h-3 text-amber-400" />
+                    <span>Klasemen & Jadwal Turnamen 🏆</span>
+                  </button>
+                </li>
+              )}
               <li>
                 <a href="#hero" className="hover:text-red-400 transition flex items-center space-x-1">
                   <ChevronRight className="w-3 h-3 text-red-500" />
@@ -267,9 +280,9 @@ export const Footer: React.FC<FooterProps> = ({
             <div className="pt-2">
               <button
                 onClick={onOpenCheckStatus}
-                className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                className="w-full py-2 px-3 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition cursor-pointer shadow-xs"
               >
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Cek Status Pendaftaran</span>
               </button>
             </div>
@@ -277,16 +290,16 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* ADMIN & SECRETARIAT */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
               Portal Panitia
             </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
               Khusus panitia pelaksana dan operator meja pertandingan untuk verifikasi berkas dan update skor.
             </p>
 
             <button
               onClick={onOpenAdmin}
-              className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-950/60 transition flex items-center justify-center space-x-1.5"
+              className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-950/40 transition flex items-center justify-center space-x-1.5 cursor-pointer"
             >
               <Shield className="w-4 h-4" />
               <span>Login CMS Admin</span>
@@ -296,7 +309,7 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* BOTTOM COPYRIGHT */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
           <p>© 2026 Panitia Pelaksana Turnamen WabupCup. All rights reserved.</p>
           <div className="flex items-center space-x-4">
             <span className="inline-flex items-center space-x-1">

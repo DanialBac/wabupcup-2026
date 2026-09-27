@@ -18,9 +18,6 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules/jspdf') || id.includes('node_modules/xlsx')) {
-              return 'vendor-export';
-            }
             if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
               return 'vendor-react';
             }

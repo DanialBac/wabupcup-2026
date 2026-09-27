@@ -12,12 +12,23 @@ export const DEFAULT_SECTIONS_VISIBILITY: PageSectionsVisibility = {
   bracket: true,
   venue: true,
   sponsors: true,
+  klasemenLanding: true,
+  standaloneKlasemen: true,
+  landingKlasemen: true,
+  landingSchedule: true,
+  landingBracket: true,
+  landingTopScorer: true,
+  standaloneTabKlasemen: true,
+  standaloneTabJadwal: true,
+  standaloneTabKnockout: true,
+  standaloneTabTopScore: true,
 };
 
 export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
   name: 'WabupCup',
   edition: '2026',
   tagline: 'Turnamen Futsal Perebutan Piala Wakil Bupati',
+  wabupLogoUrl: '/wabup-cup-logo.svg',
   registrationDeadline: '2026-10-15',
   tournamentStartDate: '2026-10-24',
   tournamentEndDate: '2026-11-08',

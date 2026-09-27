@@ -234,6 +234,66 @@ export interface PageSectionsVisibility {
   bracket: boolean;
   venue: boolean;
   sponsors: boolean;
+  klasemenLanding?: boolean;
+  standaloneKlasemen?: boolean;
+  // Modul Pertandingan di Landing Page
+  landingKlasemen?: boolean;
+  landingSchedule?: boolean;
+  landingBracket?: boolean;
+  landingTopScorer?: boolean;
+  // Tab Navigasi di Halaman Standalone
+  standaloneTabKlasemen?: boolean;
+  standaloneTabJadwal?: boolean;
+  standaloneTabKnockout?: boolean;
+  standaloneTabTopScore?: boolean;
+}
+
+export interface PlayerItem {
+  id: string;
+  teamId?: string;
+  teamName: string;
+  category: TournamentCategory;
+  name: string;
+  jerseyNumber: number;
+  position: 'Kiper' | 'Anchor' | 'Flank' | 'Pivot' | string;
+  goals: number;
+  yellowCards: number;
+  redCards: number;
+  photoUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TeamStandingItem {
+  position: number;
+  teamName: string;
+  institution?: string;
+  teamLogo?: string;
+  groupName: string; // e.g. "Grup A", "Grup B"
+  category: TournamentCategory;
+  played: number; // M (Main)
+  won: number;    // W (Menang)
+  drawn: number;  // S (Seri)
+  lost: number;   // K (Kalah)
+  goalsFor: number; // GM (Gol Masuk)
+  goalsAgainst: number; // GK (Gol Kemasukan)
+  goalDifference: number; // SG (Selisih Gol = GM - GK)
+  points: number; // Poin = (W * 3) + (S * 1)
+}
+
+export interface GroupTeamItem {
+  id?: string;
+  name: string;
+  institution?: string;
+  logo?: string;
+  seed?: number;
+}
+
+export interface GroupStageItem {
+  id: string;
+  category: TournamentCategory;
+  groupName: string; // "Grup A", "Grup B", etc.
+  teams: GroupTeamItem[];
 }
 
 export type SectionKey =

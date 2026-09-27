@@ -231,4 +231,67 @@ CREATE TABLE `app_media_storage` (
   INDEX `idx_media_subkey` (`sub_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ----------------------------------------------------------
+-- 12. Table: table_players (Data Pemain & Statistik Gol/Kartu)
+-- ----------------------------------------------------------
+DROP TABLE IF EXISTS `table_players`;
+CREATE TABLE `table_players` (
+  `id` VARCHAR(64) PRIMARY KEY,
+  `team_id` VARCHAR(64) NULL,
+  `team_name` VARCHAR(150) NOT NULL,
+  `category_id` VARCHAR(32) NOT NULL,
+  `name` VARCHAR(150) NOT NULL,
+  `jersey_number` INT NOT NULL DEFAULT 0,
+  `position` VARCHAR(50) NOT NULL DEFAULT 'Flank',
+  `goals` INT NOT NULL DEFAULT 0,
+  `yellow_cards` INT NOT NULL DEFAULT 0,
+  `red_cards` INT NOT NULL DEFAULT 0,
+  `photo_url` LONGTEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_player_team` (`team_name`),
+  INDEX `idx_player_category` (`category_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------
+-- 13. Table: tournament_groups (Pembagian Grup Penyisihan Kategori)
+-- ----------------------------------------------------------
+DROP TABLE IF EXISTS `tournament_groups`;
+CREATE TABLE `tournament_groups` (
+  `id` VARCHAR(64) PRIMARY KEY,
+  `category_id` VARCHAR(32) NOT NULL,
+  `group_name` VARCHAR(50) NOT NULL,
+  `teams_json` JSON NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_cat_group` (`category_id`, `group_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------
+-- 14. Table: table_standings (Klasemen Grup Turnamen Real-Time)
+-- ----------------------------------------------------------
+DROP TABLE IF EXISTS `table_standings`;
+CREATE TABLE `table_standings` (
+  `id` VARCHAR(128) PRIMARY KEY,
+  `category_id` VARCHAR(32) NOT NULL,
+  `group_name` VARCHAR(50) NOT NULL,
+  `team_name` VARCHAR(150) NOT NULL,
+  `team_id` VARCHAR(64) NULL,
+  `institution_name` VARCHAR(200) NULL,
+  `team_logo` LONGTEXT NULL,
+  `position` INT NOT NULL DEFAULT 0,
+  `played` INT NOT NULL DEFAULT 0,
+  `won` INT NOT NULL DEFAULT 0,
+  `drawn` INT NOT NULL DEFAULT 0,
+  `lost` INT NOT NULL DEFAULT 0,
+  `goals_for` INT NOT NULL DEFAULT 0,
+  `goals_against` INT NOT NULL DEFAULT 0,
+  `goal_difference` INT NOT NULL DEFAULT 0,
+  `points` INT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_standing_cat_group` (`category_id`, `group_name`),
+  INDEX `idx_standing_team` (`team_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
