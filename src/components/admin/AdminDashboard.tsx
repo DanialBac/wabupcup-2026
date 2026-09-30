@@ -1618,7 +1618,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
         ];
       case 'UMUM':
         return [
-          { key: 'suratKeterangan', label: 'Surat Rekomendasi / Keterangan Klub', shortLabel: 'Surat Klub' },
           { key: 'suratPernyataan', label: 'Surat Pernyataan Tanggung Jawab', shortLabel: 'SPTJM' },
           { key: 'formulirPemain', label: 'Formulir Pemain & Official', shortLabel: 'Form Pemain' },
           { key: 'ktpGabungan', label: 'File KTP Asli Pemain & Official', shortLabel: 'KTP Gabungan' },
@@ -3034,7 +3033,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                                 <td className="py-3.5 px-4">
                                   {(() => {
                                     const docs = item.documents || {};
-                                    const validEntries = Object.entries(docs).filter(([_, doc]) => doc && doc.name);
+                                    const validEntries = Object.entries(docs).filter(([key, doc]) => doc && doc.name && !(item.category === 'UMUM' && key === 'suratKeterangan'));
                                     const reqDocs = getRequiredDocsForCategory(item.category);
                                     const uploadedReqCount = reqDocs.filter(r => Boolean((docs as any)[r.key])).length;
                                     const isComplete = uploadedReqCount >= reqDocs.length;
@@ -7758,7 +7757,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
             {(() => {
               const reqDocs = getRequiredDocsForCategory(inspectDocsItem.category);
               const docs = inspectDocsItem.documents || {};
-              const uploadedEntries = Object.entries(docs).filter(([_, doc]) => doc && (doc as UploadedDoc).name);
+              const uploadedEntries = Object.entries(docs).filter(([key, doc]) => doc && (doc as UploadedDoc).name && !(inspectDocsItem.category === 'UMUM' && key === 'suratKeterangan'));
               const uploadedReqCount = reqDocs.filter(r => Boolean((docs as any)[r.key])).length;
               const isAllComplete = uploadedReqCount >= reqDocs.length;
 

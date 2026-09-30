@@ -68,7 +68,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
   return (
     <div
       id="beranda"
-      className="relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white -mt-20 pt-28 pb-16 sm:pt-32 sm:pb-20 lg:pt-36 lg:pb-24 border-b border-slate-200 dark:border-slate-800 transition-colors duration-300"
+      className="relative overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white pt-28 sm:pt-32 lg:pt-36 pb-16 sm:pb-20 lg:pb-24 border-b border-slate-200 dark:border-slate-800 transition-colors duration-300 scroll-mt-24"
       style={bgConfig?.mode === 'COLOR' && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}
     >
       {/* CUSTOM SECTION BACKGROUND (IMAGE / COLOR / OVERLAY) */}
@@ -87,31 +87,41 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* TOP PILL BADGE */}
-        <div className="flex justify-center mb-6">
-          <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-red-50 dark:bg-gradient-to-r dark:from-red-950/80 dark:via-slate-900/90 dark:to-blue-950/80 border border-red-200 dark:border-red-500/40 text-xs font-semibold text-red-600 dark:text-red-300 shadow-md">
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-full border text-xs font-semibold shadow-md ${
+            hasCustomBg
+              ? 'bg-slate-950/80 backdrop-blur-md border-red-500/50 text-red-300'
+              : 'bg-red-50 dark:bg-gradient-to-r dark:from-red-950/80 dark:via-slate-900/90 dark:to-blue-950/80 border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-300'
+          }`}>
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 [will-change:transform,opacity]"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
             <span className="tracking-wide uppercase">Pendaftaran Resmi Telah Dibuka</span>
             <span className="text-slate-400 dark:text-slate-500">•</span>
-            <span className="text-slate-900 dark:text-white font-bold">Total Hadiah Rp {config.totalPrizePool.toLocaleString('id-ID')}</span>
+            <span className={hasCustomBg ? 'text-white font-bold' : 'text-slate-900 dark:text-white font-bold'}>
+              Total Hadiah Rp {config.totalPrizePool.toLocaleString('id-ID')}
+            </span>
           </div>
         </div>
 
         {/* MAIN HEADLINE */}
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-heading font-extrabold uppercase tracking-tight leading-[0.9] text-slate-900 dark:text-white">
+          <h1 className={`text-5xl sm:text-7xl lg:text-8xl font-heading font-extrabold uppercase tracking-tight leading-[0.9] ${
+            hasCustomBg ? 'text-white drop-shadow-md' : 'text-slate-900 dark:text-white'
+          }`}>
             TURNAMEN<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-600 to-blue-600 dark:from-red-500 dark:via-white dark:to-blue-400">
               {config.name ? config.name.toUpperCase() : 'WABUP CUP'} {config.edition || ''}
             </span>
           </h1>
 
-          <p className="mt-5 text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto font-normal leading-relaxed">
+          <p className={`mt-5 text-base sm:text-xl max-w-2xl mx-auto font-normal leading-relaxed ${
+            hasCustomBg ? 'text-slate-200 drop-shadow-sm' : 'text-slate-600 dark:text-slate-300'
+          }`}>
             {config.tagline || 'Turnamen Futsal Perebutan Piala Wakil Bupati'}
             {categories.length > 0 && (
-              <> dalam {categories.length} kategori: <strong className="text-slate-900 dark:text-white">{categories.map(c => c.name || c.id).join(', ')}</strong>.</>
+              <> dalam {categories.length} kategori: <strong className={hasCustomBg ? 'text-white' : 'text-slate-900 dark:text-white'}>{categories.map(c => c.name || c.id).join(', ')}</strong>.</>
             )}
           </p>
 

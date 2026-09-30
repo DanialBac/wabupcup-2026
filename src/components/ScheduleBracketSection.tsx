@@ -99,7 +99,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   return (
     <section
       id="bagan"
-      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
+      className={`scroll-mt-24 py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
         isCustomColor || isCustomImage ? '' : 'bg-slate-100/60 dark:bg-slate-900/40 text-slate-900 dark:text-white'
       }`}
       style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}

@@ -6,7 +6,7 @@ export const mediaRouter = Router();
 /**
  * Helper to extract raw buffer from base64 or Data URI
  */
-function decodeBase64File(fileData: string): { buffer: Buffer; mimeType?: string } {
+export function decodeBase64File(fileData: string): { buffer: Buffer; mimeType?: string } {
   const matches = fileData.match(/^data:([A-Za-z0-9-+/]+);base64,(.+)$/);
   if (matches && matches.length === 3) {
     const mimeType = matches[1];
@@ -99,14 +99,57 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
       return res.status(404).send('Berkas tidak ditemukan');
     }
 
-    const { buffer } = decodeBase64File(media.fileData);
+    const { buffer, mimeType } = decodeBase64File(media.fileData);
+    const contentType = media.contentType || mimeType || 'application/octet-stream';
+    const total = buffer.length;
 
-    res.setHeader('Content-Type', media.contentType || 'application/octet-stream');
-    res.setHeader('Content-Length', buffer.length);
-    // Cache for 24 hours in client browser for fast performance
-    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=3600');
+    // Stable strong ETag based on media ID and file size
+    const etag = `"${id}-${total}"`;
+
+    // 1. Conditional Request Check (304 Not Modified - 0 bytes payload)
+    if (req.headers['if-none-match'] === etag) {
+      res.setHeader('ETag', etag);
+      res.setHeader(
+        'Cache-Control',
+        'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable'
+      );
+      return res.status(304).end();
+    }
+
+    // Common Edge CDN & Browser Caching Headers
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('ETag', etag);
+    res.setHeader(
+      'Cache-Control',
+      'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable'
+    );
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(media.filename)}"`);
 
+    // 2. HTTP Range Requests (RFC 7233) for efficient PDF chunk reading & zooming
+    const range = req.headers.range;
+    if (range && range.startsWith('bytes=')) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+
+      // Validate range
+      if (isNaN(start) || start >= total || end >= total || start > end) {
+        res.setHeader('Content-Range', `bytes */${total}`);
+        return res.status(416).send('Requested range not satisfiable');
+      }
+
+      const chunk = buffer.subarray(start, end + 1);
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+      res.setHeader('Content-Length', chunk.length);
+      res.setHeader('Content-Type', contentType);
+      return res.end(chunk);
+    }
+
+    // 3. Full Content Delivery (Status 200)
+    res.status(200);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', total);
     return res.end(buffer);
   } catch (err: any) {
     console.error('[Media View Error]', err);

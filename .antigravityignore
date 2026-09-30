@@ -1,11 +1,18 @@
 # Dependencies & Build artifacts
 node_modules/
-build/
 dist/
+build/
 coverage/
 
 # Git
 .git/
+
+# Environment and sensitive files
+.env*
+!.env.example
+
+# Database dumps
+*.sql
 
 # OS & Logs
 .DS_Store
@@ -13,13 +20,6 @@ coverage/
 .cache/
 .temp/
 tmp/
-
-# Environment files
-.env*
-!.env.example
-
-# Database dumps
-*.sql
 
 # Media & Large Binary Files
 *.mp4

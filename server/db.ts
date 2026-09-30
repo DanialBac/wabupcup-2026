@@ -734,6 +734,41 @@ export async function runFullSchemaInit() {
 // DATABASE SERVICE METHODS (WITH AUTOMATIC HYBRID RESOLVER)
 // ----------------------------------------------------
 
+function sanitizeRegistrationDocuments(rawDocs: any, regId: string): Record<string, any> {
+  const docs = typeof rawDocs === 'string' ? JSON.parse(rawDocs) : (rawDocs || {});
+  const sanitized: Record<string, any> = {};
+
+  for (const [key, doc] of Object.entries(docs)) {
+    if (!doc || typeof doc !== 'object') continue;
+    const d = doc as any;
+
+    let url = d.url;
+    if (!url && typeof d.fileData === 'string' && (d.fileData.startsWith('/api/') || d.fileData.startsWith('http://') || d.fileData.startsWith('https://'))) {
+      url = d.fileData;
+    }
+    if (!url && typeof d.previewUrl === 'string' && (d.previewUrl.startsWith('/api/') || d.previewUrl.startsWith('http://') || d.previewUrl.startsWith('https://'))) {
+      url = d.previewUrl;
+    }
+    // Fallback: If doc has raw base64 and no URL, point to on-demand stream endpoint
+    if (!url && d.fileData && (d.fileData.startsWith('data:') || d.fileData.length > 200)) {
+      url = `/api/registrations/${regId}/doc/${key}`;
+    }
+
+    sanitized[key] = {
+      name: d.name || 'Dokumen',
+      size: d.size || 'Ukuran tidak diketahui',
+      uploadDate: d.uploadDate || '',
+      type: d.type || 'application/pdf',
+      url: url || undefined,
+      // CRITICAL FOR FOT: Never send heavy base64 strings in the registrations list!
+      // Setting fileData to the url ensures components that read doc.fileData still work without re-downloading base64!
+      fileData: url || undefined,
+    };
+  }
+
+  return sanitized;
+}
+
 export const Database = {
   // Config
   async getConfig(): Promise<TournamentConfig> {
@@ -1079,7 +1114,7 @@ export const Database = {
             paymentAmount: Number(r.payment_amount),
             rejectionReason: r.rejection_reason || undefined,
             adminNotes: r.admin_notes || undefined,
-            documents: typeof r.documents_json === 'string' ? JSON.parse(r.documents_json) : (r.documents_json || {}),
+            documents: sanitizeRegistrationDocuments(r.documents_json, r.id),
             lastUpdated: r.last_updated || r.registration_date,
           }));
         }
@@ -1087,7 +1122,37 @@ export const Database = {
         console.error('Error fetching registrations from MySQL:', err);
       }
     }
-    return memStore.registrations;
+    return memStore.registrations.map(r => ({
+      ...r,
+      documents: sanitizeRegistrationDocuments(r.documents, r.id),
+    }));
+  },
+
+  async getRegistrationDocument(regId: string, docKey: string): Promise<any | null> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.query('SELECT documents_json FROM registrations WHERE id = ?', [regId]);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const raw = rows[0].documents_json;
+          const docs = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+          const target = docs[docKey];
+          if (target) {
+            return target.fileData || target.previewUrl || target.url || null;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching registration document from MySQL:', err);
+      }
+    }
+    const memItem = memStore.registrations.find(r => r.id === regId);
+    if (memItem && memItem.documents) {
+      const target = (memItem.documents as any)[docKey];
+      if (target) {
+        return target.fileData || target.previewUrl || target.url || null;
+      }
+    }
+    return null;
   },
 
   async saveRegistration(item: RegistrationItem): Promise<RegistrationItem> {

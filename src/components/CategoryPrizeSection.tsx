@@ -56,7 +56,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
   return (
     <section
       id="kategori"
-      className={`py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
+      className={`scroll-mt-24 py-16 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800 ${
         isCustomColor || isCustomImage ? '' : 'bg-white dark:bg-slate-950 text-slate-900 dark:text-white'
       }`}
       style={isCustomColor && bgConfig.bgColor ? { backgroundColor: bgConfig.bgColor } : undefined}

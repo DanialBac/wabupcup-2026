@@ -4,7 +4,7 @@ import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem, PlayerItem, G
 import { generateUniqueRegCode } from '../src/utils/registrationCode';
 import { blobRouter } from './blob';
 import { r2Router } from './r2';
-import { mediaRouter } from './mediaRoutes';
+import { mediaRouter, decodeBase64File } from './mediaRoutes';
 import { sitemapHandler, robotsHandler } from './sitemap';
 
 export const apiRouter = Router();
@@ -242,6 +242,62 @@ apiRouter.delete('/categories/:id', async (req: Request, res: Response) => {
 apiRouter.get('/registrations', async (req: Request, res: Response) => {
   const list = await Database.getRegistrations();
   res.json(list);
+});
+
+// On-demand single document viewer/streamer for registrations with Range and Edge Cache
+apiRouter.get('/registrations/:id/doc/:docKey', async (req: Request, res: Response) => {
+  try {
+    const { id, docKey } = req.params;
+    const fileSource = await Database.getRegistrationDocument(id, docKey);
+    if (!fileSource) {
+      return res.status(404).send('Dokumen tidak ditemukan');
+    }
+
+    if (typeof fileSource === 'string' && (fileSource.startsWith('http://') || fileSource.startsWith('https://') || fileSource.startsWith('/api/media/'))) {
+      return res.redirect(fileSource);
+    }
+
+    const { buffer, mimeType } = decodeBase64File(fileSource);
+    const contentType = mimeType || 'application/pdf';
+    const total = buffer.length;
+    const etag = `"${id}-${docKey}-${total}"`;
+
+    if (req.headers['if-none-match'] === etag) {
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable');
+      return res.status(304).end();
+    }
+
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable');
+    res.setHeader('Content-Type', contentType);
+
+    const range = req.headers.range;
+    if (range && range.startsWith('bytes=')) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+
+      if (isNaN(start) || start >= total || end >= total || start > end) {
+        res.setHeader('Content-Range', `bytes */${total}`);
+        return res.status(416).send('Requested range not satisfiable');
+      }
+
+      const chunk = buffer.subarray(start, end + 1);
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+      res.setHeader('Content-Length', chunk.length);
+      return res.end(chunk);
+    }
+
+    res.status(200);
+    res.setHeader('Content-Length', total);
+    return res.end(buffer);
+  } catch (err: any) {
+    console.error('[Registration Doc Stream Error]', err);
+    return res.status(500).send('Gagal memuat dokumen');
+  }
 });
 
 apiRouter.post('/registrations', async (req: Request, res: Response) => {

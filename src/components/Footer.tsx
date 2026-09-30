@@ -162,7 +162,7 @@ export const Footer: React.FC<FooterProps> = ({
                 </li>
               )}
               <li>
-                <a href="#hero" className="hover:text-red-400 transition flex items-center space-x-1">
+                <a href="#beranda" className="hover:text-red-400 transition flex items-center space-x-1">
                   <ChevronRight className="w-3 h-3 text-red-500" />
                   <span>Beranda</span>
                 </a>

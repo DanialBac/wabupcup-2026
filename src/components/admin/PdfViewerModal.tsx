@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UploadedDoc } from '../../types';
 import {
   FileText,
@@ -11,7 +11,9 @@ import {
   ShieldCheck,
   Calendar,
   Layers,
-  FileCheck
+  FileCheck,
+  Loader2,
+  Zap
 } from 'lucide-react';
 
 interface PdfViewerModalProps {
@@ -32,23 +34,102 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   onVerify,
 }) => {
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [localBlobUrl, setLocalBlobUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // In-Memory Blob conversion to eliminate network overhead during scroll/zoom
+  useEffect(() => {
+    let active = true;
+    let createdUrl: string | null = null;
+
+    if (!isOpen || !document) {
+      setLocalBlobUrl(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const rawSource = document.url || document.fileData || document.previewUrl;
+    if (!rawSource) {
+      setLocalBlobUrl(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // 1. If already a blob: URL, use directly
+    if (rawSource.startsWith('blob:')) {
+      setLocalBlobUrl(rawSource);
+      return;
+    }
+
+    // 2. If it is a base64 Data URI, convert to local Blob URL in RAM
+    if (rawSource.startsWith('data:')) {
+      try {
+        const parts = rawSource.split(',');
+        const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+        const binary = atob(parts[1]);
+        const array = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          array[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([array], { type: mime });
+        createdUrl = URL.createObjectURL(blob);
+        if (active) setLocalBlobUrl(createdUrl);
+      } catch {
+        if (active) setLocalBlobUrl(rawSource);
+      }
+      return () => {
+        active = false;
+        if (createdUrl) URL.revokeObjectURL(createdUrl);
+      };
+    }
+
+    // 3. If it is an HTTP/HTTPS or /api URL, download ONCE to browser RAM
+    setIsLoading(true);
+    fetch(rawSource)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (active) {
+          createdUrl = URL.createObjectURL(blob);
+          setLocalBlobUrl(createdUrl);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn('[PdfViewer] Could not fetch to blob, using direct URL fallback:', err);
+        if (active) {
+          setLocalBlobUrl(rawSource);
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, [isOpen, document?.url, document?.fileData, document?.previewUrl]);
 
   if (!isOpen || !document) return null;
 
-  const pdfSource = document.fileData || document.previewUrl;
+  const effectiveSource = localBlobUrl || document.url || document.fileData || document.previewUrl;
   const isImageFile = Boolean(
-    pdfSource &&
-    (pdfSource.startsWith('data:image/') ||
+    effectiveSource &&
+    (effectiveSource.startsWith('data:image/') ||
      (document.type && document.type.startsWith('image/')) ||
      document.name?.match(/\.(png|jpg|jpeg|webp|svg)$/i))
   );
   const isRealPdfFile = Boolean(
     !isImageFile &&
-    pdfSource &&
-    (pdfSource.startsWith('data:application/pdf') ||
-     pdfSource.startsWith('blob:') ||
-     pdfSource.startsWith('http://') ||
-     pdfSource.startsWith('https://') ||
+    effectiveSource &&
+    (effectiveSource.startsWith('data:application/pdf') ||
+     effectiveSource.startsWith('blob:') ||
+     effectiveSource.startsWith('http://') ||
+     effectiveSource.startsWith('https://') ||
+     effectiveSource.startsWith('/api/') ||
      document.name?.toLowerCase().endsWith('.pdf'))
   );
 
@@ -80,9 +161,31 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
           {/* ZOOM & ACTIONS */}
           <div className="flex items-center space-x-2 shrink-0">
-            {pdfSource && (
+            {isImageFile && (
+              <div className="flex items-center space-x-1 bg-slate-800 border border-slate-700/60 rounded-lg px-1.5 py-1">
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(prev => Math.max(50, prev - 25))}
+                  className="p-1 hover:text-white text-slate-300 rounded transition"
+                  title="Perkecil (Zoom Out)"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-[10px] font-mono px-1 text-slate-300">{zoomLevel}%</span>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(prev => Math.min(300, prev + 25))}
+                  className="p-1 hover:text-white text-slate-300 rounded transition"
+                  title="Perbesar (Zoom In)"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {effectiveSource && (
               <a
-                href={pdfSource}
+                href={effectiveSource}
                 download={document.name || `${teamName}-${documentTitle}.pdf`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -96,6 +199,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
             {onVerify && (
               <button
+                type="button"
                 onClick={onVerify}
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center space-x-1"
               >
@@ -105,6 +209,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
             )}
 
             <button
+              type="button"
               onClick={onClose}
               className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition"
             >
@@ -115,10 +220,18 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
         {/* PDF CANVAS / VIEWER BODY */}
         <div className="flex-1 bg-slate-950 p-2 sm:p-4 overflow-hidden flex flex-col">
-          {isImageFile ? (
+          {isLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-3 bg-slate-900/60 rounded-xl border border-slate-800">
+              <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-white">Memuat Berkas ke Memori...</p>
+                <p className="text-xs text-slate-400 mt-1">Mengunduh 1 kali ke memori lokal untuk navigasi instan & hemat kuota</p>
+              </div>
+            </div>
+          ) : isImageFile ? (
             <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-slate-900/60 rounded-xl border border-slate-800">
               <img
-                src={pdfSource}
+                src={effectiveSource || undefined}
                 alt={`${documentTitle} - ${teamName}`}
                 className="max-h-full max-w-full object-contain rounded-lg shadow-xl"
                 style={{ transform: `scale(${zoomLevel / 100})`, transition: 'transform 0.2s' }}
@@ -127,7 +240,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
           ) : isRealPdfFile ? (
             <div className="w-full h-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col">
               <iframe
-                src={`${pdfSource}#toolbar=1&navpanes=0`}
+                src={`${effectiveSource}#toolbar=1&navpanes=0`}
                 className="w-full h-full border-0 rounded-xl bg-white"
                 title={`${documentTitle} - ${teamName}`}
               />
@@ -204,11 +317,15 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
           <div className="flex items-center space-x-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Dokumen Terverifikasi Standar PDF Panitia WABUPCUP 2026</span>
+            <span className="hidden sm:inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-950/70 text-emerald-400 border border-emerald-800/60 ml-2">
+              <Zap className="w-3 h-3 text-emerald-400" />
+              <span>Memori Lokal (Bebas Kuota FOT)</span>
+            </span>
           </div>
           <div className="flex items-center space-x-3">
-            {pdfSource && (
+            {effectiveSource && (
               <a
-                href={pdfSource}
+                href={effectiveSource}
                 download={document.name || `${teamName}-${documentTitle}.pdf`}
                 className="text-red-400 hover:text-red-300 font-semibold flex items-center space-x-1"
               >
@@ -217,6 +334,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
               </a>
             )}
             <button
+              type="button"
               onClick={onClose}
               className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold transition"
             >
