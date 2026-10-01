@@ -4,15 +4,15 @@ dist/
 build/
 coverage/
 
-# Git
-.git/
-
 # Environment and sensitive files
 .env*
 !.env.example
 
-# Database dumps
-*.sql
+# Database (Keep schema and seed in repository, ignore only raw backups/dumps)
+*.dump.sql
+*.bak.sql
+!database/
+!database/*.sql
 
 # OS & Logs
 .DS_Store
@@ -21,21 +21,7 @@ coverage/
 .temp/
 tmp/
 
-# Media & Large Binary Files
-*.mp4
-*.m4v
-*.mkv
-*.webm
-*.mov
-*.avi
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.webp
-*.zip
-*.tar.gz
-*.tar
-*.rar
-*.7z
-*.pdf
+# Large Binary Dumps
+*.iso
+*.dmg
+
