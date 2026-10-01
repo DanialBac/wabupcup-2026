@@ -85,14 +85,13 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
       )}
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* TOP PILL BADGE */}
         <div className="flex justify-center mb-6 sm:mb-8">
-          <div className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-full border text-xs font-semibold shadow-md ${
-            hasCustomBg
+          <div className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-full border text-xs font-semibold shadow-md ${hasCustomBg
               ? 'bg-slate-950/80 backdrop-blur-md border-red-500/50 text-red-300'
               : 'bg-red-50 dark:bg-gradient-to-r dark:from-red-950/80 dark:via-slate-900/90 dark:to-blue-950/80 border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-300'
-          }`}>
+            }`}>
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 [will-change:transform,opacity]"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
@@ -107,18 +106,16 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
 
         {/* MAIN HEADLINE */}
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className={`text-5xl sm:text-7xl lg:text-8xl font-heading font-extrabold uppercase tracking-tight leading-[0.9] ${
-            hasCustomBg ? 'text-white drop-shadow-md' : 'text-slate-900 dark:text-white'
-          }`}>
+          <h1 className={`text-5xl sm:text-7xl lg:text-8xl font-heading font-extrabold uppercase tracking-tight leading-[0.9] ${hasCustomBg ? 'text-white drop-shadow-md' : 'text-slate-900 dark:text-white'
+            }`}>
             TURNAMEN<br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-600 to-blue-600 dark:from-red-500 dark:via-white dark:to-blue-400">
               {config.name ? config.name.toUpperCase() : 'WABUP CUP'} {config.edition || ''}
             </span>
           </h1>
 
-          <p className={`mt-5 text-base sm:text-xl max-w-2xl mx-auto font-normal leading-relaxed ${
-            hasCustomBg ? 'text-slate-200 drop-shadow-sm' : 'text-slate-600 dark:text-slate-300'
-          }`}>
+          <p className={`mt-5 text-base sm:text-xl max-w-2xl mx-auto font-normal leading-relaxed ${hasCustomBg ? 'text-slate-200 drop-shadow-sm' : 'text-slate-600 dark:text-slate-300'
+            }`}>
             {config.tagline || 'Turnamen Futsal Perebutan Piala Wakil Bupati'}
             {categories.length > 0 && (
               <> dalam {categories.length} kategori: <strong className={hasCustomBg ? 'text-white' : 'text-slate-900 dark:text-white'}>{categories.map(c => c.name || c.id).join(', ')}</strong>.</>
@@ -187,59 +184,52 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
           </div>
         </div>
 
-        {/* 4 STATS CARDS */}
-        <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-950/80 border border-red-300 dark:border-red-700/50 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0">
+        {/* 3 STATS CARDS */}
+        <div className="mt-12 grid grid-cols-2 md:flex md:flex-wrap md:justify-center lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+
+          {/* CARD 1: TOTAL HADIAH */}
+          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 w-full md:w-[calc(33.333%-1rem)] md:min-w-[240px] lg:w-auto">
+            <div className="w-12 h-12 rounded-xl bg-red-950/80 border border-red-700/50 flex items-center justify-center text-red-400 shrink-0">
               <Trophy className="w-6 h-6" />
             </div>
             <div>
-              <span className="block text-2xl sm:text-3xl font-heading font-bold text-slate-900 dark:text-white leading-none">
+              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
                 {config.totalPrizePool >= 1000000
                   ? `Rp ${(config.totalPrizePool / 1000000).toLocaleString('id-ID')} JT`
                   : `Rp ${config.totalPrizePool.toLocaleString('id-ID')}`}
               </span>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">Total Hadiah Tunai</p>
+              <p className="text-xs text-slate-400 font-medium mt-1">Total Hadiah Tunai</p>
             </div>
           </div>
 
-          <div className="bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950/80 border border-blue-300 dark:border-blue-700/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+          {/* CARD 2: KATEGORI */}
+          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 w-full md:w-[calc(33.333%-1rem)] md:min-w-[240px] lg:w-auto">
+            <div className="w-12 h-12 rounded-xl bg-blue-950/80 border border-blue-700/50 flex items-center justify-center text-blue-400 shrink-0">
               <Sparkles className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <span className="block text-2xl sm:text-3xl font-heading font-bold text-slate-900 dark:text-white leading-none">
+              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
                 {categories.length > 0 ? `${categories.length} KATEGORI` : 'KATEGORI'}
               </span>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 truncate" title={categories.map(c => c.id).join(', ')}>
+              <p className="text-xs text-slate-400 font-medium mt-1 truncate" title={categories.map(c => c.id).join(', ')}>
                 {categories.length > 0 ? categories.map(c => c.id).join(', ') : 'Sinkronisasi Database...'}
               </p>
             </div>
           </div>
 
-          <div className="bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="block text-2xl sm:text-3xl font-heading font-bold text-slate-900 dark:text-white leading-none">
-                {totalTeamsCount} TIM
-              </span>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">{approvedTeamsCount} Tim Terverifikasi</p>
-            </div>
-          </div>
-
-          <div className="bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700/50 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+          {/* CARD 3: VENUE */}
+          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 col-span-2 md:w-[calc(33.333%-1rem)] md:min-w-[240px] lg:w-auto">
+            <div className="w-12 h-12 rounded-xl bg-amber-950/80 border border-amber-700/50 flex items-center justify-center text-amber-400 shrink-0">
               <MapPin className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <span className="block text-2xl sm:text-3xl font-heading font-bold text-slate-900 dark:text-white leading-none truncate">
+              <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none truncate">
                 VENUE
               </span>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 truncate" title={config.venueName}>{config.venueName}</p>
+              <p className="text-xs text-slate-400 font-medium mt-1 truncate" title={config.venueName}>{config.venueName}</p>
             </div>
           </div>
+
         </div>
 
       </div>
