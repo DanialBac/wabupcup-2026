@@ -1118,8 +1118,7 @@ var Database = {
     persistLocalStore();
     if (pool && isMySqlConnected) {
       try {
-        for (let i = 0; i < categories.length; i++) {
-          const cat = categories[i];
+        await Promise.all(categories.map(async (cat, i) => {
           await pool.query(
             `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json, sort_order)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1144,12 +1143,33 @@ var Database = {
               cat.totalPrize
             ]
           );
-        }
+        }));
       } catch (err) {
         console.error("Error reordering categories in MySQL:", err);
       }
     }
     return categories;
+  },
+  async syncCategoryRegisteredCounts() {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [counts] = await pool.query(`
+          SELECT category_id, category, COUNT(*) as count 
+          FROM registrations 
+          GROUP BY category_id, category
+        `);
+        await pool.query("UPDATE categories SET registered_teams_count = 0");
+        await Promise.all(counts.map(async (row) => {
+          await pool.query(
+            "UPDATE categories SET registered_teams_count = ? WHERE name = ? OR id = ?",
+            [row.count, row.category, row.category_id || row.category]
+          );
+        }));
+      } catch (err) {
+        console.error("Error syncing category registered counts:", err);
+      }
+    }
   },
   // Registrations
   async getRegistrations() {
@@ -3377,6 +3397,14 @@ apiRouter.post("/categories/reorder", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
+apiRouter.post("/categories/sync-counts", async (req, res) => {
+  try {
+    await Database.syncCategoryRegisteredCounts();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err?.message });
+  }
+});
 apiRouter.put("/categories/:id", async (req, res) => {
   try {
     const saved = await Database.saveCategory(req.body);
@@ -3451,9 +3479,20 @@ apiRouter.post("/registrations", async (req, res) => {
         error: "Data tidak lengkap. Field wajib: teamName, category, coachName, coachPhone."
       });
     }
+    const categories = await Database.getCategories();
+    const targetCategory = categories.find((c) => c.name === data.category || c.id === data.category);
+    if (!targetCategory) {
+      return res.status(400).json({ error: "Kategori perlombaan tidak valid atau tidak ditemukan." });
+    }
+    const existing = await Database.getRegistrations();
+    if (targetCategory.maxTeams && targetCategory.maxTeams > 0) {
+      const categoryRegsCount = existing.filter((r) => r.category === targetCategory.name || r.category === targetCategory.id).length;
+      if (categoryRegsCount >= targetCategory.maxTeams) {
+        return res.status(400).json({ error: "Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh." });
+      }
+    }
     const now = /* @__PURE__ */ new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const existing = await Database.getRegistrations();
     const candidateCode = typeof data.regCode === "string" ? data.regCode.trim().toUpperCase() : "";
     const isCodeInUse = candidateCode !== "" && existing.some((r) => r.regCode && r.regCode.trim().toUpperCase() === candidateCode);
     const regCode = !candidateCode || isCodeInUse ? generateUniqueRegCode(data.category, existing) : candidateCode;

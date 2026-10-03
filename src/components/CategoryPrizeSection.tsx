@@ -135,8 +135,8 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {categories.map(cat => {
             const isExpanded = expandedCat === cat.id;
-            const activeRegs = registrations.filter(r => r.category === cat.id && r.status !== 'REJECTED');
-            const registeredCount = activeRegs.length;
+            // Gunakan hitungan dari backend yang mengikutkan seluruh tim terlepas statusnya
+            const registeredCount = cat.registeredTeamsCount || 0;
             const isFull = registeredCount >= cat.maxTeams;
             const remainingSlots = Math.max(0, cat.maxTeams - registeredCount);
             const quotaPercent = Math.min(

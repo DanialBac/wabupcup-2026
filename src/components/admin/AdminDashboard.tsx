@@ -133,6 +133,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
     updateCategory,
     deleteCategory,
     reorderCategories,
+    syncCategoryQuotas,
     matches,
     addMatch,
     updateMatch,
@@ -499,6 +500,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
     panitiaLogoUrl: config.panitiaLogoUrl || '',
   });
   const [generalSaveSuccess, setGeneralSaveSuccess] = useState(false);
+
+  // Quota Handlers
+  const handleForceSyncQuotas = async () => {
+    try {
+      await reorderCategories(categories);
+      await syncCategoryQuotas();
+      alert('Berhasil Sinkronkan Kuota Real-Time!');
+      refreshDataFromServer();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyinkronkan kuota. Periksa koneksi!');
+    }
+  };
+
+  const handleSaveAllCategoriesQuota = async () => {
+    try {
+      await reorderCategories(categories);
+      setQuotaSaveSuccess(true);
+      setTimeout(() => setQuotaSaveSuccess(false), 3500);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyimpan seluruh pengaturan kuota. Periksa koneksi!');
+    }
+  };
+
+  const handleSaveCategoryQuota = async (catId: string) => {
+    try {
+      await reorderCategories(categories);
+      setQuotaSaveSuccess(true);
+      setTimeout(() => setQuotaSaveSuccess(false), 3000);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyimpan pengaturan kuota. Periksa koneksi!');
+    }
+  };
 
   // Downloadable Docs Handlers
   const handleOpenAddDoc = () => {
@@ -4623,10 +4656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                             </span>
                             <button
                               type="button"
-                              onClick={() => {
-                                setQuotaSaveSuccess(true);
-                                setTimeout(() => setQuotaSaveSuccess(false), 3000);
-                              }}
+                              onClick={() => handleSaveCategoryQuota(cat.id)}
                               className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold transition flex items-center space-x-1.5 cursor-pointer"
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -4650,17 +4680,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuotaSaveSuccess(true);
-                        setTimeout(() => setQuotaSaveSuccess(false), 3500);
-                      }}
-                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg shadow-amber-950/60 cursor-pointer"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Simpan Seluruh Pengaturan Kuota</span>
-                    </button>
+                    <div className="flex items-center space-x-3 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={handleForceSyncQuotas}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg cursor-pointer border border-slate-700"
+                      >
+                        <RefreshCw className="w-4 h-4 text-cyan-400" />
+                        <span>Sinkronkan Kuota Real-Time</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveAllCategoriesQuota}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition flex items-center justify-center space-x-2 shadow-lg shadow-amber-950/60 cursor-pointer"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span>Simpan Semua Pengaturan</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

@@ -183,11 +183,18 @@ export const ApiService = {
   },
 
   async createRegistration(data: Partial<RegistrationItem>): Promise<RegistrationItem | null> {
-    return safeJsonFetch<RegistrationItem>(`${API_BASE}/registrations`, {
+    const res = await fetch(`${API_BASE}/registrations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || errData.message || 'Gagal menyimpan pendaftaran');
+    }
+    
+    return res.json();
   },
 
   async updateRegistration(item: RegistrationItem): Promise<RegistrationItem | null> {

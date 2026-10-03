@@ -27,7 +27,8 @@ import {
   Lock,
   MessageCircle,
   Info,
-  PlusCircle
+  PlusCircle,
+  RefreshCw
 } from 'lucide-react';
 
 interface RegistrationFormProps {
@@ -45,8 +46,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   // Helper to calculate real-time registered count for a category
   const getCategoryCount = (catId: TournamentCategory) => {
-    const activeRegs = registrations.filter(r => r.category === catId && r.status !== 'REJECTED');
-    return activeRegs.length;
+    const catObj = categories.find(c => c.id === catId);
+    return catObj?.registeredTeamsCount || 0;
   };
 
   // Helper to determine if a category's quota is full
@@ -102,6 +103,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const submittingRef = useRef(false);
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
 
   // Stable registration ID generated for this form session so all uploaded files are linked directly to ref_id in TiDB Cloud
   const generateNewFormId = () => `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -286,7 +288,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
     // Check if category has reached its maximum quota
     if (isCategoryFull(category)) {
-      alert(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh! Silakan pilih kategori lain yang masih tersedia atau hubungi panitia.`);
+      setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
       return;
     }
 
@@ -366,9 +368,15 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       } catch (err) {}
 
       setSubmittedItem(newRegistration);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Registration submission error:', err);
-      alert('Terjadi kesalahan saat memproses pendaftaran. Silakan coba lagi.');
+      const errMsg = err?.message || '';
+      if (errMsg.toLowerCase().includes('kuota') || errMsg.toLowerCase().includes('penuh') || errMsg.toLowerCase().includes('ditolak')) {
+        setQuotaError(errMsg);
+        setTimeout(() => window.location.reload(), 7000);
+      } else {
+        alert(errMsg || 'Terjadi kesalahan saat memproses pendaftaran. Silakan coba lagi.');
+      }
     } finally {
       setIsSubmitting(false);
       submittingRef.current = false;
@@ -416,8 +424,36 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </button>
         </div>
 
-        {/* SUBMITTED SUCCESS POPUP VIEW */}
-        {submittedItem ? (
+        {/* QUOTA FULL ERROR VIEW */}
+        {quotaError ? (
+          <div className="p-8 sm:p-12 space-y-6 animate-fadeIn text-center">
+            <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 mx-auto flex items-center justify-center shadow-lg shadow-red-500/20">
+              <AlertCircle className="w-10 h-10" />
+            </div>
+
+            <div>
+              <span className="text-sm font-bold uppercase tracking-widest text-red-600 dark:text-red-400 block mb-1">
+                PENDAFTARAN DITOLAK
+              </span>
+              <h4 className="text-3xl font-bold text-slate-900 dark:text-white leading-tight">
+                Kuota Terisi Penuh
+              </h4>
+              <p className="text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto mt-3 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 p-4 rounded-xl">
+                {quotaError}
+              </p>
+            </div>
+            
+            <div className="pt-4 flex items-center justify-center space-x-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition shadow-xl shadow-slate-900/30 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Kembali ke Beranda & Refresh</span>
+              </button>
+            </div>
+          </div>
+        ) : submittedItem ? (
           <div className="p-6 sm:p-8 space-y-6 animate-fadeIn text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center text-3xl shadow-lg shadow-emerald-500/20">
               ✓

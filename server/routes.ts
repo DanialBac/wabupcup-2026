@@ -220,6 +220,15 @@ apiRouter.post('/categories/reorder', async (req: Request, res: Response) => {
   }
 });
 
+apiRouter.post('/categories/sync-counts', async (req: Request, res: Response) => {
+  try {
+    await Database.syncCategoryRegisteredCounts();
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
 apiRouter.put('/categories/:id', async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveCategory(req.body);
@@ -309,11 +318,25 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
       });
     }
 
+    // Active Quota Validation
+    const categories = await Database.getCategories();
+    const targetCategory = categories.find(c => c.name === data.category || c.id === data.category);
+    if (!targetCategory) {
+      return res.status(400).json({ error: 'Kategori perlombaan tidak valid atau tidak ditemukan.' });
+    }
+
+    const existing = await Database.getRegistrations();
+
+    if (targetCategory.maxTeams && targetCategory.maxTeams > 0) {
+      // Hapus filter status: hitung semua tim (Pending, Approved, Rejected) yang mendaftar di kategori ini
+      const categoryRegsCount = existing.filter(r => r.category === targetCategory.name || r.category === targetCategory.id).length;
+      if (categoryRegsCount >= targetCategory.maxTeams) {
+        return res.status(400).json({ error: 'Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh.' });
+      }
+    }
+
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    // Fetch latest registrations directly from database
-    const existing = await Database.getRegistrations();
     
     // Check if client-provided regCode is non-empty AND genuinely unused
     const candidateCode = typeof data.regCode === 'string' ? data.regCode.trim().toUpperCase() : '';

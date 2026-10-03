@@ -225,6 +225,7 @@ interface TournamentContextType {
   updateCategory: (category: CategoryDetail) => void;
   deleteCategory: (categoryId: string) => void;
   reorderCategories: (newCategories: CategoryDetail[]) => Promise<void>;
+  syncCategoryQuotas: () => Promise<void>;
   registrations: RegistrationItem[];
   submitNewRegistration: (data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>) => Promise<RegistrationItem>;
   updateRegistration: (item: RegistrationItem) => void;
@@ -802,6 +803,15 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       await ApiService.reorderCategories(newCategories);
     } catch (err) {
       console.warn('Could not sync reordered categories to backend:', err);
+    }
+  };
+
+  const syncCategoryQuotas = async () => {
+    try {
+      await fetch('/api/categories/sync-counts', { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to sync category quotas', err);
+      throw err;
     }
   };
 
@@ -2799,6 +2809,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateCategory,
         deleteCategory,
         reorderCategories,
+        syncCategoryQuotas,
         registrations,
         submitNewRegistration,
         updateRegistration,

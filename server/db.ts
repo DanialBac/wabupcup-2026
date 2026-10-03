@@ -1070,8 +1070,7 @@ export const Database = {
     persistLocalStore();
     if (pool && isMySqlConnected) {
       try {
-        for (let i = 0; i < categories.length; i++) {
-          const cat = categories[i];
+        await Promise.all(categories.map(async (cat, i) => {
           await pool.query(
             `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json, sort_order)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1081,12 +1080,37 @@ export const Database = {
               i, cat.name, cat.maxTeams, cat.registrationFee, cat.totalPrize,
             ]
           );
-        }
+        }));
       } catch (err) {
         console.error('Error reordering categories in MySQL:', err);
       }
     }
     return categories;
+  },
+
+  async syncCategoryRegisteredCounts(): Promise<void> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        // Hapus filter status (hitung SEMUA status tim)
+        const [counts]: any = await pool.query(`
+          SELECT category_id, category, COUNT(*) as count 
+          FROM registrations 
+          GROUP BY category_id, category
+        `);
+        
+        await pool.query('UPDATE categories SET registered_teams_count = 0');
+        
+        await Promise.all(counts.map(async (row: any) => {
+          await pool.query(
+            'UPDATE categories SET registered_teams_count = ? WHERE name = ? OR id = ?',
+            [row.count, row.category, row.category_id || row.category]
+          );
+        }));
+      } catch (err) {
+        console.error('Error syncing category registered counts:', err);
+      }
+    }
   },
 
   // Registrations

@@ -772,7 +772,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
 
               <div className="flex items-center space-x-3 text-xs w-full sm:w-auto justify-between sm:justify-end">
                 <span className="text-slate-500 dark:text-slate-400">
-                  Total Terdaftar: <strong className="text-slate-900 dark:text-white">{catRegistrations.length} Tim</strong> ({currentCatDetail?.maxTeams || 16} Maksimal)
+                  Total Terdaftar: <strong className="text-slate-900 dark:text-white">{currentCatDetail?.registeredTeamsCount || 0} Tim</strong> ({currentCatDetail?.maxTeams || 16} Maksimal)
                 </span>
                 {onOpenRegister && (
                   <button
