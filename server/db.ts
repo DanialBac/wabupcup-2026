@@ -19,7 +19,7 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   if (!hash) return false;
   if (!hash.startsWith('scrypt$')) {
-    return password === hash || hash === 'admin123' || password === 'admin123';
+    return password === hash;
   }
   return new Promise((resolve, reject) => {
     const parts = hash.split('$');
@@ -1593,22 +1593,24 @@ export const Database = {
             };
             return { success: true, user: userObj };
           } else {
-            return { success: false, error: 'Password tidak sesuai' };
+            return { success: false, error: 'Password tidak sesuai dengan database' };
           }
+        } else {
+          return { success: false, error: 'Username tidak ditemukan di database' };
         }
       } catch (err) {
         console.error('Error verifying admin login with MySQL:', err);
+        return { success: false, error: 'Terjadi kesalahan saat memeriksa database' };
       }
     }
 
-    // Fallback to memStore
+    // Fallback to memStore only if database is completely offline
     const found = memStore.adminUsers.find(
       a => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
     );
     if (found) {
       const isMatch = await verifyPassword(pass, found.password || found.id);
-      const plainMatch = pass === (found.password || 'admin123'); // Still fallback for mock data
-      if (isMatch || plainMatch) {
+      if (isMatch) {
         const { password, ...userWithoutPass } = found;
         return { success: true, user: userWithoutPass as AdminUser };
       }

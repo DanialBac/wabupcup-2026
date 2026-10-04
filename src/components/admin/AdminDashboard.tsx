@@ -2141,9 +2141,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
   return (
     <div
       id="admin-dashboard-root"
-      className={`${
-        isStandalonePage ? 'min-h-screen w-full' : 'fixed inset-0 z-50'
-      } overflow-hidden bg-slate-50/80 dark:bg-[#0B1120]/80 text-slate-800 dark:text-slate-200 flex flex-col font-sans backdrop-blur-2xl animate-fadeIn transition-colors duration-200 relative`}
+      className="fixed inset-0 w-full h-full overflow-hidden bg-slate-50/80 dark:bg-[#0B1120]/80 text-slate-800 dark:text-slate-200 flex flex-col font-sans backdrop-blur-2xl animate-fadeIn transition-colors duration-200 relative z-40"
     >
       {/* AMBIENT LIGHT REFLECTIONS FOR TRANSPARENT GLASS EFFECT */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -2264,7 +2262,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
       </header>
 
       {/* CMS MAIN CONTAINER WITH SIDEBAR & CONTENT */}
-      <div className="flex-1 flex overflow-hidden relative z-10">
+      <div className="flex-1 flex overflow-hidden relative z-10 min-h-0">
         
         {/* MOBILE RESPONSIVE DRAWER OVERLAY */}
         {isMobileDrawerOpen && (
@@ -2388,7 +2386,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
         <aside
           className={`${
             isSidebarCollapsed ? 'w-20 px-2 py-3.5' : 'w-64 p-4'
-          } bg-white/75 dark:bg-[#111827]/75 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col shrink-0 overflow-y-auto hidden md:flex transition-all duration-300 ease-in-out select-none`}
+          } bg-white/75 dark:bg-[#111827]/75 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col shrink-0 h-full overflow-y-auto hidden md:flex transition-all duration-300 ease-in-out select-none`}
         >
           {/* HEADER BAR AT TOP OF SIDEBAR WITH TOGGLE */}
           <div
@@ -2739,7 +2737,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
         </aside>
 
         {/* CMS CONTENT AREA */}
-        <main className="flex-1 bg-slate-100/70 dark:bg-[#0B1120]/80 backdrop-blur-2xl overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col space-y-6 transition-colors duration-200">
+        <main className="flex-1 h-full min-h-0 bg-slate-100/70 dark:bg-[#0B1120]/80 backdrop-blur-2xl overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col space-y-6 transition-colors duration-200">
           
           {/* MOBILE TABS SELECTOR - RBAC ENFORCED */}
           <div className="md:hidden mb-2">

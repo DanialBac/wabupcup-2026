@@ -2616,7 +2616,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return { success: false, message: 'Username dan kata sandi wajib diisi.' };
     }
 
-    // 1. Authenticate with backend API
+    // Strictly authenticate with backend real database
     try {
       const res = await ApiService.loginAdmin(cleanUser, pass);
       if (res && res.success && res.user) {
@@ -2630,42 +2630,16 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setTimeout(() => window.location.reload(), 300);
         return { success: true, admin: res.user };
       }
-    } catch (err: any) {
-      console.warn('Backend login check error, falling back to local accounts:', err);
-    }
-
-    // 2. Exact credential check against stored database admin accounts
-    const found = adminUsers.find(
-      u => u.username.toLowerCase() === cleanUser || u.username.toLowerCase() === targetUser
-    );
-    if (found) {
-      if ((found.password && found.password === pass) || (!found.password && pass === 'admin123') || pass === 'admin123') {
-        setCurrentAdmin(found);
-        safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(found));
-        setTimeout(() => window.location.reload(), 300);
-        return { success: true, admin: found };
-      }
-      return { success: false, message: 'Password salah! Kata sandi default adalah: admin123' };
-    }
-
-    // 3. Fallback for superadmin / admin default credentials
-    if ((cleanUser === 'superadmin' || cleanUser === 'admin') && pass === 'admin123') {
-      const fallbackSuperAdmin: AdminUser = {
-        id: 'adm-001',
-        username: 'superadmin',
-        fullName: 'Administrator Resmi WabupCup',
-        role: 'SUPERADMIN',
-        email: 'admin@wabupcup2026.com',
-        phone: '081234567890',
-        avatarColor: 'bg-red-600',
-        createdAt: '2026-08-01',
+      return {
+        success: false,
+        message: res?.message || 'Username atau password salah! Harap gunakan akun yang terdaftar di database.',
       };
-      setCurrentAdmin(fallbackSuperAdmin);
-      safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(fallbackSuperAdmin));
-      return { success: true, admin: fallbackSuperAdmin };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'Gagal menghubungi server untuk memverifikasi akun.',
+      };
     }
-
-    return { success: false, message: 'Username tidak ditemukan! Akun default resmi: superadmin / admin123' };
   };
 
   const logoutAdmin = () => {
