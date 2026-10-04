@@ -3,7 +3,7 @@
 -- Default Categories, Admin Accounts, Configuration, and Sponsors
 -- ==========================================================
 
-USE `wabupcup_db`;
+USE `wabupcup2026`;
 
 -- 1. SEED DEFAULT ADMIN USERS
 INSERT INTO `admin_users` (`id`, `username`, `password_hash`, `full_name`, `role`, `email`, `phone`, `avatar_color`) VALUES

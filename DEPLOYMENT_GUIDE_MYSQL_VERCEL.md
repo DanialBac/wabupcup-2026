@@ -12,7 +12,7 @@ Aplikasi **Wabup Cup 2026** dirancang dengan arsitektur **Full-Stack Hybrid** ya
 
 | File / Folder | Fungsi & Deskripsi |
 |---|---|
-| `database/schema.sql` | Skrip DDL MySQL resmi: membuat database `wabupcup_db` dan 10 tabel lengkap. |
+| `database/schema.sql` | Skrip DDL MySQL resmi: membuat database `wabupcup2026` dan 10 tabel lengkap. |
 | `database/seed.sql` | Skrip data awal (*starter demo data*): kategori turnamen, jadwal, sponsor, akun admin panitia. |
 | `vercel.json` | Konfigurasi otomatis untuk deployment 1-klik di platform Vercel. |
 | `api/index.ts` | Serverless Function handler untuk routing API `/api/*` di Vercel. |
@@ -29,17 +29,17 @@ Anda dapat menggunakan penyedia MySQL gratis atau murah berikut:
    - Buat cluster Serverless di [tidbcloud.com](https://tidbcloud.com).
    - Klik **Connect** > Pilih **General** / **Node.js**.
    - *Catatan Penting*: TiDB Cloud **mewajibkan enkripsi TLS / SSL**. Sistem backend WabupCup 2026 kini telah dilengkapi auto-detect TLS 1.2+ untuk TiDB Cloud.
-   - Contoh `DATABASE_URL`: `mysql://<user>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db?ssl={"rejectUnauthorized":true}`
+   - Contoh `DATABASE_URL`: `mysql://<user>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026?ssl={"rejectUnauthorized":true}`
    - Atau jika menggunakan variabel terpisah:
      - `MYSQL_HOST` = `gateway01.ap-southeast-1.prod.aws.tidbcloud.com`
      - `MYSQL_PORT` = `4000`
      - `MYSQL_USER` = `xxxxxx.root`
      - `MYSQL_PASSWORD` = `PasswordTiDBAnda`
-     - `MYSQL_DATABASE` = `wabupcup_db`
+     - `MYSQL_DATABASE` = `wabupcup2026`
      - `MYSQL_SSL` = `true`
 2. **Railway.app** (Free credit): Buat project baru > Add MySQL Database > Salin `DATABASE_URL`.
 3. **Aiven.io** (Gratis tier murah): Buat instance MySQL > Dapatkan URI koneksi `mysql://...`
-4. **cPanel Hosting Anda**: Buat database `wabupcup_db` dan user di cPanel > Izinkan *Remote MySQL* (`%`).
+4. **cPanel Hosting Anda**: Buat database `wabupcup2026` dan user di cPanel > Izinkan *Remote MySQL* (`%`).
 
 ### Langkah 2: Import Skrip Database MySQL
 Buka **phpMyAdmin** atau client MySQL Anda (DBeaver / MySQL Workbench / CLI), lalu:
@@ -50,13 +50,13 @@ Buka **phpMyAdmin** atau client MySQL Anda (DBeaver / MySQL Workbench / CLI), la
 1. Push kode proyek ini ke repositori **GitHub** / GitLab Anda.
 2. Buka dashboard [Vercel](https://vercel.com) > Klik **Add New Project** > Pilih repositori Anda.
 3. Pada bagian **Environment Variables**, tambahkan:
-   - `DATABASE_URL` = `mysql://user:password@host:port/wabupcup_db`
+   - `DATABASE_URL` = `mysql://user:password@host:port/wabupcup2026`
    *Atau jika menggunakan parameter terpisah:*
    - `MYSQL_HOST` = `host-mysql-anda.com`
    - `MYSQL_PORT` = `3306`
    - `MYSQL_USER` = `username_mysql`
    - `MYSQL_PASSWORD` = `password_mysql`
-   - `MYSQL_DATABASE` = `wabupcup_db`
+   - `MYSQL_DATABASE` = `wabupcup2026`
    - `MYSQL_SSL` = `true`
 4. Klik **Deploy**. Selesai! Web turnamen Anda langsung aktif dengan domain Vercel (contoh: `wabupcup-2026.vercel.app`).
 
@@ -78,17 +78,17 @@ sudo mysql -u root
 ```
 Di dalam MySQL prompt:
 ```sql
-CREATE DATABASE wabupcup_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE wabupcup2026 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'wabup_user'@'localhost' IDENTIFIED BY 'PasswordKuat2026!';
-GRANT ALL PRIVILEGES ON wabupcup_db.* TO 'wabup_user'@'localhost';
+GRANT ALL PRIVILEGES ON wabupcup2026.* TO 'wabup_user'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
 
 ### 3. Import Schema & Seed
 ```bash
-mysql -u wabup_user -p wabupcup_db < database/schema.sql
-mysql -u wabup_user -p wabupcup_db < database/seed.sql
+mysql -u wabup_user -p wabupcup2026 < database/schema.sql
+mysql -u wabup_user -p wabupcup2026 < database/seed.sql
 ```
 
 ### 4. Clone Project & Build
@@ -104,7 +104,7 @@ MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=wabup_user
 MYSQL_PASSWORD=PasswordKuat2026!
-MYSQL_DATABASE=wabupcup_db
+MYSQL_DATABASE=wabupcup2026
 PORT=3000
 NODE_ENV=production
 ```

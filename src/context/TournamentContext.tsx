@@ -384,7 +384,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }>({
     connected: false,
     host: 'Memeriksa...',
-    database: 'wabupcup_db',
+    database: 'wabupcup2026',
     error: null,
     mode: 'MEMORY_FALLBACK',
   });

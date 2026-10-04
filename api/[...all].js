@@ -321,7 +321,7 @@ function saveDbConfigFile(config) {
 }
 function getMySqlStatus() {
   const host = process.env.MYSQL_HOST || (process.env.DATABASE_URL ? "Via DATABASE_URL" : "Not configured (In-Memory fallback)");
-  const dbName = process.env.MYSQL_DATABASE || "wabupcup_db";
+  const dbName = process.env.MYSQL_DATABASE || "wabupcup2026";
   return {
     connected: isMySqlConnected,
     host,
@@ -406,7 +406,7 @@ async function initDatabaseConnection(customConfig) {
   const host = process.env.MYSQL_HOST ? process.env.MYSQL_HOST.trim() : void 0;
   const user = process.env.MYSQL_USER ? process.env.MYSQL_USER.trim() : void 0;
   const password = process.env.MYSQL_PASSWORD !== void 0 ? process.env.MYSQL_PASSWORD : void 0;
-  const database = (process.env.MYSQL_DATABASE || "wabupcup_db").trim();
+  const database = (process.env.MYSQL_DATABASE || "wabupcup2026").trim();
   const isTidb = Boolean(dbUrl && dbUrl.includes("tidbcloud.com") || host && host.includes("tidbcloud.com"));
   const defaultPort = isTidb ? 4e3 : 3306;
   const port = parseInt(process.env.MYSQL_PORT || String(defaultPort), 10);
@@ -2055,9 +2055,9 @@ var Database = {
     sql += `-- ==========================================================
 
 `;
-    sql += `CREATE DATABASE IF NOT EXISTS \`wabupcup_db\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    sql += `CREATE DATABASE IF NOT EXISTS \`wabupcup2026\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 `;
-    sql += `USE \`wabupcup_db\`;
+    sql += `USE \`wabupcup2026\`;
 
 `;
     sql += `-- 1. CONFIG

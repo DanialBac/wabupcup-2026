@@ -152,7 +152,7 @@ export function saveDbConfigFile(config: CustomDbConfig): void {
 
 export function getMySqlStatus() {
   const host = process.env.MYSQL_HOST || (process.env.DATABASE_URL ? 'Via DATABASE_URL' : 'Not configured (In-Memory fallback)');
-  const dbName = process.env.MYSQL_DATABASE || 'wabupcup_db';
+  const dbName = process.env.MYSQL_DATABASE || 'wabupcup2026';
   return {
     connected: isMySqlConnected,
     host,
@@ -278,7 +278,7 @@ export async function initDatabaseConnection(customConfig?: CustomDbConfig): Pro
   const host = process.env.MYSQL_HOST ? process.env.MYSQL_HOST.trim() : undefined;
   const user = process.env.MYSQL_USER ? process.env.MYSQL_USER.trim() : undefined;
   const password = process.env.MYSQL_PASSWORD !== undefined ? process.env.MYSQL_PASSWORD : undefined;
-  const database = (process.env.MYSQL_DATABASE || 'wabupcup_db').trim();
+  const database = (process.env.MYSQL_DATABASE || 'wabupcup2026').trim();
   const isTidb = Boolean((dbUrl && dbUrl.includes('tidbcloud.com')) || (host && host.includes('tidbcloud.com')));
   const defaultPort = isTidb ? 4000 : 3306;
   const port = parseInt(process.env.MYSQL_PORT || String(defaultPort), 10);
@@ -1907,8 +1907,8 @@ export const Database = {
     sql += `-- Target: MySQL 5.7+ / 8.0+ / MariaDB / Cloud SQL / phpMyAdmin\n`;
     sql += `-- ==========================================================\n\n`;
 
-    sql += `CREATE DATABASE IF NOT EXISTS \`wabupcup_db\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n`;
-    sql += `USE \`wabupcup_db\`;\n\n`;
+    sql += `CREATE DATABASE IF NOT EXISTS \`wabupcup2026\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n`;
+    sql += `USE \`wabupcup2026\`;\n\n`;
 
     sql += `-- 1. CONFIG\n`;
     sql += `INSERT INTO \`tournament_config\` (\`config_key\`, \`config_value\`) VALUES ('main_config', '${JSON.stringify(config).replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`config_value\`=VALUES(\`config_value\`);\n\n`;

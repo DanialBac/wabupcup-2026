@@ -31,12 +31,12 @@ export const DatabaseManagerTab: React.FC = () => {
 
   // Interactive Connection Form State
   const [connectMode, setConnectMode] = useState<'URI' | 'PARAMS'>('URI');
-  const [dbUrlInput, setDbUrlInput] = useState('mysql://G3R4PBkMaCJzYe3.root:GDuXYLDpS53iSAeD@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db');
+  const [dbUrlInput, setDbUrlInput] = useState('mysql://G3R4PBkMaCJzYe3.root:GDuXYLDpS53iSAeD@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026');
   const [hostInput, setHostInput] = useState('gateway01.ap-southeast-1.prod.aws.tidbcloud.com');
   const [portInput, setPortInput] = useState(4000);
   const [userInput, setUserInput] = useState('G3R4PBkMaCJzYe3.root');
   const [passwordInput, setPasswordInput] = useState('');
-  const [databaseInput, setDatabaseInput] = useState('wabupcup_db');
+  const [databaseInput, setDatabaseInput] = useState('wabupcup2026');
   const [sslInput, setSslInput] = useState(true);
 
   const fetchStatus = async () => {
@@ -145,7 +145,7 @@ export const DatabaseManagerTab: React.FC = () => {
     setConnectMode('URI');
     setHostInput('gateway01.ap-southeast-1.prod.aws.tidbcloud.com');
     setPortInput(4000);
-    setDatabaseInput('wabupcup_db');
+    setDatabaseInput('wabupcup2026');
     setSslInput(true);
     setActionMessage({
       type: 'success',
@@ -159,7 +159,7 @@ export const DatabaseManagerTab: React.FC = () => {
     setPortInput(3306);
     setUserInput('root');
     setPasswordInput('');
-    setDatabaseInput('wabupcup_db');
+    setDatabaseInput('wabupcup2026');
     setSslInput(false);
     setActionMessage({
       type: 'success',
@@ -191,7 +191,7 @@ export const DatabaseManagerTab: React.FC = () => {
   const SAMPLE_ENV = `# Konfigurasi Database MySQL WabupCup 2026
 # OPSI A: TiDB Cloud Serverless / PlanetScale / Railway
 # Format URI:
-DATABASE_URL=mysql://<username>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db?ssl={"rejectUnauthorized":true}
+DATABASE_URL=mysql://<username>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026?ssl={"rejectUnauthorized":true}
 
 # OPSI B: Parameter Terpisah (TiDB Cloud / cPanel / VPS / Localhost)
 # TiDB Cloud Serverless wajib menggunakan port 4000 dan MYSQL_SSL=true
@@ -199,15 +199,15 @@ MYSQL_HOST=gateway01.ap-southeast-1.prod.aws.tidbcloud.com
 MYSQL_PORT=4000
 MYSQL_USER=xxxxxx.root
 MYSQL_PASSWORD=xxxxxx
-MYSQL_DATABASE=wabupcup_db
+MYSQL_DATABASE=wabupcup2026
 MYSQL_SSL=true
 
 PORT=3000
 NODE_ENV=production`;
 
   const SAMPLE_SQL_SNIPPET = `-- Skrip Cepat DDL Database WabupCup 2026
-CREATE DATABASE IF NOT EXISTS \`wabupcup_db\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE \`wabupcup_db\`;
+CREATE DATABASE IF NOT EXISTS \`wabupcup2026\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE \`wabupcup2026\`;
 
 -- Tabel Utama:
 -- 1. categories (Kategori Usia, Kuota, Biaya & Hadiah)
@@ -345,7 +345,7 @@ USE \`wabupcup_db\`;
             <Database className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="text-base font-bold text-white font-mono">
-            {dbStatus?.database || 'wabupcup_db'}
+            {dbStatus?.database || 'wabupcup2026'}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Engine: InnoDB • utf8mb4</p>
         </div>
@@ -466,7 +466,7 @@ USE \`wabupcup_db\`;
                   type="text"
                   value={dbUrlInput}
                   onChange={e => setDbUrlInput(e.target.value)}
-                  placeholder="mysql://username.root:password@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup_db"
+                  placeholder="mysql://username.root:password@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026"
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
@@ -506,7 +506,7 @@ USE \`wabupcup_db\`;
                   type="text"
                   value={databaseInput}
                   onChange={e => setDatabaseInput(e.target.value)}
-                  placeholder="wabupcup_db"
+                  placeholder="wabupcup2026"
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
@@ -630,9 +630,9 @@ USE \`wabupcup_db\`;
                 <li>
                   <strong>Atur Environment Variables di Vercel:</strong>
                   <div className="mt-2 p-2.5 rounded-lg bg-slate-900 font-mono text-[11px] text-emerald-400 border border-slate-800 flex items-center justify-between">
-                    <span>DATABASE_URL=mysql://user:pass@host:3306/wabupcup_db</span>
+                    <span>DATABASE_URL=mysql://user:pass@host:3306/wabupcup2026</span>
                     <button
-                      onClick={() => copyToClipboard('DATABASE_URL=mysql://user:pass@host:3306/wabupcup_db', 'env')}
+                      onClick={() => copyToClipboard('DATABASE_URL=mysql://user:pass@host:3306/wabupcup2026', 'env')}
                       className="text-slate-400 hover:text-white p-1"
                     >
                       {copiedEnv ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -670,8 +670,8 @@ USE \`wabupcup_db\`;
 
               <p className="text-slate-400"># 2. Import database ke MySQL server lokal:</p>
               <div className="p-2 rounded bg-slate-900 text-blue-300 text-[11px]">
-                mysql -u root -p wabupcup_db &lt; database/schema.sql<br />
-                mysql -u root -p wabupcup_db &lt; database/seed.sql
+                mysql -u root -p wabupcup2026 &lt; database/schema.sql<br />
+                mysql -u root -p wabupcup2026 &lt; database/seed.sql
               </div>
 
               <p className="text-slate-400"># 3. Jalankan server background dengan PM2:</p>

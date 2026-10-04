@@ -4,11 +4,11 @@
 -- Character Set: utf8mb4 / utf8mb4_unicode_ci
 -- ==========================================================
 
-CREATE DATABASE IF NOT EXISTS `wabupcup_db` 
+CREATE DATABASE IF NOT EXISTS `wabupcup2026` 
   DEFAULT CHARACTER SET utf8mb4 
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE `wabupcup_db`;
+USE `wabupcup2026`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 

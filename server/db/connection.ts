@@ -45,7 +45,7 @@ export function getDbPool(customConfig?: TiDbConfig): Pool {
   const port = parseInt(String(rawPort), 10);
   const user = (customConfig?.user || process.env.TIDB_USER || process.env.MYSQL_USER || '').trim();
   const password = customConfig?.password !== undefined ? customConfig.password : (process.env.TIDB_PASSWORD || process.env.MYSQL_PASSWORD || '');
-  const database = (customConfig?.database || process.env.TIDB_DATABASE || process.env.MYSQL_DATABASE || 'wabupcup_db').trim();
+  const database = (customConfig?.database || process.env.TIDB_DATABASE || process.env.MYSQL_DATABASE || 'wabupcup2026').trim();
 
   let poolOptions: PoolOptions;
 
@@ -92,7 +92,7 @@ export function getDbPool(customConfig?: TiDbConfig): Pool {
       port: port || 4000,
       user: user || 'root',
       password: password || '',
-      database: database || 'wabupcup_db',
+      database: database || 'wabupcup2026',
       connectionLimit: 4,
       maxIdle: 2,
       idleTimeout: 30000,
