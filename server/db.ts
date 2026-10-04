@@ -701,10 +701,12 @@ export const Database = {
         await pool.query(
           `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE name=?, badge_title=?, age_restriction=?, max_teams=?, registered_teams_count=?, registration_fee=?, total_prize=?, description=?, prizes_json=?, rules_json=?`,
+           ON DUPLICATE KEY UPDATE name=?, badge_title=?, age_restriction=?, max_teams=?, registration_fee=?, total_prize=?, description=?, prizes_json=?, rules_json=?`,
+          // registered_teams_count is intentionally NOT updated here: it is owned by the
+          // pessimistic-lock transactions in routes.ts and /categories/sync-counts.
           [
             cat.id, cat.name, cat.badgeTitle || '', cat.ageRestriction, cat.maxTeams, cat.registeredTeamsCount, cat.registrationFee, cat.totalPrize, cat.description || '', JSON.stringify(cat.prizes), JSON.stringify(cat.rules),
-            cat.name, cat.badgeTitle || '', cat.ageRestriction, cat.maxTeams, cat.registeredTeamsCount, cat.registrationFee, cat.totalPrize, cat.description || '', JSON.stringify(cat.prizes), JSON.stringify(cat.rules),
+            cat.name, cat.badgeTitle || '', cat.ageRestriction, cat.maxTeams, cat.registrationFee, cat.totalPrize, cat.description || '', JSON.stringify(cat.prizes), JSON.stringify(cat.rules),
           ]
         );
       } catch (err) {

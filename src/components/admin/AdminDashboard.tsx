@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTournament } from '../../context/TournamentContext';
+import { isSuratKeteranganRequired } from '../../shared/registrationRules';
 import {
   AdminRole,
   AdminUser,

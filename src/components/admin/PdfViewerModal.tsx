@@ -16,6 +16,8 @@ import {
   Zap
 } from 'lucide-react';
 
+const VirtualizedPDFViewer = React.lazy(() => import('./VirtualizedPDFViewer'));
+
 interface PdfViewerModalProps {
   isOpen: boolean;
   onClose: () => void;

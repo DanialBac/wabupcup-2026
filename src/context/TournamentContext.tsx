@@ -2666,7 +2666,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window !== 'undefined') {
       localStorage.removeItem('wabupcup_current_admin');
     }
-    clearPdfCache().catch(() => {});
+    import('../hooks/usePdfLoader').then(m => m.clearPdfCache()).catch(() => {});
   };
 
   const addAdminUser = async (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }): Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }> => {

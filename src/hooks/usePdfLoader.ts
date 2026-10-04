@@ -1,19 +1,142 @@
+/// <reference types="vite/client" />
 import { useState, useEffect } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { useTournament } from '../context/TournamentContext'; // Or wherever admin token is
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFDocumentLoadingTask } from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+GlobalWorkerOptions.workerSrc = workerUrl;
 
-// L1 Cache: LRU Map
-const PDF_MEMORY_CACHE = new Map<string, Promise<pdfjsLib.PDFDocumentProxy>>();
-const MAX_MEMORY_CACHE_SIZE = 5;
+// ---------- L1: in-memory LRU (stores the Promise to dedupe StrictMode double-fetch) ----------
+interface L1Entry {
+  promise: Promise<PDFDocumentProxy>;
+  task: PDFDocumentLoadingTask | null;
+}
+const L1 = new Map<string, L1Entry>();
+const L1_MAX = 5;
 
-// L2 Cache: Cache API
-const CACHE_NAME = 'pdf-cache-v1';
+function l1Touch(id: string, entry: L1Entry) {
+  L1.delete(id);
+  L1.set(id, entry);
+}
+
+function l1Evict() {
+  while (L1.size > L1_MAX) {
+    const oldestKey = L1.keys().next().value as string;
+    const old = L1.get(oldestKey);
+    L1.delete(oldestKey);
+    // pdfjs v6: documents are destroyed through their loading task
+    old?.task?.destroy().catch(() => {});
+  }
+}
+
+// ---------- L2: Cache API with ~50MB LRU index ----------
+export const PDF_CACHE_NAME = 'pdf-cache-v1';
+const L2_INDEX_KEY = 'pdf-cache-v1-index';
+const L2_MAX_BYTES = 50 * 1024 * 1024;
+
+type L2Index = Record<string, { size: number; ts: number }>;
+
+function readIndex(): L2Index {
+  try {
+    return JSON.parse(localStorage.getItem(L2_INDEX_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+function writeIndex(idx: L2Index) {
+  try {
+    localStorage.setItem(L2_INDEX_KEY, JSON.stringify(idx));
+  } catch {}
+}
+
+async function l2Enforce(cache: Cache) {
+  const idx = readIndex();
+  let total = Object.values(idx).reduce((s, e) => s + e.size, 0);
+  const byOldest = Object.entries(idx).sort((a, b) => a[1].ts - b[1].ts);
+  for (const [key, meta] of byOldest) {
+    if (total <= L2_MAX_BYTES) break;
+    await cache.delete(key).catch(() => {});
+    total -= meta.size;
+    delete idx[key];
+  }
+  writeIndex(idx);
+}
+
+function isCacheableUrl(url: string) {
+  return /^https?:\/\//i.test(url) || url.startsWith('/');
+}
+
+/** Cache key = URL without query string, resolved to an absolute same-origin URL. */
+export function pdfCacheKey(url: string) {
+  const abs = new URL(url, window.location.origin);
+  return abs.origin + abs.pathname;
+}
+
+async function fetchPdfBytes(url: string): Promise<ArrayBuffer> {
+  const canUseCache = typeof window !== 'undefined' && 'caches' in window && isCacheableUrl(url);
+  if (!canUseCache) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.arrayBuffer();
+  }
+
+  const key = pdfCacheKey(url);
+  const cache = await caches.open(PDF_CACHE_NAME);
+  const hit = await cache.match(key);
+  if (hit) {
+    const idx = readIndex();
+    if (idx[key]) {
+      idx[key].ts = Date.now();
+      writeIndex(idx);
+    }
+    if (import.meta.env.DEV) console.info('[pdf-cache] L2 HIT', key);
+    return hit.arrayBuffer();
+  }
+
+  // L3: network (browser HTTP cache honours Express Cache-Control)
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = await res.arrayBuffer();
+  try {
+    await cache.put(
+      key,
+      new Response(buf.slice(0), { headers: { 'Content-Type': 'application/pdf' } })
+    );
+    const idx = readIndex();
+    idx[key] = { size: buf.byteLength, ts: Date.now() };
+    writeIndex(idx);
+    await l2Enforce(cache);
+  } catch {
+    // Quota exceeded or opaque response — just skip caching
+  }
+  if (import.meta.env.DEV) console.info('[pdf-cache] L2 MISS -> network', key);
+  return buf;
+}
+
+function loadPdf(url: string, id: string): Promise<PDFDocumentProxy> {
+  const existing = L1.get(id);
+  if (existing) {
+    l1Touch(id, existing);
+    if (import.meta.env.DEV) console.info('[pdf-cache] L1 HIT', id);
+    return existing.promise;
+  }
+
+  const entry: L1Entry = { promise: null as unknown as Promise<PDFDocumentProxy>, task: null };
+  entry.promise = (async () => {
+    const bytes = await fetchPdfBytes(url);
+    const task = getDocument({ data: new Uint8Array(bytes) });
+    entry.task = task;
+    return task.promise;
+  })();
+  entry.promise.catch(() => L1.delete(id));
+
+  L1.set(id, entry);
+  l1Evict();
+  return entry.promise;
+}
 
 export function usePdfLoader(fileUrl: string | undefined, fileId: string | undefined) {
-  const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -22,100 +145,43 @@ export function usePdfLoader(fileUrl: string | undefined, fileId: string | undef
       setPdf(null);
       return;
     }
-
-    let isMounted = true;
+    let active = true;
     setLoading(true);
     setError(null);
 
-    const loadPdf = async () => {
-      try {
-        // 1. Check L1 Memory Cache
-        if (PDF_MEMORY_CACHE.has(fileId)) {
-          const cachedPdf = await PDF_MEMORY_CACHE.get(fileId);
-          if (isMounted) {
-            setPdf(cachedPdf!);
-            setLoading(false);
-          }
-          return;
-        }
-
-        // Create a new promise for fetching and parsing
-        const fetchAndParsePdf = async (): Promise<pdfjsLib.PDFDocumentProxy> => {
-          // 2. Check L2 Cache API
-          let buffer: ArrayBuffer | null = null;
-          if ('caches' in window) {
-            const cache = await caches.open(CACHE_NAME);
-            const cachedResponse = await cache.match(fileId);
-            if (cachedResponse) {
-              buffer = await cachedResponse.arrayBuffer();
-            } else {
-              // 3. Fetch from Network (L3 HTTP Cache kicks in here if cached by browser)
-              const response = await fetch(fileUrl);
-              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-              
-              const resClone = response.clone();
-              await cache.put(fileId, resClone);
-              buffer = await response.arrayBuffer();
-            }
-          } else {
-            // Fallback if Cache API not supported
-            const response = await fetch(fileUrl);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            buffer = await response.arrayBuffer();
-          }
-
-          // Parse PDF
-          const loadingTask = pdfjsLib.getDocument(new Uint8Array(buffer));
-          return await loadingTask.promise;
-        };
-
-        const pdfPromise = fetchAndParsePdf();
-        
-        // Evict LRU if needed
-        if (PDF_MEMORY_CACHE.size >= MAX_MEMORY_CACHE_SIZE) {
-          const firstKey = PDF_MEMORY_CACHE.keys().next().value;
-          const oldPromise = PDF_MEMORY_CACHE.get(firstKey);
-          PDF_MEMORY_CACHE.delete(firstKey);
-          if (oldPromise) {
-            oldPromise.then(oldPdf => {
-              oldPdf.destroy();
-            }).catch(() => {});
-          }
-        }
-
-        PDF_MEMORY_CACHE.set(fileId, pdfPromise);
-
-        const loadedPdf = await pdfPromise;
-        if (isMounted) {
-          setPdf(loadedPdf);
-          setLoading(false);
-        }
-      } catch (err: any) {
-        PDF_MEMORY_CACHE.delete(fileId);
-        if (isMounted) {
-          setError(err);
-          setLoading(false);
-        }
-      }
-    };
-
-    loadPdf();
+    loadPdf(fileUrl, fileId)
+      .then(doc => {
+        if (active) setPdf(doc);
+      })
+      .catch(err => {
+        if (active) setError(err instanceof Error ? err : new Error(String(err)));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
-      isMounted = false;
+      active = false;
     };
   }, [fileUrl, fileId]);
 
   return { pdf, loading, error };
 }
 
-// Admin logout trigger to clear L2 Cache
+/** Warm L2 only (no parsing) — used by the idle preloader. */
+export async function prefetchPdfToCache(url: string) {
+  if (!('caches' in window) || !isCacheableUrl(url)) return;
+  const cache = await caches.open(PDF_CACHE_NAME);
+  if (await cache.match(pdfCacheKey(url))) return;
+  await fetchPdfBytes(url);
+}
+
+/** Called on admin logout (privacy): wipes L1 + L2. */
 export async function clearPdfCache() {
-  if ('caches' in window) {
-    await caches.delete(CACHE_NAME);
-  }
-  for (const [key, promise] of PDF_MEMORY_CACHE.entries()) {
-    promise.then(p => p.destroy()).catch(() => {});
-  }
-  PDF_MEMORY_CACHE.clear();
+  for (const entry of L1.values()) entry.task?.destroy().catch(() => {});
+  L1.clear();
+  try {
+    localStorage.removeItem(L2_INDEX_KEY);
+  } catch {}
+  if ('caches' in window) await caches.delete(PDF_CACHE_NAME);
 }

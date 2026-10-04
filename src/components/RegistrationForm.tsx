@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { useTournament } from '../context/TournamentContext';
+import { isSuratKeteranganRequired } from '../shared/registrationRules';
 import { compressLogo } from '../utils/imageCompressor';
 import { uploadFileToBlob } from '../utils/blobUpload';
 import {

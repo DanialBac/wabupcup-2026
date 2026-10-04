@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { usePdfLoader } from '../../hooks/usePdfLoader';
 
 interface VirtualizedPDFViewerProps {
@@ -7,11 +7,11 @@ interface VirtualizedPDFViewerProps {
   fileId: string;
 }
 
-const PDFPage = ({ pdf, pageNum }: { pdf: pdfjsLib.PDFDocumentProxy, pageNum: number }) => {
+const PDFPage: React.FC<{ pdf: PDFDocumentProxy; pageNum: number }> = ({ pdf, pageNum }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -40,8 +40,9 @@ const PDFPage = ({ pdf, pageNum }: { pdf: pdfjsLib.PDFDocumentProxy, pageNum: nu
         canvas.width = viewport.width;
 
         const renderContext = {
+          canvas,
           canvasContext: context!,
-          viewport: viewport
+          viewport,
         };
         
         renderTaskRef.current = page.render(renderContext);
@@ -72,11 +73,12 @@ const PDFPage = ({ pdf, pageNum }: { pdf: pdfjsLib.PDFDocumentProxy, pageNum: nu
   );
 };
 
-class ErrorBoundary extends React.Component<{ url: string, children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { url: string, children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
+type EBProps = { url: string; children: React.ReactNode };
+type EBState = { hasError: boolean };
+
+class ErrorBoundary extends React.Component<EBProps, EBState> {
+  declare props: EBProps;
+  state: EBState = { hasError: false };
 
   static getDerivedStateFromError() {
     return { hasError: true };

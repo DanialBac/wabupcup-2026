@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { Database, getMySqlStatus, runFullSchemaInit, initDatabaseConnection, ensureDbConnected } from './db';
+import { pool } from './config';
+import { COUNTED_STATUSES } from '../src/shared/constants';
+import { isSuratKeteranganRequired } from '../src/shared/registrationRules';
 import { RegistrationItem, MatchItem, CategoryDetail, SponsorItem, PlayerItem, GroupStageItem } from '../src/types';
 import { generateUniqueRegCode } from '../src/utils/registrationCode';
 import { blobRouter } from './blob';
@@ -144,7 +147,7 @@ apiRouter.post('/database/reconnect', async (req: Request, res: Response) => {
 apiRouter.post('/database/connect', async (req: Request, res: Response) => {
   try {
     const config = req.body || {};
-    const connected = await initDatabaseConnection(config);
+    const connected = await initDatabaseConnection();
     const status = getMySqlStatus();
     if (connected) {
       res.json({
@@ -351,52 +354,66 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
       });
     }
 
-    const categoryId = data.category;
-    
-    // Server-side validation for Surat Keterangan
-    if (isSuratKeteranganRequired(categoryId)) {
-      if (!data.documents || !data.documents.suratKeterangan) {
-        return res.status(400).json({ error: 'Surat Keterangan wajib diunggah untuk kategori ini.' });
-      }
-    }
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    // Fallback generate code and ID
-    const candidateCode = typeof data.regCode === 'string' ? data.regCode.trim().toUpperCase() : '';
-    const regCode = candidateCode || `REG-${Date.now().toString().slice(-6)}`;
+
     const candidateId = typeof data.id === 'string' ? data.id.trim() : '';
     const id = candidateId || `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const candidateCode = typeof data.regCode === 'string' ? data.regCode.trim().toUpperCase() : '';
 
-    const newReg = {
-      ...data,
-      id,
-      regCode,
-      registrationDate: data.registrationDate || formattedDate,
-      status: data.status || 'PENDING_PAYMENT',
-      paymentStatus: data.paymentStatus || 'UNPAID',
-      lastUpdated: formattedDate,
-    };
+    const RETRYABLE = new Set([9007, 8002, 1213, 1205]);
+    let saved: RegistrationItem | null = null;
 
-    let attempt = 0;
-    while (attempt < 3) {
+    for (let attempt = 1; attempt <= 3 && !saved; attempt++) {
       const conn = await pool.getConnection();
       try {
-        await conn.query("SET SESSION innodb_lock_wait_timeout = 5");
-        await conn.query("BEGIN PESSIMISTIC");
-        
-        // Cek Kuota & Kurangi Slot
-        const [resUpdate]: any = await conn.execute(
-          `UPDATE categories SET registered_teams_count = registered_teams_count + 1 WHERE id = ? AND registered_teams_count < max_teams`, 
+        await conn.query('SET SESSION innodb_lock_wait_timeout = 5');
+        await conn.query('BEGIN PESSIMISTIC');
+
+        // Resolve category by id OR name and lock the row.
+        const [catRows]: any = await conn.execute(
+          'SELECT id FROM categories WHERE id = ? OR name = ? LIMIT 1 FOR UPDATE',
+          [data.category, data.category]
+        );
+        if (!Array.isArray(catRows) || catRows.length === 0) {
+          await conn.rollback();
+          return res.status(400).json({ code: 'INVALID_CATEGORY', error: 'Kategori perlombaan tidak valid atau tidak ditemukan.' });
+        }
+        const categoryId: string = catRows[0].id;
+
+        if (isSuratKeteranganRequired(categoryId) && !data.documents?.suratKeterangan) {
+          await conn.rollback();
+          return res.status(400).json({ code: 'SURAT_KETERANGAN_REQUIRED', error: 'Surat Keterangan wajib diunggah untuk kategori ini.' });
+        }
+
+        // Atomic conditional increment. max_teams <= 0 means "unlimited" (legacy behaviour).
+        const [upd]: any = await conn.execute(
+          `UPDATE categories SET registered_teams_count = registered_teams_count + 1
+           WHERE id = ? AND (max_teams <= 0 OR registered_teams_count < max_teams)`,
           [categoryId]
         );
-        
-        if (resUpdate.affectedRows === 0) {
-          await conn.rollback(); 
-          return res.status(409).json({ error: 'Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh.' });
+        if (upd.affectedRows === 0) {
+          await conn.rollback();
+          return res.status(409).json({ code: 'QUOTA_FULL', error: 'Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh.' });
         }
-        
-        // Simpan Data
+
+        // Category row is locked, so reading existing codes here is race-free.
+        const [codeRows]: any = await conn.execute('SELECT reg_code FROM registrations WHERE category_id = ?', [categoryId]);
+        const existingCodes = (codeRows as any[]).map(r => ({ regCode: r.reg_code, category: categoryId }));
+        const codeInUse = candidateCode !== '' && existingCodes.some(r => String(r.regCode).toUpperCase() === candidateCode);
+        const regCode = !candidateCode || codeInUse ? generateUniqueRegCode(categoryId, existingCodes) : candidateCode;
+
+        const newReg: RegistrationItem = {
+          ...data,
+          id,
+          regCode,
+          category: categoryId,
+          registrationDate: data.registrationDate || formattedDate,
+          status: 'PENDING_PAYMENT',
+          paymentStatus: 'UNPAID',
+          lastUpdated: formattedDate,
+        };
+
         await conn.execute(
           `INSERT INTO registrations (
             id, reg_code, category_id, team_name, team_logo, institution_name,
@@ -408,33 +425,46 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
             newReg.id, newReg.regCode, newReg.category, newReg.teamName, newReg.teamLogo || null, newReg.institutionName,
             newReg.coachName, newReg.coachPhone, newReg.coachEmail || '', newReg.playerCount, newReg.officialCount,
             newReg.registrationDate, newReg.status, newReg.paymentStatus, newReg.paymentAmount,
-            newReg.rejectionReason || null, newReg.adminNotes || null, JSON.stringify(newReg.documents || {}), newReg.lastUpdated,
+            null, null, JSON.stringify(newReg.documents || {}), newReg.lastUpdated,
           ]
         );
-        
+
         await conn.commit();
-        break; // Sukses, keluar dari loop
+        saved = newReg;
       } catch (err: any) {
         await conn.rollback().catch(() => {});
-        const errCode = err?.errno || err?.code;
-        if ([9007, 8002, 1213, 1205].includes(Number(errCode)) || errCode === 'ER_LOCK_WAIT_TIMEOUT') {
-          attempt++;
+        const errno = Number(err?.errno);
+        if (errno === 1062) {
+          if (String(err?.message || '').includes('idx_unique_team_category')) {
+            return res.status(409).json({ code: 'DUPLICATE_TEAM', error: 'Nama tim ini sudah terdaftar di kategori tersebut.' });
+          }
+          if (String(err?.message || '').includes('PRIMARY')) {
+            return res.status(409).json({ code: 'DUPLICATE_SUBMISSION', error: 'Pendaftaran ini sudah terkirim sebelumnya.' });
+          }
+        }
+        if (RETRYABLE.has(errno) || errno === 1062) {
           if (attempt >= 3) {
-            return res.status(503).json({ error: 'Sistem sedang sibuk. Silakan coba lagi.' });
+            return res.status(503).json({ code: 'BUSY_RETRY', error: 'Sistem sedang sibuk. Silakan coba lagi beberapa saat.' });
           }
           await new Promise(r => setTimeout(r, 50 + Math.random() * 150));
-        } else {
-          throw err;
+          continue;
         }
+        throw err;
       } finally {
         conn.release();
       }
     }
 
-    res.status(201).json(newReg);
+    if (!saved) {
+      return res.status(503).json({ code: 'BUSY_RETRY', error: 'Sistem sedang sibuk. Silakan coba lagi beberapa saat.' });
+    }
+
+    // Link uploaded media to this registration for cascading cleanup (best-effort, after commit).
+    await linkRegistrationMedia(saved.id, saved.teamLogo, saved.documents).catch(() => {});
+    res.status(201).json(saved);
   } catch (err: any) {
     console.error('[API] Error in POST /api/registrations:', err);
-    res.status(500).json({ error: err?.message || 'Gagal menyimpan pendaftaran' });
+    res.status(500).json({ code: 'SERVER_ERROR', error: 'Gagal menyimpan pendaftaran. Silakan coba lagi.' });
   }
 });
 

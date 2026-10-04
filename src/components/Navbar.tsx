@@ -91,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {config.wabupLogoUrl ? (
               <div className="relative flex items-center justify-center h-12 w-auto max-w-[56px] rounded-xl overflow-hidden group-hover:scale-105 transition-transform shrink-0">
-                <img loading="lazy"
+                <img
                   src={config.wabupLogoUrl}
                   alt="Logo WabupCup"
                   width="48"
@@ -136,7 +136,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {config.panitiaLogoUrl && (
               <div className="hidden sm:flex items-center pl-2 border-l border-slate-300 dark:border-slate-700/60">
-                <img loading="lazy"
+                <img
                   src={config.panitiaLogoUrl}
                   alt="Logo Panitia"
                   width="44"
