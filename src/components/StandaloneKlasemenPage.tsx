@@ -513,7 +513,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
       <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-0 overflow-hidden select-none">
         <div className="w-[320px] sm:w-[480px] md:w-[620px] lg:w-[720px] max-w-[85vw] max-h-[85vh] aspect-[500/620] opacity-15 dark:opacity-20 transition-opacity duration-300">
           {config.wabupLogoUrl ? (
-            <img
+            <img loading="lazy"
               src={config.wabupLogoUrl}
               alt="Wabup Cup Center Background"
               className="w-full h-full object-contain filter drop-shadow-[0_20px_50px_rgba(220,38,38,0.25)]"
@@ -584,7 +584,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0 min-w-0">
             <div className="relative flex items-center justify-center h-9 sm:h-11 w-auto max-w-[38px] sm:max-w-[48px] shrink-0">
               {config.wabupLogoUrl ? (
-                <img
+                <img loading="lazy"
                   src={config.wabupLogoUrl}
                   alt="Logo Wabup Cup"
                   className="h-9 sm:h-11 w-auto max-w-[36px] sm:max-w-[44px] object-contain drop-shadow-[0_4px_12px_rgba(220,38,38,0.45)]"
@@ -937,7 +937,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
             <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-950/60 to-red-900/40 border border-red-800/40 text-xs font-bold text-red-200 shadow-sm">
               <div className="w-4 h-4 shrink-0 flex items-center justify-center">
                 {config.wabupLogoUrl ? (
-                  <img src={config.wabupLogoUrl} alt="Logo Wabup Cup" className="w-4 h-4 object-contain" />
+                  <img loading="lazy" src={config.wabupLogoUrl} alt="Logo Wabup Cup" className="w-4 h-4 object-contain" />
                 ) : (
                   <WabupCupLogo className="w-4 h-4 object-contain" />
                 )}
@@ -1197,7 +1197,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                       <div className="flex-1 flex flex-col items-center text-center min-w-0">
                         <div className="w-12 h-12 rounded-xl bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1.5">
                           {getTeamLogo(m.teamA.name, m.teamA.logo) ? (
-                            <img
+                            <img loading="lazy"
                               src={getTeamLogo(m.teamA.name, m.teamA.logo)}
                               alt={m.teamA.name}
                               className="w-full h-full object-contain"
@@ -1246,7 +1246,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                       <div className="flex-1 flex flex-col items-center text-center min-w-0">
                         <div className="w-12 h-12 rounded-xl bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1.5">
                           {getTeamLogo(m.teamB.name, m.teamB.logo) ? (
-                            <img
+                            <img loading="lazy"
                               src={getTeamLogo(m.teamB.name, m.teamB.logo)}
                               alt={m.teamB.name}
                               className="w-full h-full object-contain"
@@ -1272,7 +1272,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                         </div>
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                           {getTeamLogo(m.teamA.name, m.teamA.logo) ? (
-                            <img
+                            <img loading="lazy"
                               src={getTeamLogo(m.teamA.name, m.teamA.logo)}
                               alt={m.teamA.name}
                               className="w-full h-full object-cover"
@@ -1302,7 +1302,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                       <div className="col-span-5 flex items-center justify-start space-x-2 sm:space-x-3">
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                           {getTeamLogo(m.teamB.name, m.teamB.logo) ? (
-                            <img
+                            <img loading="lazy"
                               src={getTeamLogo(m.teamB.name, m.teamB.logo)}
                               alt={m.teamB.name}
                               className="w-full h-full object-cover"
@@ -1529,7 +1529,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                               <div className="flex-1 flex flex-col items-center text-center min-w-0">
                                 <div className="w-10 h-10 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1">
                                   {logoA ? (
-                                    <img src={logoA} alt={m.teamA.name} className="w-full h-full object-contain" />
+                                    <img loading="lazy" src={logoA} alt={m.teamA.name} className="w-full h-full object-contain" />
                                   ) : (
                                     <Shield className="w-4 h-4 text-red-400" />
                                   )}
@@ -1550,7 +1550,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                               <div className="flex-1 flex flex-col items-center text-center min-w-0">
                                 <div className="w-10 h-10 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1">
                                   {logoB ? (
-                                    <img src={logoB} alt={m.teamB.name} className="w-full h-full object-contain" />
+                                    <img loading="lazy" src={logoB} alt={m.teamB.name} className="w-full h-full object-contain" />
                                   ) : (
                                     <Shield className="w-4 h-4 text-blue-400" />
                                   )}
@@ -1567,7 +1567,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                               <div className="col-span-5 flex items-center space-x-2 min-w-0">
                                 <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                                   {logoA ? (
-                                    <img src={logoA} alt={m.teamA.name} className="w-full h-full object-cover" />
+                                    <img loading="lazy" src={logoA} alt={m.teamA.name} className="w-full h-full object-cover" />
                                   ) : (
                                     <Shield className="w-3.5 h-3.5 text-red-400" />
                                   )}
@@ -1591,7 +1591,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                                 </span>
                                 <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                                   {logoB ? (
-                                    <img src={logoB} alt={m.teamB.name} className="w-full h-full object-cover" />
+                                    <img loading="lazy" src={logoB} alt={m.teamB.name} className="w-full h-full object-cover" />
                                   ) : (
                                     <Shield className="w-3.5 h-3.5 text-blue-400" />
                                   )}
@@ -1807,7 +1807,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                                                 theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-white/10'
                                               }`}>
                                                 {logo ? (
-                                                  <img src={logo} alt={t.teamName} className="w-full h-full object-cover" />
+                                                  <img loading="lazy" src={logo} alt={t.teamName} className="w-full h-full object-cover" />
                                                 ) : (
                                                   <Shield className="w-3.5 h-3.5 text-slate-400" />
                                                 )}
@@ -1943,7 +1943,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                             <div className="flex-1 flex flex-col items-center text-center min-w-0">
                               <div className="w-10 h-10 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1">
                                 {logoA ? (
-                                  <img src={logoA} alt={m.teamA.name} className="w-full h-full object-contain" />
+                                  <img loading="lazy" src={logoA} alt={m.teamA.name} className="w-full h-full object-contain" />
                                 ) : (
                                   <Shield className="w-4 h-4 text-red-400" />
                                 )}
@@ -1982,7 +1982,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                             <div className="flex-1 flex flex-col items-center text-center min-w-0">
                               <div className="w-10 h-10 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1 mb-1">
                                 {logoB ? (
-                                  <img src={logoB} alt={m.teamB.name} className="w-full h-full object-contain" />
+                                  <img loading="lazy" src={logoB} alt={m.teamB.name} className="w-full h-full object-contain" />
                                 ) : (
                                   <Shield className="w-4 h-4 text-blue-400" />
                                 )}
@@ -1999,7 +1999,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                             <div className="col-span-5 flex items-center space-x-2 min-w-0">
                               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                                 {logoA ? (
-                                  <img src={logoA} alt={m.teamA.name} className="w-full h-full object-cover" />
+                                  <img loading="lazy" src={logoA} alt={m.teamA.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <Shield className="w-4 h-4 text-red-400" />
                                 )}
@@ -2033,7 +2033,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                               </div>
                               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-800/90 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                                 {logoB ? (
-                                  <img src={logoB} alt={m.teamB.name} className="w-full h-full object-cover" />
+                                  <img loading="lazy" src={logoB} alt={m.teamB.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <Shield className="w-4 h-4 text-blue-400" />
                                 )}

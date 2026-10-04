@@ -302,7 +302,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       alert('Mohon unggah Logo Tim / Klub resmi! (Wajib)');
       return;
     }
-    if (!isUmum && !docs.suratKeterangan) {
+    if (isSuratKeteranganRequired(category) && !docs.suratKeterangan) {
       const keteranganLabel = isSchool
         ? 'Surat Keterangan / Izin Sekolah (PDF)'
         : isInstansi
@@ -774,7 +774,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                     {teamLogo ? (
-                      <img
+                      <img loading="lazy"
                         src={teamLogo}
                         alt="Preview Logo Tim"
                         className="w-full h-full object-contain"
@@ -924,7 +924,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                         : category === 'INSTANSI'
                         ? 'Surat Tugas / Keterangan Instansi (PDF)'
                         : 'Surat Keterangan Kepala Desa/Lurah (PDF)'}
-                      <span className="text-red-500">*</span>
+                      {isSuratKeteranganRequired(category) && <span className="text-red-500">*</span>}
                     </label>
                     <input
                       type="file"

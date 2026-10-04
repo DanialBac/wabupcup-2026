@@ -454,7 +454,7 @@ Dokumen kuitansi resmi berstempel dan bertanda tangan ketua panitia siap diunduh
                     title="Cap Resmi Panitia Pelaksana Wabup Cup 2026"
                   >
                     {config.tournamentStampImage ? (
-                      <img
+                      <img loading="lazy"
                         src={config.tournamentStampImage}
                         alt="Cap Resmi Wabup Cup 2026"
                         className="w-full h-full object-contain -rotate-6"
@@ -473,7 +473,7 @@ Dokumen kuitansi resmi berstempel dan bertanda tangan ketua panitia siap diunduh
                     title="Tanda Tangan Ketua Panitia Pelaksana"
                   >
                     {config.committeeChairmanSignature ? (
-                      <img
+                      <img loading="lazy"
                         src={config.committeeChairmanSignature}
                         alt="Tanda Tangan Ketua Panitia"
                         className="w-full h-full object-contain"

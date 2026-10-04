@@ -50,7 +50,7 @@ export const Footer: React.FC<FooterProps> = ({
             <div className="flex items-center space-x-3">
               {config.wabupLogoUrl ? (
                 <div className="h-12 w-auto max-w-[56px] rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
-                  <img
+                  <img loading="lazy"
                     src={config.wabupLogoUrl}
                     alt="Logo WabupCup"
                     width="48"
@@ -75,7 +75,7 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               {config.panitiaLogoUrl && (
                 <div className="pl-3 border-l border-slate-300 dark:border-slate-800 flex items-center">
-                  <img
+                  <img loading="lazy"
                     src={config.panitiaLogoUrl}
                     alt="Logo Panitia"
                     width="44"

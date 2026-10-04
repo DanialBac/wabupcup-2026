@@ -1929,7 +1929,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
           <div className="text-center mb-6">
             <div className="flex items-center justify-center h-10 w-auto max-w-[42px] mx-auto mb-2 shrink-0">
               {config.wabupLogoUrl ? (
-                <img
+                <img loading="lazy"
                   src={config.wabupLogoUrl}
                   alt="Logo Wabup Cup"
                   className="h-10 w-auto max-w-[40px] object-contain drop-shadow-[0_4px_12px_rgba(220,38,38,0.45)]"
@@ -3066,7 +3066,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                                 <td className="py-3.5 px-4">
                                   {(() => {
                                     const docs = item.documents || {};
-                                    const validEntries = Object.entries(docs).filter(([key, doc]) => doc && doc.name && !(item.category === 'UMUM' && key === 'suratKeterangan'));
+                                    const validEntries = Object.entries(docs).filter(([key, doc]) => doc && doc.name && !( !isSuratKeteranganRequired(item.category) && key === 'suratKeterangan' ));
                                     const reqDocs = getRequiredDocsForCategory(item.category);
                                     const uploadedReqCount = reqDocs.filter(r => Boolean((docs as any)[r.key])).length;
                                     const isComplete = uploadedReqCount >= reqDocs.length;
@@ -3666,7 +3666,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                           {/* LOGO PREVIEW BOX */}
                           <div className="w-full h-24 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center p-3 mb-3 overflow-hidden group-hover:border-slate-700 transition">
                             {sp.logoUrl ? (
-                              <img
+                              <img loading="lazy"
                                 src={sp.logoUrl}
                                 alt={sp.name}
                                 referrerPolicy="no-referrer"
@@ -5437,7 +5437,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                             {/* OFFICIAL CAP */}
                             <div className="absolute left-6 top-1 w-24 h-24 pointer-events-none opacity-90 z-20">
                               {config.tournamentStampImage ? (
-                                <img
+                                <img loading="lazy"
                                   src={config.tournamentStampImage}
                                   alt="Cap Turnamen"
                                   className="w-full h-full object-contain -rotate-6"
@@ -5453,7 +5453,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                             {/* TANDA TANGAN */}
                             <div className="relative w-44 h-24 flex items-center justify-center z-10">
                               {config.committeeChairmanSignature ? (
-                                <img
+                                <img loading="lazy"
                                   src={config.committeeChairmanSignature}
                                   alt="Tanda Tangan"
                                   className="w-full h-full object-contain"
@@ -5693,7 +5693,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                           {/* Preview Frame */}
                           <div className="w-full h-32 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center p-3 overflow-hidden relative group">
                             {generalConfigForm.wabupLogoUrl ? (
-                              <img
+                              <img loading="lazy"
                                 src={generalConfigForm.wabupLogoUrl}
                                 alt="Preview Logo WabupCup"
                                 className="max-h-full max-w-full object-contain filter drop-shadow-md"
@@ -5761,7 +5761,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                           {/* Preview Frame */}
                           <div className="w-full h-32 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center p-3 overflow-hidden relative group">
                             {generalConfigForm.panitiaLogoUrl ? (
-                              <img
+                              <img loading="lazy"
                                 src={generalConfigForm.panitiaLogoUrl}
                                 alt="Preview Logo Panitia"
                                 className="max-h-full max-w-full object-contain filter drop-shadow-md"
@@ -6061,7 +6061,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
                     <div className="flex items-center space-x-3">
                       <div className="w-14 h-14 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center p-1.5 overflow-hidden">
-                        <img
+                        <img loading="lazy"
                           src={sponsorLogoPreview || sponsorForm.logoUrl}
                           alt="Preview Logo"
                           className="max-h-full max-w-full object-contain"
@@ -6105,7 +6105,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-center p-2">
                       {sponsorLogoPreview || sponsorForm.logoUrl ? (
-                        <img
+                        <img loading="lazy"
                           src={sponsorLogoPreview || sponsorForm.logoUrl}
                           alt="Preview"
                           className="max-h-full max-w-full object-contain"
@@ -6719,7 +6719,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                     {uploadingLogo ? (
                       <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
                     ) : regForm.teamLogo ? (
-                      <img src={regForm.teamLogo} alt="Logo Tim" className="max-h-full max-w-full object-contain" />
+                      <img loading="lazy" src={regForm.teamLogo} alt="Logo Tim" className="max-h-full max-w-full object-contain" />
                     ) : (
                       <span className="text-2xl">🛡️</span>
                     )}
@@ -7795,7 +7795,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
             {(() => {
               const reqDocs = getRequiredDocsForCategory(inspectDocsItem.category);
               const docs = inspectDocsItem.documents || {};
-              const uploadedEntries = Object.entries(docs).filter(([key, doc]) => doc && (doc as UploadedDoc).name && !(inspectDocsItem.category === 'UMUM' && key === 'suratKeterangan'));
+              const uploadedEntries = Object.entries(docs).filter(([key, doc]) => doc && (doc as UploadedDoc).name && !( !isSuratKeteranganRequired(inspectDocsItem.category) && key === 'suratKeterangan' ));
               const uploadedReqCount = reqDocs.filter(r => Boolean((docs as any)[r.key])).length;
               const isAllComplete = uploadedReqCount >= reqDocs.length;
 

@@ -306,13 +306,13 @@ apiRouter.get('/registrations/:id/doc/:docKey', async (req: Request, res: Respon
 
     if (req.headers['if-none-match'] === etag) {
       res.setHeader('ETag', etag);
-      res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable');
+      res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
       return res.status(304).end();
     }
 
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable');
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
     res.setHeader('Content-Type', contentType);
 
     const range = req.headers.range;
@@ -352,6 +352,13 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     }
 
     const categoryId = data.category;
+    
+    // Server-side validation for Surat Keterangan
+    if (isSuratKeteranganRequired(categoryId)) {
+      if (!data.documents || !data.documents.suratKeterangan) {
+        return res.status(400).json({ error: 'Surat Keterangan wajib diunggah untuk kategori ini.' });
+      }
+    }
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     

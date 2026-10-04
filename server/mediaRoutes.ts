@@ -111,7 +111,7 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
       res.setHeader('ETag', etag);
       res.setHeader(
         'Cache-Control',
-        'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable'
+        'private, max-age=31536000, immutable'
       );
       return res.status(304).end();
     }
@@ -121,7 +121,7 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
     res.setHeader('ETag', etag);
     res.setHeader(
       'Cache-Control',
-      'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable'
+      'private, max-age=31536000, immutable'
     );
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(media.filename)}"`);
 

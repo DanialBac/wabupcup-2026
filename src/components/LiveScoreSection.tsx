@@ -115,7 +115,7 @@ export const LiveScoreSection: React.FC = () => {
                 <div className="flex-1 text-center sm:text-right">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:ml-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shadow-inner mb-2 p-1.5">
                     {activeLiveMatch.teamA.logo ? (
-                      <img
+                      <img loading="lazy"
                         src={activeLiveMatch.teamA.logo}
                         alt={`Logo ${activeLiveMatch.teamA.name}`}
                         width="64"
@@ -155,7 +155,7 @@ export const LiveScoreSection: React.FC = () => {
                 <div className="flex-1 text-center sm:text-left">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto sm:mr-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shadow-inner mb-2 p-1.5">
                     {activeLiveMatch.teamB.logo ? (
-                      <img
+                      <img loading="lazy"
                         src={activeLiveMatch.teamB.logo}
                         alt={`Logo ${activeLiveMatch.teamB.name}`}
                         width="64"
@@ -308,7 +308,7 @@ export const LiveScoreSection: React.FC = () => {
                       <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden text-sm shrink-0 p-0.5">
                           {match.teamA.logo ? (
-                            <img
+                            <img loading="lazy"
                               src={match.teamA.logo}
                               alt={`Logo ${match.teamA.name}`}
                               width="32"
@@ -344,7 +344,7 @@ export const LiveScoreSection: React.FC = () => {
                       <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
                         <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden text-sm shrink-0 p-0.5">
                           {match.teamB.logo ? (
-                            <img
+                            <img loading="lazy"
                               src={match.teamB.logo}
                               alt={`Logo ${match.teamB.name}`}
                               width="32"

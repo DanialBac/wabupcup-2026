@@ -1091,7 +1091,7 @@ export const LiveScoreManagerTab: React.FC = () => {
                 <div className="lg:col-span-5 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col items-center text-center space-y-3 shadow-inner">
                   <div className="flex items-center space-x-3 w-full justify-center">
                     {currentFocusedMatch.teamA.logo ? (
-                      <img
+                      <img loading="lazy"
                         src={currentFocusedMatch.teamA.logo}
                         alt={currentFocusedMatch.teamA.name}
                         className="w-12 h-12 rounded-xl object-contain bg-slate-900 p-1 border border-slate-800 shadow shrink-0"
@@ -1355,7 +1355,7 @@ export const LiveScoreManagerTab: React.FC = () => {
                       )}
                     </div>
                     {currentFocusedMatch.teamB.logo ? (
-                      <img
+                      <img loading="lazy"
                         src={currentFocusedMatch.teamB.logo}
                         alt={currentFocusedMatch.teamB.name}
                         className="w-12 h-12 rounded-xl object-contain bg-slate-900 p-1 border border-slate-800 shadow shrink-0"
@@ -2143,7 +2143,7 @@ export const LiveScoreManagerTab: React.FC = () => {
                       <div className="lg:col-span-5 bg-slate-950/80 border border-slate-800 rounded-3xl p-5 sm:p-6 flex flex-col items-center text-center space-y-4 shadow-inner">
                         <div className="flex items-center space-x-3 w-full justify-center">
                           {activeStandaloneMatch.teamA.logo ? (
-                            <img
+                            <img loading="lazy"
                               src={activeStandaloneMatch.teamA.logo}
                               alt={activeStandaloneMatch.teamA.name}
                               className="w-14 h-14 rounded-2xl object-contain bg-slate-900 p-1 border border-slate-800 shadow shrink-0"
@@ -2412,7 +2412,7 @@ export const LiveScoreManagerTab: React.FC = () => {
                             )}
                           </div>
                           {activeStandaloneMatch.teamB.logo ? (
-                            <img
+                            <img loading="lazy"
                               src={activeStandaloneMatch.teamB.logo}
                               alt={activeStandaloneMatch.teamB.name}
                               className="w-14 h-14 rounded-2xl object-contain bg-slate-900 p-1 border border-slate-800 shadow shrink-0"

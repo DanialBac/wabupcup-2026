@@ -214,7 +214,7 @@ export const SponsorSection: React.FC = () => {
                             }`}
                           >
                             {hasValidImage ? (
-                              <img
+                              <img loading="lazy"
                                 src={sponsor.logoUrl}
                                 alt={`Logo ${sponsor.name}`}
                                 width="160"

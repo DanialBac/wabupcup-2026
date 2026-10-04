@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { UploadedDoc } from '../../types';
 import {
   FileText,
@@ -230,7 +230,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
             </div>
           ) : isImageFile ? (
             <div className="flex-1 overflow-auto flex items-center justify-center p-4 bg-slate-900/60 rounded-xl border border-slate-800">
-              <img
+              <img loading="lazy"
                 src={effectiveSource || undefined}
                 alt={`${documentTitle} - ${teamName}`}
                 className="max-h-full max-w-full object-contain rounded-lg shadow-xl"
@@ -239,11 +239,9 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
             </div>
           ) : isRealPdfFile ? (
             <div className="w-full h-full rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex flex-col">
-              <iframe
-                src={`${effectiveSource}#toolbar=1&navpanes=0`}
-                className="w-full h-full border-0 rounded-xl bg-white"
-                title={`${documentTitle} - ${teamName}`}
-              />
+              <Suspense fallback={<div className="flex-1 flex flex-col items-center justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-red-500" /><p className="text-sm mt-3 text-slate-400">Menyiapkan Viewer...</p></div>}>
+                <VirtualizedPDFViewer url={effectiveSource} fileId={effectiveSource.split('?')[0] || effectiveSource} />
+              </Suspense>
             </div>
           ) : (
             <div className="flex-1 overflow-auto flex items-center justify-center p-4">
