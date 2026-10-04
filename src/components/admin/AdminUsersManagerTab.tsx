@@ -418,15 +418,15 @@ export const AdminUsersManagerTab: React.FC = () => {
 
       {/* ADMIN USERS LIST TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
           <table className="w-full text-left text-xs">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-slate-950 shadow-sm">
               <tr className="bg-slate-950 text-slate-400 font-bold uppercase border-b border-slate-800">
-                <th className="py-4 px-5">Admin User</th>
-                <th className="py-4 px-5">Role Akses</th>
-                <th className="py-4 px-5">Kontak (Email & WA)</th>
-                <th className="py-4 px-5">Tanggal Dibuat</th>
-                <th className="py-4 px-5 text-center">Aksi</th>
+                <th className="py-4 px-5 bg-slate-950">Admin User</th>
+                <th className="py-4 px-5 bg-slate-950">Role Akses</th>
+                <th className="py-4 px-5 bg-slate-950">Kontak (Email & WA)</th>
+                <th className="py-4 px-5 bg-slate-950">Tanggal Dibuat</th>
+                <th className="py-4 px-5 text-center bg-slate-950">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">

@@ -487,19 +487,19 @@ export const PlayerManagerTab: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700">
+          <div className="overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead>
-                <tr className="bg-slate-950/80 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
-                  <th className="py-3.5 px-4 w-12 text-center">NO</th>
-                  <th className="py-3.5 px-4">NAMA PEMAIN</th>
-                  <th className="py-3.5 px-3 text-center">NO PUNGGUNG</th>
-                  <th className="py-3.5 px-3">POSISI</th>
-                  <th className="py-3.5 px-4">TIM / ASAL KLUB</th>
-                  <th className="py-3.5 px-3 text-center text-amber-400">GOL ⚽</th>
-                  <th className="py-3.5 px-3 text-center text-yellow-400">K. KUNING 🟨</th>
-                  <th className="py-3.5 px-3 text-center text-red-400">K. MERAH 🟥</th>
-                  <th className="py-3.5 px-4 text-center">AKSI</th>
+              <thead className="sticky top-0 z-10 bg-slate-950 shadow-sm">
+                <tr className="bg-slate-950 text-slate-400 uppercase tracking-wider text-[11px] border-b border-slate-800 font-semibold">
+                  <th className="py-3.5 px-4 w-12 text-center bg-slate-950">NO</th>
+                  <th className="py-3.5 px-4 bg-slate-950">NAMA PEMAIN</th>
+                  <th className="py-3.5 px-3 text-center bg-slate-950">NO PUNGGUNG</th>
+                  <th className="py-3.5 px-3 bg-slate-950">POSISI</th>
+                  <th className="py-3.5 px-4 bg-slate-950">TIM / ASAL KLUB</th>
+                  <th className="py-3.5 px-3 text-center text-amber-400 bg-slate-950">GOL ⚽</th>
+                  <th className="py-3.5 px-3 text-center text-yellow-400 bg-slate-950">K. KUNING 🟨</th>
+                  <th className="py-3.5 px-3 text-center text-red-400 bg-slate-950">K. MERAH 🟥</th>
+                  <th className="py-3.5 px-4 text-center bg-slate-950">AKSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 font-medium">

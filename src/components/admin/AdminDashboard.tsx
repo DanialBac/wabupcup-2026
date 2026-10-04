@@ -2141,7 +2141,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
   return (
     <div
       id="admin-dashboard-root"
-      className="fixed inset-0 w-full h-full overflow-hidden bg-slate-50/80 dark:bg-[#0B1120]/80 text-slate-800 dark:text-slate-200 flex flex-col font-sans backdrop-blur-2xl animate-fadeIn transition-colors duration-200 relative z-40"
+      className="fixed inset-0 w-screen h-screen overflow-hidden bg-slate-50/80 dark:bg-[#0B1120]/80 text-slate-800 dark:text-slate-200 flex flex-col font-sans backdrop-blur-2xl animate-fadeIn transition-colors duration-200 z-40"
     >
       {/* AMBIENT LIGHT REFLECTIONS FOR TRANSPARENT GLASS EFFECT */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -2151,7 +2151,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
       </div>
 
       {/* CMS TOP BAR - GLASS TRANSPARENT HEADER */}
-      <header className="relative z-10 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 bg-white/80 dark:bg-[#111827]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 shadow-xs shrink-0 transition-colors duration-200">
+      <header className="relative z-30 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 bg-white/90 dark:bg-[#111827]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 shadow-xs shrink-0 transition-colors duration-200">
         <div className="flex items-center space-x-2.5 sm:space-x-3.5">
           {/* MOBILE MENU TOGGLE BUTTON (DRAWER) */}
           <button
@@ -2881,16 +2881,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
             activeTab === 'REJECTED_TEAMS') && (
             <div className="space-y-6 animate-fadeIn">
               
-              {/* TABLE HEADER & FILTER BAR */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* TABLE HEADER & FILTER BAR (STICKY AT TOP OF MAIN) */}
+              <div className="sticky top-0 z-20 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 p-4 sm:p-6 lg:p-8 bg-slate-100/95 dark:bg-[#0B1120]/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs transition-colors">
                 <div>
-                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide">
+                  <h3 className="text-2xl font-heading font-bold uppercase tracking-wide text-slate-900 dark:text-white">
                     {activeTab === 'ALL_REGISTRATIONS' && 'SEMUA BERKAS PENDAFTARAN TIM'}
                     {activeTab === 'PENDING_PAYMENT' && 'TAB KHUSUS: MENUNGGU PEMBAYARAN'}
                     {activeTab === 'APPROVED_TEAMS' && 'TAB KHUSUS: PENDAFTARAN DISETUJUI (APPROVED)'}
                     {activeTab === 'REJECTED_TEAMS' && 'TAB KHUSUS: PENDAFTARAN DITOLAK (REJECTED)'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Gunakan tabel ini untuk verifikasi berkas PDF, mengubah status, dan mengirim notifikasi WhatsApp otomatis.
                   </p>
                 </div>
@@ -3002,18 +3002,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                 const displayItems = filterList(baseList);
 
                 return (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                    <div className="overflow-x-auto">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+                    <div className="overflow-x-auto max-h-[calc(100vh-270px)] overflow-y-auto">
                       <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-950 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-800">
-                            <th className="py-3.5 px-4">Kode / Tim</th>
-                            <th className="py-3.5 px-4">Kategori & Asal</th>
-                            <th className="py-3.5 px-4">Pelatih & Kontak</th>
-                            <th className="py-3.5 px-4">Dokumen PDF</th>
-                            <th className="py-3.5 px-4">Biaya & Pembayaran</th>
-                            <th className="py-3.5 px-4">Status</th>
-                            <th className="py-3.5 px-4 text-center">Aksi / Notifikasi</th>
+                        <thead className="sticky top-0 z-10 bg-slate-950 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-800 shadow-sm">
+                          <tr>
+                            <th className="py-3.5 px-4 bg-slate-950">Kode / Tim</th>
+                            <th className="py-3.5 px-4 bg-slate-950">Kategori & Asal</th>
+                            <th className="py-3.5 px-4 bg-slate-950">Pelatih & Kontak</th>
+                            <th className="py-3.5 px-4 bg-slate-950">Dokumen PDF</th>
+                            <th className="py-3.5 px-4 bg-slate-950">Biaya & Pembayaran</th>
+                            <th className="py-3.5 px-4 bg-slate-950">Status</th>
+                            <th className="py-3.5 px-4 text-center bg-slate-950">Aksi / Notifikasi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">

@@ -278,8 +278,25 @@ const MainLayout: React.FC = () => {
     klasemenLanding: true,
   };
 
+  useEffect(() => {
+    if (currentPage === 'admin') {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+      };
+    }
+  }, [currentPage]);
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-200 relative overflow-x-clip">
+    <div
+      className={
+        currentPage === 'admin'
+          ? "fixed inset-0 w-screen h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-200"
+          : "min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-red-600 selection:text-white transition-colors duration-200 relative overflow-x-clip"
+      }
+    >
       {/* AMBIENT LIGHT REFLECTIONS FOR GLASS TRANSLUCENCY IN BOTH LIGHT & DARK */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute -top-32 left-1/4 w-[500px] h-[500px] bg-red-500/10 dark:bg-red-600/15 rounded-full blur-[120px] will-change-transform" />

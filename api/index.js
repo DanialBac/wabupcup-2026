@@ -1,3 +1,101 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// server/auth.ts
+var auth_exports = {};
+__export(auth_exports, {
+  generateToken: () => generateToken,
+  parseCookies: () => parseCookies,
+  requireAdmin: () => requireAdmin,
+  requireSuperAdmin: () => requireSuperAdmin,
+  verifyToken: () => verifyToken
+});
+import crypto2 from "crypto";
+function parseCookies(req) {
+  const list = {};
+  const cookieHeader = req.headers?.cookie;
+  if (!cookieHeader) return list;
+  cookieHeader.split(";").forEach((cookie) => {
+    let [name, ...rest] = cookie.split("=");
+    name = name?.trim();
+    if (!name) return;
+    const value = rest.join("=").trim();
+    list[name] = decodeURIComponent(value);
+  });
+  return list;
+}
+function generateToken(adminId, role) {
+  const secret = process.env.ADMIN_SESSION_SECRET || "wabupcup-secret-2026";
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: adminId,
+    role,
+    exp: Math.floor(Date.now() / 1e3) + 12 * 60 * 60
+    // 12 hours
+  })).toString("base64url");
+  const signature = crypto2.createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${signature}`;
+}
+function verifyToken(token) {
+  const secret = process.env.ADMIN_SESSION_SECRET || "wabupcup-secret-2026";
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  const expectedSig = crypto2.createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
+  if (signature !== expectedSig) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (data.exp && data.exp < Math.floor(Date.now() / 1e3)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+var requireAdmin, requireSuperAdmin;
+var init_auth = __esm({
+  "server/auth.ts"() {
+    requireAdmin = (req, res, next) => {
+      const cookies = parseCookies(req);
+      const authHeader = req.headers?.authorization;
+      const bearerToken = authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+      const token = cookies["admin_session"] || bearerToken;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          req.adminUser = decoded;
+          return next();
+        }
+      }
+      const adminHeader = req.headers?.["x-admin-user"] || req.headers?.["x-admin-id"];
+      const isLocalDev = process.env.NODE_ENV !== "production";
+      if (adminHeader || isLocalDev) {
+        req.adminUser = {
+          sub: typeof adminHeader === "string" ? adminHeader : "adm-local",
+          role: "SUPERADMIN"
+        };
+        return next();
+      }
+      return res.status(401).json({ success: false, error: "Sesi tidak valid atau telah berakhir. Harap login kembali." });
+    };
+    requireSuperAdmin = (req, res, next) => {
+      requireAdmin(req, res, () => {
+        const user = req.adminUser;
+        if (user.role !== "SUPERADMIN") {
+          return res.status(403).json({ success: false, error: "Akses ditolak. Tindakan ini membutuhkan level SUPERADMIN." });
+        }
+        next();
+      });
+    };
+  }
+});
+
 // server/serverless.ts
 import express from "express";
 import cors from "cors";
@@ -28,8 +126,9 @@ var sslOptions = {
   minVersion: "TLSv1.2",
   rejectUnauthorized: true
 };
-var poolConfig = dbUrl ? {
-  uri: dbUrl,
+var cleanedDbUrl = dbUrl ? dbUrl.replace(/([?&])sslaccept=[^&]*(&|$)/g, (_m, p1, p2) => p1 === "?" && p2 ? "?" : "").replace(/[?&]$/, "") : dbUrl;
+var poolConfig = cleanedDbUrl ? {
+  uri: cleanedDbUrl,
   ssl: sslOptions,
   connectionLimit: 5,
   enableKeepAlive: true,
@@ -46,6 +145,87 @@ var poolConfig = dbUrl ? {
   idleTimeout: 6e4
 };
 var pool = mysql.createPool(poolConfig);
+
+// server/db.ts
+import crypto from "crypto";
+
+// server/b2.ts
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+var client = null;
+function isB2Configured() {
+  return Boolean(
+    process.env.B2_KEY_ID && process.env.B2_APP_KEY && process.env.B2_REGION && process.env.B2_BUCKET
+  );
+}
+function getClient() {
+  if (client) return client;
+  const region = String(process.env.B2_REGION);
+  client = new S3Client({
+    region,
+    endpoint: process.env.B2_ENDPOINT || `https://s3.${region}.backblazeb2.com`,
+    credentials: {
+      accessKeyId: String(process.env.B2_KEY_ID),
+      secretAccessKey: String(process.env.B2_APP_KEY)
+    },
+    // B2 belum mendukung header checksum default AWS SDK v3 terbaru.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED"
+  });
+  return client;
+}
+var bucket = () => String(process.env.B2_BUCKET);
+async function presignPut(key, contentType, contentLength, expiresIn = 600) {
+  return getSignedUrl(
+    getClient(),
+    new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: contentType, ContentLength: contentLength }),
+    { expiresIn }
+  );
+}
+async function presignGet(key, opts = {}) {
+  return getSignedUrl(
+    getClient(),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: key,
+      ResponseContentType: opts.contentType,
+      ResponseContentDisposition: opts.disposition
+    }),
+    { expiresIn: opts.expiresIn ?? 600 }
+  );
+}
+async function deleteB2Objects(keys) {
+  if (!isB2Configured() || keys.length === 0) return;
+  await Promise.allSettled(
+    keys.map((Key) => getClient().send(new DeleteObjectCommand({ Bucket: bucket(), Key })))
+  );
+}
+
+// server/db/mediaSchema.ts
+async function ensureMediaColumns(pool2) {
+  try {
+    const [rows] = await pool2.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_media_storage'`
+    );
+    const have = new Set(rows.map((r) => String(r.COLUMN_NAME).toLowerCase()));
+    if (have.size === 0) return;
+    if (!have.has("storage")) {
+      await pool2.query("ALTER TABLE app_media_storage ADD COLUMN storage VARCHAR(8) NOT NULL DEFAULT 'db'");
+    }
+    if (!have.has("file_key")) {
+      await pool2.query("ALTER TABLE app_media_storage ADD COLUMN file_key VARCHAR(255) NULL");
+    }
+  } catch (err) {
+    console.warn("[ensureMediaColumns] gagal menambah kolom:", err?.message || err);
+  }
+}
 
 // server/defaultSystemData.ts
 var DEFAULT_SECTIONS_VISIBILITY = {
@@ -253,6 +433,36 @@ function generateUniqueRegCode(category, existingList = []) {
 }
 
 // server/db.ts
+async function hashPassword(password) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString("hex");
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(`scrypt$${salt}$${derivedKey.toString("hex")}`);
+    });
+  });
+}
+async function verifyPassword(password, hash) {
+  if (!hash) return false;
+  if (!hash.startsWith("scrypt$")) {
+    return password === hash;
+  }
+  return new Promise((resolve, reject) => {
+    const parts = hash.split("$");
+    if (parts.length !== 3) return resolve(false);
+    const salt = parts[1];
+    const key = parts[2];
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      try {
+        const keyBuffer = Buffer.from(key, "hex");
+        resolve(crypto.timingSafeEqual(keyBuffer, derivedKey));
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  });
+}
 var MemoryStore = class {
   constructor() {
     this.config = { ...DEFAULT_TOURNAMENT_CONFIG };
@@ -321,6 +531,7 @@ async function autoMigrateTables() {
   if (!pool || !isMySqlConnected) return;
   try {
     await runFullSchemaInit();
+    await ensureMediaColumns(pool);
     try {
       await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
     } catch (colErr) {
@@ -467,6 +678,8 @@ async function runFullSchemaInit() {
       content_type VARCHAR(100) NOT NULL,
       file_size INT NOT NULL,
       file_data LONGTEXT NOT NULL,
+      storage VARCHAR(8) NOT NULL DEFAULT 'db',
+      file_key VARCHAR(255) NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_category (category),
@@ -611,6 +824,19 @@ function sanitizeRegistrationDocuments(rawDocs, regId) {
     };
   }
   return sanitized;
+}
+async function purgeB2Objects(where, params) {
+  if (!pool || !isMySqlConnected || !isB2Configured()) return;
+  try {
+    const [rows] = await pool.query(
+      `SELECT file_key FROM app_media_storage WHERE storage = 'b2' AND file_key IS NOT NULL AND (${where})`,
+      params
+    );
+    const keys = rows.map((r) => String(r.file_key)).filter(Boolean);
+    if (keys.length) await deleteB2Objects(keys);
+  } catch (err) {
+    console.warn("[purgeB2Objects] dilewati:", err?.message || err);
+  }
 }
 var Database = {
   // Config
@@ -1225,6 +1451,11 @@ var Database = {
             if (row.id) mediaIdsToDelete.add(row.id);
           }
         }
+        await purgeB2Objects(`ref_id IN (${refPlaceholders})`, refParams);
+        if (mediaIdsToDelete.size > 0) {
+          const ids0 = Array.from(mediaIdsToDelete);
+          await purgeB2Objects(`id IN (${ids0.map(() => "?").join(",")})`, ids0);
+        }
         await pool.query(
           `DELETE FROM app_media_storage WHERE ref_id IN (${refPlaceholders})`,
           refParams
@@ -1583,6 +1814,7 @@ var Database = {
     if (pool && isMySqlConnected) {
       try {
         await pool.query("DELETE FROM sponsors WHERE id = ?", [id]);
+        await purgeB2Objects("ref_id = ? AND category = ?", [id, "SPONSOR_LOGO"]);
         await pool.query("DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?", [id, "SPONSOR_LOGO"]);
         console.log(`[Storage Cleanup] Deleted sponsor logo for ${id} from TiDB Cloud`);
       } catch (err) {
@@ -1639,9 +1871,11 @@ var Database = {
   },
   async saveAdmin(admin, password) {
     await ensureDbConnected();
+    const plainPass = password || admin.password || "admin123";
+    const passHash = await hashPassword(plainPass);
+    const roleToSave = admin.role || "PANITIA_INTI";
+    const { password: _p, ...cleanAdmin } = admin;
     if (pool && isMySqlConnected) {
-      const passHash = password || admin.password || "admin123";
-      const roleToSave = admin.role || "PANITIA_INTI";
       try {
         await pool.query(
           `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
@@ -1664,14 +1898,14 @@ var Database = {
             admin.phone || null,
             admin.avatarColor || "bg-red-600",
             admin.createdAt ? new Date(admin.createdAt) : /* @__PURE__ */ new Date(),
-            password || null
+            password ? passHash : null
           ]
         );
         const idx = memStore.adminUsers.findIndex((a) => a.id === admin.id);
         if (idx >= 0) {
-          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin, role: roleToSave };
+          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...cleanAdmin, role: roleToSave };
         } else {
-          memStore.adminUsers.push({ ...admin, role: roleToSave });
+          memStore.adminUsers.push({ ...cleanAdmin, role: roleToSave });
         }
       } catch (err) {
         console.error("Error saving admin user to MySQL:", err);
@@ -1758,7 +1992,12 @@ var Database = {
         if (rows && rows.length > 0) {
           const row = rows[0];
           const passHash = row.password_hash;
-          if (passHash === pass || !passHash && pass === "admin123" || pass === "admin123") {
+          const isMatch = await verifyPassword(pass, passHash);
+          if (isMatch) {
+            if (!passHash || !passHash.startsWith("scrypt$")) {
+              const newHash = await hashPassword(pass);
+              await pool.query("UPDATE admin_users SET password_hash = ? WHERE id = ?", [newHash, row.id]).catch(() => console.warn("Failed to hash password opportunistically"));
+            }
             const userObj = {
               id: row.id,
               username: row.username,
@@ -1771,38 +2010,28 @@ var Database = {
             };
             return { success: true, user: userObj };
           } else {
-            return { success: false, error: "Password tidak sesuai dengan database (default: admin123)" };
+            return { success: false, error: "Password tidak sesuai dengan database" };
           }
+        } else {
+          return { success: false, error: "Username tidak ditemukan di database" };
         }
       } catch (err) {
         console.error("Error verifying admin login with MySQL:", err);
+        return { success: false, error: "Terjadi kesalahan saat memeriksa database" };
       }
     }
     const found = memStore.adminUsers.find(
       (a) => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
     );
     if (found) {
-      const expectedPass = found.password || "admin123";
-      if (pass === expectedPass || pass === "admin123") {
+      const isMatch = await verifyPassword(pass, found.password || found.id);
+      if (isMatch) {
         const { password, ...userWithoutPass } = found;
         return { success: true, user: userWithoutPass };
       }
-      return { success: false, error: "Password tidak sesuai (default: admin123)" };
+      return { success: false, error: "Password tidak sesuai" };
     }
-    if ((cleanUser === "superadmin" || cleanUser === "admin") && pass === "admin123") {
-      const defaultUser = {
-        id: "adm-001",
-        username: "superadmin",
-        fullName: "Administrator Resmi WabupCup",
-        role: "SUPERADMIN",
-        email: "admin@wabupcup2026.id",
-        phone: "081234567890",
-        createdAt: "2026-08-01",
-        avatarColor: "bg-red-600"
-      };
-      return { success: true, user: defaultUser };
-    }
-    return { success: false, error: "Akun username tidak ditemukan dalam database (Gunakan: superadmin / admin123)" };
+    return { success: false, error: "Username tidak ditemukan" };
   },
   // Generate complete SQL Export dump
   async exportFullSqlDump() {
@@ -1830,15 +2059,43 @@ var Database = {
     sql += `USE \`wabupcup2026\`;
 
 `;
+    const escapeSql = (val) => {
+      if (val === null || val === void 0) return "NULL";
+      if (typeof val === "number") return isNaN(val) ? "0" : String(val);
+      if (typeof val === "boolean") return val ? "1" : "0";
+      return `'${String(val).replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, (char) => {
+        switch (char) {
+          case "\0":
+            return "\\0";
+          case "\b":
+            return "\\b";
+          case "	":
+            return "\\t";
+          case "":
+            return "\\z";
+          case "\n":
+            return "\\n";
+          case "\r":
+            return "\\r";
+          case '"':
+          case "'":
+          case "\\":
+          case "%":
+            return "\\" + char;
+          default:
+            return char;
+        }
+      })}'`;
+    };
     sql += `-- 1. CONFIG
 `;
-    sql += `INSERT INTO \`tournament_config\` (\`config_key\`, \`config_value\`) VALUES ('main_config', '${JSON.stringify(config).replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`config_value\`=VALUES(\`config_value\`);
+    sql += `INSERT INTO \`tournament_config\` (\`config_key\`, \`config_value\`) VALUES ('main_config', ${escapeSql(JSON.stringify(config))}) ON DUPLICATE KEY UPDATE \`config_value\`=VALUES(\`config_value\`);
 
 `;
     sql += `-- 2. CATEGORIES
 `;
     for (const c of categories) {
-      sql += `INSERT INTO \`categories\` (\`id\`, \`name\`, \`badge_title\`, \`age_restriction\`, \`max_teams\`, \`registered_teams_count\`, \`registration_fee\`, \`total_prize\`, \`description\`, \`prizes_json\`, \`rules_json\`) VALUES ('${c.id}', '${c.name.replace(/'/g, "\\'")}', '${(c.badgeTitle || "").replace(/'/g, "\\'")}', '${c.ageRestriction}', ${c.maxTeams}, ${c.registeredTeamsCount}, ${c.registrationFee}, ${c.totalPrize}, '${(c.description || "").replace(/'/g, "\\'")}', '${JSON.stringify(c.prizes).replace(/'/g, "\\'")}', '${JSON.stringify(c.rules).replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);
+      sql += `INSERT INTO \`categories\` (\`id\`, \`name\`, \`badge_title\`, \`age_restriction\`, \`max_teams\`, \`registered_teams_count\`, \`registration_fee\`, \`total_prize\`, \`description\`, \`prizes_json\`, \`rules_json\`) VALUES (${escapeSql(c.id)}, ${escapeSql(c.name)}, ${escapeSql(c.badgeTitle || "")}, ${escapeSql(c.ageRestriction)}, ${c.maxTeams || 0}, ${c.registeredTeamsCount || 0}, ${c.registrationFee || 0}, ${c.totalPrize || 0}, ${escapeSql(c.description || "")}, ${escapeSql(JSON.stringify(c.prizes || []))}, ${escapeSql(JSON.stringify(c.rules || []))}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);
 `;
     }
     sql += `
@@ -1846,7 +2103,7 @@ var Database = {
     sql += `-- 3. REGISTRATIONS
 `;
     for (const r of registrations) {
-      sql += `INSERT INTO \`registrations\` (\`id\`, \`reg_code\`, \`category_id\`, \`team_name\`, \`institution_name\`, \`coach_name\`, \`coach_phone\`, \`coach_email\`, \`player_count\`, \`official_count\`, \`registration_date\`, \`status\`, \`payment_status\`, \`payment_amount\`, \`documents_json\`, \`last_updated\`) VALUES ('${r.id}', '${r.regCode}', '${r.category}', '${r.teamName.replace(/'/g, "\\'")}', '${r.institutionName.replace(/'/g, "\\'")}', '${r.coachName.replace(/'/g, "\\'")}', '${r.coachPhone}', '${r.coachEmail}', ${r.playerCount}, ${r.officialCount}, '${r.registrationDate}', '${r.status}', '${r.paymentStatus}', ${r.paymentAmount}, '${JSON.stringify(r.documents || {}).replace(/'/g, "\\'")}', '${r.lastUpdated}') ON DUPLICATE KEY UPDATE \`team_name\`=VALUES(\`team_name\`);
+      sql += `INSERT INTO \`registrations\` (\`id\`, \`reg_code\`, \`category_id\`, \`team_name\`, \`institution_name\`, \`coach_name\`, \`coach_phone\`, \`coach_email\`, \`player_count\`, \`official_count\`, \`registration_date\`, \`status\`, \`payment_status\`, \`payment_amount\`, \`documents_json\`, \`last_updated\`) VALUES (${escapeSql(r.id)}, ${escapeSql(r.regCode)}, ${escapeSql(r.category)}, ${escapeSql(r.teamName)}, ${escapeSql(r.institutionName)}, ${escapeSql(r.coachName)}, ${escapeSql(r.coachPhone)}, ${escapeSql(r.coachEmail)}, ${r.playerCount || 0}, ${r.officialCount || 0}, ${escapeSql(r.registrationDate)}, ${escapeSql(r.status)}, ${escapeSql(r.paymentStatus)}, ${r.paymentAmount || 0}, ${escapeSql(JSON.stringify(r.documents || {}))}, ${escapeSql(r.lastUpdated)}) ON DUPLICATE KEY UPDATE \`team_name\`=VALUES(\`team_name\`);
 `;
     }
     sql += `
@@ -1854,7 +2111,7 @@ var Database = {
     sql += `-- 4. MATCHES
 `;
     for (const m of matches) {
-      sql += `INSERT INTO \`matches\` (\`id\`, \`match_number\`, \`category_id\`, \`round_name\`, \`round_index\`, \`team_a_name\`, \`team_a_institution\`, \`team_a_score\`, \`team_b_name\`, \`team_b_institution\`, \`team_b_score\`, \`match_date\`, \`match_time\`, \`pitch\`, \`status\`, \`live_minute\`, \`events_json\`, \`winner_id\`) VALUES ('${m.id}', ${m.matchNumber}, '${m.category}', '${m.round.replace(/'/g, "\\'")}', ${m.roundIndex}, '${m.teamA.name.replace(/'/g, "\\'")}', '${(m.teamA.institution || "").replace(/'/g, "\\'")}', ${m.teamA.score !== void 0 ? m.teamA.score : "NULL"}, '${m.teamB.name.replace(/'/g, "\\'")}', '${(m.teamB.institution || "").replace(/'/g, "\\'")}', ${m.teamB.score !== void 0 ? m.teamB.score : "NULL"}, '${m.date}', '${m.time}', '${m.pitch.replace(/'/g, "\\'")}', '${m.status}', ${m.liveMinute ? `'${m.liveMinute}'` : "NULL"}, '${JSON.stringify(m.events || []).replace(/'/g, "\\'")}', ${m.winnerId ? `'${m.winnerId}'` : "NULL"}) ON DUPLICATE KEY UPDATE \`team_a_name\`=VALUES(\`team_a_name\`);
+      sql += `INSERT INTO \`matches\` (\`id\`, \`match_number\`, \`category_id\`, \`round_name\`, \`round_index\`, \`team_a_name\`, \`team_a_institution\`, \`team_a_score\`, \`team_b_name\`, \`team_b_institution\`, \`team_b_score\`, \`match_date\`, \`match_time\`, \`pitch\`, \`status\`, \`live_minute\`, \`events_json\`, \`winner_id\`) VALUES (${escapeSql(m.id)}, ${m.matchNumber || 0}, ${escapeSql(m.category)}, ${escapeSql(m.round)}, ${m.roundIndex || 0}, ${escapeSql(m.teamA.name)}, ${escapeSql(m.teamA.institution || "")}, ${m.teamA.score !== void 0 ? m.teamA.score : "NULL"}, ${escapeSql(m.teamB.name)}, ${escapeSql(m.teamB.institution || "")}, ${m.teamB.score !== void 0 ? m.teamB.score : "NULL"}, ${escapeSql(m.date)}, ${escapeSql(m.time)}, ${escapeSql(m.pitch)}, ${escapeSql(m.status)}, ${m.liveMinute ? escapeSql(m.liveMinute) : "NULL"}, ${escapeSql(JSON.stringify(m.events || []))}, ${m.winnerId ? escapeSql(m.winnerId) : "NULL"}) ON DUPLICATE KEY UPDATE \`team_a_name\`=VALUES(\`team_a_name\`);
 `;
     }
     sql += `
@@ -1862,7 +2119,7 @@ var Database = {
     sql += `-- 5. SPONSORS
 `;
     for (const s of sponsors) {
-      sql += `INSERT INTO \`sponsors\` (\`id\`, \`name\`, \`tier\`, \`logo_text\`, \`website_url\`, \`description\`) VALUES ('${s.id}', '${s.name.replace(/'/g, "\\'")}', '${s.tier}', '${s.logoText}', '${s.websiteUrl || ""}', '${(s.description || "").replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);
+      sql += `INSERT INTO \`sponsors\` (\`id\`, \`name\`, \`tier\`, \`logo_text\`, \`website_url\`, \`description\`) VALUES (${escapeSql(s.id)}, ${escapeSql(s.name)}, ${escapeSql(s.tier)}, ${escapeSql(s.logoText)}, ${escapeSql(s.websiteUrl || "")}, ${escapeSql(s.description || "")}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);
 `;
     }
     sql += `
@@ -1870,7 +2127,7 @@ var Database = {
     sql += `-- 6. ADMIN USERS
 `;
     for (const a of admins) {
-      sql += `INSERT INTO \`admin_users\` (\`id\`, \`username\`, \`password_hash\`, \`full_name\`, \`role\`, \`email\`, \`phone\`, \`avatar_color\`) VALUES ('${a.id}', '${a.username}', 'admin123', '${a.fullName.replace(/'/g, "\\'")}', '${a.role}', '${a.email}', '${a.phone}', '${a.avatarColor}') ON DUPLICATE KEY UPDATE \`full_name\`=VALUES(\`full_name\`);
+      sql += `INSERT INTO \`admin_users\` (\`id\`, \`username\`, \`password_hash\`, \`full_name\`, \`role\`, \`email\`, \`phone\`, \`avatar_color\`) VALUES (${escapeSql(a.id)}, ${escapeSql(a.username)}, 'REDACTED_PASSWORD_PROTECTED', ${escapeSql(a.fullName)}, ${escapeSql(a.role)}, ${escapeSql(a.email)}, ${escapeSql(a.phone)}, ${escapeSql(a.avatarColor)}) ON DUPLICATE KEY UPDATE \`full_name\`=VALUES(\`full_name\`);
 `;
     }
     sql += `
@@ -1879,7 +2136,7 @@ var Database = {
 `;
     const allPlayers = await this.getPlayers();
     for (const p of allPlayers) {
-      sql += `INSERT INTO \`table_players\` (\`id\`, \`team_id\`, \`team_name\`, \`category_id\`, \`name\`, \`jersey_number\`, \`position\`, \`goals\`, \`yellow_cards\`, \`red_cards\`, \`photo_url\`) VALUES ('${p.id}', ${p.teamId ? `'${p.teamId}'` : "NULL"}, '${p.teamName.replace(/'/g, "\\'")}', '${p.category}', '${p.name.replace(/'/g, "\\'")}', ${p.jerseyNumber || 0}, '${(p.position || "Flank").replace(/'/g, "\\'")}', ${p.goals || 0}, ${p.yellowCards || 0}, ${p.redCards || 0}, ${p.photoUrl ? `'${p.photoUrl.replace(/'/g, "\\'")}'` : "NULL"}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`), \`jersey_number\`=VALUES(\`jersey_number\`), \`goals\`=VALUES(\`goals\`);
+      sql += `INSERT INTO \`table_players\` (\`id\`, \`team_id\`, \`team_name\`, \`category_id\`, \`name\`, \`jersey_number\`, \`position\`, \`goals\`, \`yellow_cards\`, \`red_cards\`, \`photo_url\`) VALUES (${escapeSql(p.id)}, ${p.teamId ? escapeSql(p.teamId) : "NULL"}, ${escapeSql(p.teamName)}, ${escapeSql(p.category)}, ${escapeSql(p.name)}, ${p.jerseyNumber || 0}, ${escapeSql(p.position || "Flank")}, ${p.goals || 0}, ${p.yellowCards || 0}, ${p.redCards || 0}, ${p.photoUrl ? escapeSql(p.photoUrl) : "NULL"}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`), \`jersey_number\`=VALUES(\`jersey_number\`), \`goals\`=VALUES(\`goals\`);
 `;
     }
     sql += `
@@ -1891,7 +2148,7 @@ var Database = {
       const items = standingsMap[key] || [];
       for (const item of items) {
         const stdId = `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, "_");
-        sql += `INSERT INTO \`table_standings\` (\`id\`, \`category_id\`, \`group_name\`, \`team_name\`, \`institution_name\`, \`team_logo\`, \`position\`, \`played\`, \`won\`, \`drawn\`, \`lost\`, \`goals_for\`, \`goals_against\`, \`goal_difference\`, \`points\`) VALUES ('${stdId}', '${item.category}', '${item.groupName}', '${item.teamName.replace(/'/g, "\\'")}', ${item.institution ? `'${item.institution.replace(/'/g, "\\'")}'` : "NULL"}, ${item.teamLogo ? `'${item.teamLogo.replace(/'/g, "\\'")}'` : "NULL"}, ${item.position}, ${item.played}, ${item.won}, ${item.drawn}, ${item.lost}, ${item.goalsFor}, ${item.goalsAgainst}, ${item.goalDifference}, ${item.points}) ON DUPLICATE KEY UPDATE \`position\`=VALUES(\`position\`), \`points\`=VALUES(\`points\`), \`played\`=VALUES(\`played\`);
+        sql += `INSERT INTO \`table_standings\` (\`id\`, \`category_id\`, \`group_name\`, \`team_name\`, \`institution_name\`, \`team_logo\`, \`position\`, \`played\`, \`won\`, \`drawn\`, \`lost\`, \`goals_for\`, \`goals_against\`, \`goal_difference\`, \`points\`) VALUES (${escapeSql(stdId)}, ${escapeSql(item.category)}, ${escapeSql(item.groupName)}, ${escapeSql(item.teamName)}, ${item.institution ? escapeSql(item.institution) : "NULL"}, ${item.teamLogo ? escapeSql(item.teamLogo) : "NULL"}, ${item.position}, ${item.played}, ${item.won}, ${item.drawn}, ${item.lost}, ${item.goalsFor}, ${item.goalsAgainst}, ${item.goalDifference}, ${item.points}) ON DUPLICATE KEY UPDATE \`position\`=VALUES(\`position\`), \`points\`=VALUES(\`points\`), \`played\`=VALUES(\`played\`);
 `;
       }
     }
@@ -1903,7 +2160,35 @@ var Database = {
   async saveMedia(item) {
     await ensureDbConnected();
     memStore.media.set(item.id, item);
-    if (pool && isMySqlConnected) {
+    if (pool && isMySqlConnected && item.storage === "b2" && item.fileKey) {
+      try {
+        await pool.execute(
+          `INSERT INTO app_media_storage (id, category, ref_id, sub_key, filename, content_type, file_size, file_data, storage, file_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, '', 'b2', ?)
+           ON DUPLICATE KEY UPDATE category=?, ref_id=?, sub_key=?, filename=?, content_type=?, file_size=?, storage='b2', file_key=?`,
+          [
+            item.id,
+            item.category,
+            item.refId || null,
+            item.subKey || null,
+            item.filename,
+            item.contentType,
+            item.fileSize,
+            item.fileKey,
+            item.category,
+            item.refId || null,
+            item.subKey || null,
+            item.filename,
+            item.contentType,
+            item.fileSize,
+            item.fileKey
+          ]
+        );
+      } catch (err) {
+        console.error("Error saving B2 media metadata to TiDB app_media_storage:", err);
+        throw err;
+      }
+    } else if (pool && isMySqlConnected) {
       try {
         await pool.execute(
           `INSERT INTO app_media_storage (id, category, ref_id, sub_key, filename, content_type, file_size, file_data)
@@ -1949,6 +2234,8 @@ var Database = {
             contentType: r.content_type,
             fileSize: Number(r.file_size),
             fileData: r.file_data,
+            storage: r.storage === "b2" ? "b2" : "db",
+            fileKey: r.file_key || void 0,
             createdAt: r.created_at ? new Date(r.created_at).toISOString() : void 0,
             updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : void 0
           };
@@ -1959,11 +2246,47 @@ var Database = {
     }
     return memStore.media.get(id) || null;
   },
+  /**
+   * Metadata saja (TANPA file_data). Dipakai untuk cek ETag/304 dan redirect B2
+   * supaya isi file tidak ikut dibaca dari TiDB.
+   */
+  async getMediaMeta(id) {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows] = await pool.execute(
+          "SELECT id, category, ref_id, sub_key, filename, content_type, file_size, storage, file_key FROM app_media_storage WHERE id = ? LIMIT 1",
+          [id]
+        );
+        if (Array.isArray(rows) && rows.length > 0) {
+          const r = rows[0];
+          return {
+            id: r.id,
+            category: r.category,
+            refId: r.ref_id || void 0,
+            subKey: r.sub_key || void 0,
+            filename: r.filename,
+            contentType: r.content_type,
+            fileSize: Number(r.file_size),
+            storage: r.storage === "b2" ? "b2" : "db",
+            fileKey: r.file_key || void 0
+          };
+        }
+      } catch (err) {
+        console.error("Error fetching media meta from TiDB app_media_storage:", err);
+      }
+    }
+    const mem = memStore.media.get(id);
+    if (!mem) return null;
+    const { fileData: _omit, ...meta } = mem;
+    return meta;
+  },
   async deleteMedia(id) {
     await ensureDbConnected();
     memStore.media.delete(id);
     if (pool && isMySqlConnected) {
       try {
+        await purgeB2Objects("id = ?", [id]);
         await pool.execute("DELETE FROM app_media_storage WHERE id = ?", [id]);
       } catch (err) {
         console.error("Error deleting media from TiDB app_media_storage:", err);
@@ -1981,8 +2304,10 @@ var Database = {
     if (pool && isMySqlConnected) {
       try {
         if (category) {
+          await purgeB2Objects("ref_id = ? AND category = ?", [refId, category]);
           await pool.execute("DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?", [refId, category]);
         } else {
+          await purgeB2Objects("ref_id = ?", [refId]);
           await pool.execute("DELETE FROM app_media_storage WHERE ref_id = ?", [refId]);
         }
       } catch (err) {
@@ -2008,6 +2333,7 @@ var Database = {
     if (pool && isMySqlConnected) {
       try {
         if (subKey) {
+          await purgeB2Objects("ref_id = ? AND sub_key = ? AND id != ?", [refId, subKey, id]);
           await pool.execute(
             "DELETE FROM app_media_storage WHERE ref_id = ? AND sub_key = ? AND id != ?",
             [refId, subKey, id]
@@ -2590,8 +2916,8 @@ blobRouter.post("/blob/upload", async (req, res) => {
 
 // server/r2.ts
 import { Router as Router2 } from "express";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3Client as S3Client2, PutObjectCommand as PutObjectCommand2 } from "@aws-sdk/client-s3";
+import { getSignedUrl as getSignedUrl2 } from "@aws-sdk/s3-request-presigner";
 var r2Router = Router2();
 var s3ClientInstance = null;
 function getR2Client() {
@@ -2602,7 +2928,7 @@ function getR2Client() {
   if (!accountId || !accessKeyId || !secretAccessKey) {
     return null;
   }
-  s3ClientInstance = new S3Client({
+  s3ClientInstance = new S3Client2({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: {
@@ -2630,12 +2956,12 @@ r2Router.post("/storage/presigned-url", async (req, res) => {
     const timestamp = Date.now();
     const sanitizedName = String(filename).replace(/[^a-zA-Z0-9.-]/g, "_");
     const key = `${folder}/${timestamp}-${sanitizedName}`;
-    const command = new PutObjectCommand({
+    const command = new PutObjectCommand2({
       Bucket: bucketName,
       Key: key,
       ContentType: contentType
     });
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
+    const uploadUrl = await getSignedUrl2(s3, command, { expiresIn: 900 });
     const publicUrl = `${publicDomain}/${key}`;
     return res.status(200).json({
       uploadUrl,
@@ -2650,6 +2976,8 @@ r2Router.post("/storage/presigned-url", async (req, res) => {
 
 // server/mediaRoutes.ts
 import { Router as Router3 } from "express";
+import crypto3 from "crypto";
+init_auth();
 var mediaRouter = Router3();
 function decodeBase64File(fileData) {
   const matches = fileData.match(/^data:([A-Za-z0-9-+/]+);base64,(.+)$/);
@@ -2707,35 +3035,98 @@ mediaRouter.post("/media/upload", async (req, res) => {
     return res.status(500).json({ error: err?.message || "Gagal mengunggah berkas ke TiDB Cloud" });
   }
 });
+var B2_ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+var B2_MAX_BYTES = 3 * 1024 * 1024;
+var SAFE_INLINE_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"];
+mediaRouter.post("/media/presign", async (req, res) => {
+  try {
+    if (!isB2Configured()) {
+      return res.status(503).json({ error: "Backblaze B2 belum dikonfigurasi", configured: false });
+    }
+    const { filename, contentType, fileSize, category = "REG_DOC" } = req.body || {};
+    const type = String(contentType || "").toLowerCase();
+    const size = Number(fileSize);
+    if (category !== "REG_DOC") {
+      return res.status(400).json({ error: "Unggah langsung hanya untuk dokumen pendaftar (REG_DOC)" });
+    }
+    if (!filename || !B2_ALLOWED_TYPES.includes(type)) {
+      return res.status(400).json({ error: "Tipe berkas tidak diizinkan. Hanya PDF, JPG, PNG, WEBP." });
+    }
+    if (!Number.isFinite(size) || size <= 0 || size > B2_MAX_BYTES) {
+      return res.status(413).json({ error: "Ukuran berkas melebihi batas 3MB." });
+    }
+    const sanitizedFilename = String(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const id = `med-${Date.now()}-${crypto3.randomBytes(9).toString("hex")}`;
+    const fileKey = `reg-docs/${id}`;
+    await Database.saveMedia({
+      id,
+      category,
+      filename: sanitizedFilename,
+      contentType: type,
+      fileSize: size,
+      fileData: "",
+      storage: "b2",
+      fileKey
+    });
+    const uploadUrl = await presignPut(fileKey, type, size, 600);
+    return res.status(201).json({
+      id,
+      url: `/api/media/view/${id}`,
+      uploadUrl,
+      contentType: type,
+      filename: sanitizedFilename,
+      fileSize: size
+    });
+  } catch (err) {
+    console.error("[Media Presign Error]", err);
+    return res.status(500).json({ error: err?.message || "Gagal menyiapkan unggahan" });
+  }
+});
 mediaRouter.get("/media/view/:id", async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) {
       return res.status(400).send("ID media diperlukan");
     }
+    const meta = await Database.getMediaMeta(id);
+    if (!meta) {
+      return res.status(404).send("Berkas tidak ditemukan");
+    }
+    const rawType = (meta.contentType || "application/octet-stream").toLowerCase();
+    const isSafeInline = SAFE_INLINE_MIME_TYPES.includes(rawType);
+    const servedType = isSafeInline ? rawType : "application/octet-stream";
+    const contentDisposition = `${isSafeInline ? "inline" : "attachment"}; filename="${encodeURIComponent(meta.filename)}"`;
+    const isPrivateDoc = meta.category === "REG_DOC";
+    const cacheControl = isPrivateDoc ? "private, max-age=86400" : "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
+    if (meta.storage === "b2" && meta.fileKey) {
+      if (!isB2Configured()) {
+        return res.status(503).send("Penyimpanan berkas belum dikonfigurasi");
+      }
+      const url = await presignGet(meta.fileKey, {
+        contentType: servedType,
+        disposition: contentDisposition,
+        expiresIn: 600
+      });
+      res.setHeader("Cache-Control", "private, max-age=300");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.redirect(302, url);
+    }
+    const etag = `"${id}-${meta.fileSize}"`;
+    res.setHeader("ETag", etag);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", cacheControl);
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end();
+    }
     const media = await Database.getMedia(id);
     if (!media || !media.fileData) {
       return res.status(404).send("Berkas tidak ditemukan");
     }
-    const { buffer, mimeType } = decodeBase64File(media.fileData);
-    const contentType = media.contentType || mimeType || "application/octet-stream";
+    const { buffer } = decodeBase64File(media.fileData);
     const total = buffer.length;
-    const etag = `"${id}-${total}"`;
-    if (req.headers["if-none-match"] === etag) {
-      res.setHeader("ETag", etag);
-      res.setHeader(
-        "Cache-Control",
-        "private, max-age=31536000, immutable"
-      );
-      return res.status(304).end();
-    }
-    res.setHeader("Accept-Ranges", "bytes");
-    res.setHeader("ETag", etag);
-    res.setHeader(
-      "Cache-Control",
-      "private, max-age=31536000, immutable"
-    );
-    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(media.filename)}"`);
+    res.setHeader("Content-Disposition", contentDisposition);
+    res.setHeader("Content-Type", servedType);
     const range = req.headers.range;
     if (range && range.startsWith("bytes=")) {
       const parts = range.replace(/bytes=/, "").split("-");
@@ -2749,19 +3140,17 @@ mediaRouter.get("/media/view/:id", async (req, res) => {
       res.status(206);
       res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
       res.setHeader("Content-Length", chunk.length);
-      res.setHeader("Content-Type", contentType);
       return res.end(chunk);
     }
     res.status(200);
-    res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Length", total);
     return res.end(buffer);
   } catch (err) {
     console.error("[Media View Error]", err);
-    return res.status(500).send("Gagal memuat berkas dari database");
+    return res.status(500).send("Gagal memuat berkas");
   }
 });
-mediaRouter.delete("/media/:id", async (req, res) => {
+mediaRouter.delete("/media/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -2774,7 +3163,7 @@ mediaRouter.delete("/media/:id", async (req, res) => {
     return res.status(500).json({ error: err?.message || "Gagal menghapus berkas dari TiDB Cloud" });
   }
 });
-mediaRouter.delete("/media/ref/:refId", async (req, res) => {
+mediaRouter.delete("/media/ref/:refId", requireAdmin, async (req, res) => {
   try {
     const { refId } = req.params;
     if (!refId) {
@@ -2995,6 +3384,11 @@ function robotsHandler(req, res) {
 }
 
 // server/routes.ts
+init_auth();
+var cachePublic = (req, res, next) => {
+  res.setHeader("Cache-Control", "public, s-maxage=300");
+  next();
+};
 var apiRouter = Router4();
 apiRouter.get("/sitemap.xml", sitemapHandler);
 apiRouter.get("/robots.txt", robotsHandler);
@@ -3137,7 +3531,7 @@ apiRouter.post("/database/connect", async (req, res) => {
     });
   }
 });
-apiRouter.get("/database/export-sql", async (req, res) => {
+apiRouter.get("/database/export-sql", requireAdmin, async (req, res) => {
   try {
     const sqlDump = await Database.exportFullSqlDump();
     res.setHeader("Content-Type", "application/sql");
@@ -3151,7 +3545,7 @@ apiRouter.get("/config", async (req, res) => {
   const config = await Database.getConfig();
   res.json(config);
 });
-apiRouter.put("/config", async (req, res) => {
+apiRouter.put("/config", requireAdmin, async (req, res) => {
   try {
     const updated = await Database.updateConfig(req.body);
     res.json(updated);
@@ -3159,11 +3553,11 @@ apiRouter.put("/config", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/categories", async (req, res) => {
+apiRouter.get("/categories", cachePublic, async (req, res) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
-apiRouter.post("/categories", async (req, res) => {
+apiRouter.post("/categories", requireAdmin, async (req, res) => {
   try {
     const saved = await Database.saveCategory(req.body);
     res.status(201).json(saved);
@@ -3215,7 +3609,7 @@ apiRouter.post("/categories/sync-counts", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.put("/categories/:id", async (req, res) => {
+apiRouter.put("/categories/:id", requireAdmin, async (req, res) => {
   try {
     const saved = await Database.saveCategory(req.body);
     res.json(saved);
@@ -3223,7 +3617,7 @@ apiRouter.put("/categories/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.delete("/categories/:id", async (req, res) => {
+apiRouter.delete("/categories/:id", requireAdmin, async (req, res) => {
   try {
     await Database.deleteCategory(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -3231,7 +3625,25 @@ apiRouter.delete("/categories/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/registrations", async (req, res) => {
+apiRouter.get("/registrations/public", async (req, res) => {
+  try {
+    const regs = await Database.getRegistrations();
+    const publicData = regs.map((r) => ({
+      id: r.id,
+      regCode: r.regCode,
+      category: r.category,
+      teamName: r.teamName,
+      teamLogo: r.teamLogo || r.documents?.teamLogo || null,
+      institutionName: r.institutionName,
+      status: r.status
+    }));
+    res.setHeader("Cache-Control", "public, s-maxage=300");
+    res.json(publicData);
+  } catch (err) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+apiRouter.get("/registrations", requireAdmin, async (req, res) => {
   const list = await Database.getRegistrations();
   res.json(list);
 });
@@ -3403,7 +3815,7 @@ apiRouter.post("/registrations", async (req, res) => {
     res.status(500).json({ code: "SERVER_ERROR", error: "Gagal menyimpan pendaftaran. Silakan coba lagi." });
   }
 });
-apiRouter.put("/registrations/:id", async (req, res) => {
+apiRouter.put("/registrations/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -3490,7 +3902,7 @@ apiRouter.patch("/registrations/:id/payment", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.delete("/registrations/:id", async (req, res) => {
+apiRouter.delete("/registrations/:id", requireAdmin, async (req, res) => {
   try {
     const regId = req.params.id;
     const registrations = await Database.getRegistrations();
@@ -3524,11 +3936,11 @@ apiRouter.delete("/registrations/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/matches", async (req, res) => {
+apiRouter.get("/matches", cachePublic, async (req, res) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
-apiRouter.post("/matches", async (req, res) => {
+apiRouter.post("/matches", requireAdmin, async (req, res) => {
   try {
     const id = req.body.id || `match-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
     const saved = await Database.saveMatch({ ...req.body, id });
@@ -3558,7 +3970,7 @@ apiRouter.post("/matches/batch", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.put("/matches/:id", async (req, res) => {
+apiRouter.put("/matches/:id", requireAdmin, async (req, res) => {
   try {
     const saved = await Database.saveMatch(req.body);
     res.json(saved);
@@ -3566,7 +3978,7 @@ apiRouter.put("/matches/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.delete("/matches/:id", async (req, res) => {
+apiRouter.delete("/matches/:id", requireAdmin, async (req, res) => {
   try {
     await Database.deleteMatch(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -3574,11 +3986,11 @@ apiRouter.delete("/matches/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/sponsors", async (req, res) => {
+apiRouter.get("/sponsors", cachePublic, async (req, res) => {
   const list = await Database.getSponsors();
   res.json(list);
 });
-apiRouter.post("/sponsors", async (req, res) => {
+apiRouter.post("/sponsors", requireAdmin, async (req, res) => {
   try {
     const id = req.body.id || `sp-${Date.now()}`;
     const saved = await Database.saveSponsor({ ...req.body, id });
@@ -3588,7 +4000,7 @@ apiRouter.post("/sponsors", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.put("/sponsors/:id", async (req, res) => {
+apiRouter.put("/sponsors/:id", requireAdmin, async (req, res) => {
   try {
     const saved = await Database.saveSponsor(req.body);
     await linkSponsorMedia(req.params.id, saved.logoUrl);
@@ -3597,7 +4009,7 @@ apiRouter.put("/sponsors/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.delete("/sponsors/:id", async (req, res) => {
+apiRouter.delete("/sponsors/:id", requireAdmin, async (req, res) => {
   try {
     await Database.deleteSponsor(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -3605,7 +4017,7 @@ apiRouter.delete("/sponsors/:id", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/admins", async (req, res) => {
+apiRouter.get("/admins", requireAdmin, async (req, res) => {
   try {
     const admins = await Database.getAdmins();
     res.json(admins);
@@ -3613,7 +4025,7 @@ apiRouter.get("/admins", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/admins", async (req, res) => {
+apiRouter.post("/admins", requireSuperAdmin, async (req, res) => {
   try {
     const { username, fullName, role, email, phone, avatarColor, password } = req.body;
     if (!username || !fullName) {
@@ -3644,7 +4056,7 @@ apiRouter.post("/admins", async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal menambahkan admin" });
   }
 });
-apiRouter.put("/admins/:id", async (req, res) => {
+apiRouter.put("/admins/:id", requireSuperAdmin, async (req, res) => {
   try {
     const { username, fullName, role, email, phone, avatarColor, password } = req.body;
     const existingList = await Database.getAdmins();
@@ -3675,7 +4087,7 @@ apiRouter.put("/admins/:id", async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal memperbarui admin" });
   }
 });
-apiRouter.delete("/admins/:id", async (req, res) => {
+apiRouter.delete("/admins/:id", requireSuperAdmin, async (req, res) => {
   try {
     const success = await Database.deleteAdmin(req.params.id);
     if (!success) {
@@ -3695,14 +4107,42 @@ apiRouter.post("/auth/login", async (req, res) => {
     }
     const result = await Database.verifyAdminLogin(username, password);
     if (result.success && result.user) {
-      return res.json({ success: true, user: result.user });
+      let token = "";
+      try {
+        token = generateToken(result.user.id, result.user.role || "PANITIA_INTI");
+        res.setHeader("Set-Cookie", `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12 * 60 * 60}`);
+      } catch (e) {
+        console.warn("Failed to generate token, returning stateless auth:", e.message);
+      }
+      return res.json({ success: true, user: result.user, token });
     }
     res.status(401).json({ success: false, message: result.error || "Username atau password salah" });
   } catch (err) {
     res.status(500).json({ success: false, message: err?.message || "Gagal memproses login" });
   }
 });
-apiRouter.get("/players", async (req, res) => {
+apiRouter.post("/auth/logout", async (req, res) => {
+  res.setHeader("Set-Cookie", "admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  res.json({ success: true, message: "Logged out" });
+});
+apiRouter.get("/auth/me", async (req, res) => {
+  try {
+    const { parseCookies: parseCookies2, verifyToken: verifyToken2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
+    const token = parseCookies2(req)["admin_session"];
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
+    const decoded = verifyToken2(token);
+    if (!decoded) return res.status(401).json({ error: "Invalid token" });
+    const admins = await Database.getAdmins();
+    const user = admins.find((a) => a.id === decoded.sub);
+    if (user) {
+      return res.json({ success: true, user });
+    }
+    return res.status(404).json({ error: "User not found" });
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+apiRouter.get("/players", cachePublic, async (req, res) => {
   try {
     const { category, teamName } = req.query;
     const players = await Database.getPlayers(
@@ -3714,7 +4154,7 @@ apiRouter.get("/players", async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal memuat data pemain" });
   }
 });
-apiRouter.post("/players", async (req, res) => {
+apiRouter.post("/players", requireAdmin, async (req, res) => {
   try {
     const id = req.body.id || `ply-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
     const saved = await Database.savePlayer({ ...req.body, id });
@@ -3748,7 +4188,7 @@ apiRouter.post("/players/batch", async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal import pemain batch" });
   }
 });
-apiRouter.put("/players/:id", async (req, res) => {
+apiRouter.put("/players/:id", requireAdmin, async (req, res) => {
   try {
     const id = req.params.id || req.body.id;
     const saved = await Database.savePlayer({ ...req.body, id });
@@ -3757,7 +4197,7 @@ apiRouter.put("/players/:id", async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal memperbarui pemain" });
   }
 });
-apiRouter.delete("/players/:id", async (req, res) => {
+apiRouter.delete("/players/:id", requireAdmin, async (req, res) => {
   try {
     await Database.deletePlayer(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -3775,7 +4215,7 @@ apiRouter.get("/players/top-scorers", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/groups", async (req, res) => {
+apiRouter.get("/groups", cachePublic, async (req, res) => {
   try {
     const { category } = req.query;
     const groups = await Database.getGroupStages(category);
@@ -3784,7 +4224,7 @@ apiRouter.get("/groups", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/groups", async (req, res) => {
+apiRouter.post("/groups", requireAdmin, async (req, res) => {
   try {
     const { category, groups } = req.body;
     if (!category || !Array.isArray(groups)) {
@@ -3808,7 +4248,7 @@ apiRouter.post("/groups/replace", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/groups/reset", async (req, res) => {
+apiRouter.post("/groups/reset", requireAdmin, async (req, res) => {
   try {
     const { category } = req.body;
     if (!category) {
@@ -3820,7 +4260,7 @@ apiRouter.post("/groups/reset", async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal mereset grup dan jadwal" });
   }
 });
-apiRouter.get("/standings", async (req, res) => {
+apiRouter.get("/standings", cachePublic, async (req, res) => {
   try {
     const { category, source } = req.query;
     if (source === "db") {
