@@ -8,9 +8,44 @@ import { Router as Router4 } from "express";
 
 // server/db.ts
 import "dotenv/config";
+
+// server/config.ts
+import "dotenv/config";
 import mysql from "mysql2/promise";
-import fs from "fs";
-import path from "path";
+var dbUrl = process.env.DATABASE_URL;
+var tidbHost = process.env.TIDB_HOST || process.env.MYSQL_HOST;
+var tidbPort = process.env.TIDB_PORT || process.env.MYSQL_PORT || "4000";
+var tidbUser = process.env.TIDB_USER || process.env.MYSQL_USER;
+var tidbPassword = process.env.TIDB_PASSWORD || process.env.MYSQL_PASSWORD;
+var tidbDatabase = process.env.TIDB_DATABASE || process.env.MYSQL_DATABASE;
+if (!dbUrl) {
+  if (!tidbHost) throw new Error("Missing env TIDB_HOST or MYSQL_HOST");
+  if (!tidbUser) throw new Error("Missing env TIDB_USER or MYSQL_USER");
+  if (!tidbPassword) throw new Error("Missing env TIDB_PASSWORD or MYSQL_PASSWORD");
+  if (!tidbDatabase) throw new Error("Missing env TIDB_DATABASE or MYSQL_DATABASE");
+}
+var sslOptions = {
+  minVersion: "TLSv1.2",
+  rejectUnauthorized: true
+};
+var poolConfig = dbUrl ? {
+  uri: dbUrl,
+  ssl: sslOptions,
+  connectionLimit: 5,
+  enableKeepAlive: true,
+  idleTimeout: 6e4
+} : {
+  host: tidbHost,
+  port: parseInt(tidbPort, 10),
+  user: tidbUser,
+  password: tidbPassword,
+  database: tidbDatabase,
+  ssl: sslOptions,
+  connectionLimit: 5,
+  enableKeepAlive: true,
+  idleTimeout: 6e4
+};
+var pool2 = mysql.createPool(poolConfig);
 
 // server/defaultSystemData.ts
 var DEFAULT_SECTIONS_VISIBILITY = {
@@ -232,100 +267,15 @@ var MemoryStore = class {
   }
 };
 var memStore = new MemoryStore();
-var LOCAL_STORE_FILE = path.join(process.cwd(), "server", "local-storage.json");
-function loadLocalStore() {
-  try {
-    if (fs.existsSync(LOCAL_STORE_FILE)) {
-      const raw = fs.readFileSync(LOCAL_STORE_FILE, "utf-8");
-      if (raw && raw.trim() !== "") {
-        const data = JSON.parse(raw);
-        if (data.config) memStore.config = data.config;
-        if (Array.isArray(data.categories)) memStore.categories = data.categories;
-        if (Array.isArray(data.registrations)) memStore.registrations = data.registrations;
-        if (Array.isArray(data.matches)) memStore.matches = data.matches;
-        if (Array.isArray(data.sponsors)) memStore.sponsors = data.sponsors;
-        if (Array.isArray(data.adminUsers)) memStore.adminUsers = data.adminUsers;
-        if (Array.isArray(data.players)) memStore.players = data.players;
-        if (Array.isArray(data.groups)) memStore.groups = data.groups;
-        console.log("[Local Store] Loaded local database cache successfully.");
-      }
-    }
-  } catch (err) {
-    console.warn("[Local Store] Warning reading local-storage.json:", err);
-  }
-}
 function persistLocalStore() {
-  try {
-    const payload = {
-      config: memStore.config,
-      categories: memStore.categories,
-      registrations: memStore.registrations,
-      matches: memStore.matches,
-      sponsors: memStore.sponsors,
-      adminUsers: memStore.adminUsers,
-      players: memStore.players,
-      groups: memStore.groups
-    };
-    fs.writeFileSync(LOCAL_STORE_FILE, JSON.stringify(payload, null, 2), "utf-8");
-  } catch (err) {
-    console.warn("[Local Store] Warning saving local-storage.json:", err);
-  }
 }
-loadLocalStore();
-var pool = null;
 var isMySqlConnected = false;
 var mySqlError = null;
-var DB_CONFIG_FILE = path.join(process.cwd(), "server", "db-config.json");
-function loadSavedDbConfig() {
-  try {
-    if (fs.existsSync(DB_CONFIG_FILE)) {
-      const content = fs.readFileSync(DB_CONFIG_FILE, "utf-8");
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn("[DB Config] Could not read saved config file:", err);
-  }
-  return null;
-}
-var initialSavedDbConfig = loadSavedDbConfig();
-if (initialSavedDbConfig) {
-  if (initialSavedDbConfig.databaseUrl && !process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = initialSavedDbConfig.databaseUrl.trim();
-  }
-  if (initialSavedDbConfig.host && !process.env.MYSQL_HOST) {
-    process.env.MYSQL_HOST = initialSavedDbConfig.host.trim();
-  }
-  if (initialSavedDbConfig.port && !process.env.MYSQL_PORT) {
-    process.env.MYSQL_PORT = String(initialSavedDbConfig.port);
-  }
-  if (initialSavedDbConfig.user && !process.env.MYSQL_USER) {
-    process.env.MYSQL_USER = initialSavedDbConfig.user.trim();
-  }
-  if (initialSavedDbConfig.password && !process.env.MYSQL_PASSWORD) {
-    process.env.MYSQL_PASSWORD = initialSavedDbConfig.password;
-  }
-  if (initialSavedDbConfig.database && !process.env.MYSQL_DATABASE) {
-    process.env.MYSQL_DATABASE = initialSavedDbConfig.database.trim();
-  }
-  if (initialSavedDbConfig.ssl !== void 0 && !process.env.MYSQL_SSL) {
-    process.env.MYSQL_SSL = initialSavedDbConfig.ssl ? "true" : "false";
-  }
-}
-function saveDbConfigFile(config) {
-  try {
-    fs.writeFileSync(DB_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
-    console.log("[DB Config] Successfully saved database configuration to", DB_CONFIG_FILE);
-  } catch (err) {
-    console.warn("[DB Config] Could not write config to file:", err);
-  }
-}
 function getMySqlStatus() {
-  const host = process.env.MYSQL_HOST || (process.env.DATABASE_URL ? "Via DATABASE_URL" : "Not configured (In-Memory fallback)");
-  const dbName = process.env.MYSQL_DATABASE || "wabupcup2026";
   return {
     connected: isMySqlConnected,
-    host,
-    database: dbName,
+    host: process.env.TIDB_HOST || "From ENV",
+    database: process.env.TIDB_DATABASE || "wabupcup2026",
     error: mySqlError,
     mode: isMySqlConnected ? "MYSQL_REAL" : "MEMORY_FALLBACK",
     stats: {
@@ -337,243 +287,62 @@ function getMySqlStatus() {
     }
   };
 }
-function resolveSslConfig(urlOrHost, explicitSsl) {
-  if (process.env.MYSQL_SSL === "false" || process.env.MYSQL_SSL === "0") {
-    return void 0;
-  }
-  const isCloudHost = urlOrHost && (urlOrHost.includes("tidbcloud.com") || urlOrHost.includes("psdb.cloud") || urlOrHost.includes("aivencloud.com") || urlOrHost.includes("railway.app") || urlOrHost.includes("amazonaws.com") || urlOrHost.includes("supabase.co") || urlOrHost.includes("cockroachlabs.cloud"));
-  const needsSsl = explicitSsl || Boolean(isCloudHost) || process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL === "1" || Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.includes("ssl"));
-  if (needsSsl) {
-    const rejectUnauthorized = process.env.MYSQL_SSL_REJECT_UNAUTHORIZED === "true";
-    return {
-      minVersion: "TLSv1.2",
-      rejectUnauthorized
-    };
-  }
-  return void 0;
-}
 var dbInitPromise = null;
 async function ensureDbConnected() {
-  if (isMySqlConnected && pool) {
-    return true;
-  }
-  const savedCfg = loadSavedDbConfig();
-  const dbUrl = (process.env.DATABASE_URL || savedCfg?.databaseUrl || "").trim();
-  const host = (process.env.MYSQL_HOST || savedCfg?.host || "").trim();
-  if (!dbUrl && !host) {
-    return false;
-  }
+  if (isMySqlConnected) return true;
   if (!dbInitPromise) {
     dbInitPromise = initDatabaseConnection().finally(() => {
       dbInitPromise = null;
     });
   }
-  const timeoutPromise = new Promise((resolve) => {
-    setTimeout(() => resolve(isMySqlConnected), 3500);
-  });
   try {
-    return await Promise.race([dbInitPromise, timeoutPromise]);
+    return await dbInitPromise;
   } catch {
     return isMySqlConnected;
   }
 }
-async function initDatabaseConnection(customConfig) {
-  const effectiveConfig = customConfig || loadSavedDbConfig();
-  if (effectiveConfig) {
-    if (effectiveConfig.databaseUrl !== void 0 && effectiveConfig.databaseUrl.trim()) {
-      process.env.DATABASE_URL = effectiveConfig.databaseUrl.trim();
-    }
-    if (effectiveConfig.host !== void 0 && effectiveConfig.host.trim()) {
-      process.env.MYSQL_HOST = effectiveConfig.host.trim();
-    }
-    if (effectiveConfig.port !== void 0) {
-      process.env.MYSQL_PORT = String(effectiveConfig.port);
-    }
-    if (effectiveConfig.user !== void 0 && effectiveConfig.user.trim()) {
-      process.env.MYSQL_USER = effectiveConfig.user.trim();
-    }
-    if (effectiveConfig.password !== void 0) {
-      process.env.MYSQL_PASSWORD = effectiveConfig.password;
-    }
-    if (effectiveConfig.database !== void 0 && effectiveConfig.database.trim()) {
-      process.env.MYSQL_DATABASE = effectiveConfig.database.trim();
-    }
-    if (effectiveConfig.ssl !== void 0) {
-      process.env.MYSQL_SSL = effectiveConfig.ssl ? "true" : "false";
-    }
-  }
-  const dbUrl = process.env.DATABASE_URL ? process.env.DATABASE_URL.trim() : void 0;
-  const host = process.env.MYSQL_HOST ? process.env.MYSQL_HOST.trim() : void 0;
-  const user = process.env.MYSQL_USER ? process.env.MYSQL_USER.trim() : void 0;
-  const password = process.env.MYSQL_PASSWORD !== void 0 ? process.env.MYSQL_PASSWORD : void 0;
-  const database = (process.env.MYSQL_DATABASE || "wabupcup2026").trim();
-  const isTidb = Boolean(dbUrl && dbUrl.includes("tidbcloud.com") || host && host.includes("tidbcloud.com"));
-  const defaultPort = isTidb ? 4e3 : 3306;
-  const port = parseInt(process.env.MYSQL_PORT || String(defaultPort), 10);
-  const useSsl = process.env.MYSQL_SSL === "true" || process.env.MYSQL_SSL === "1" || isTidb;
-  if (!dbUrl && !host) {
-    console.log("[Database] No MySQL host or DATABASE_URL provided. Operating with in-memory persistence layer.");
-    isMySqlConnected = false;
-    mySqlError = "Belum dikonfigurasi. Silakan atur kredensial database di tab Database.";
-    return false;
-  }
+async function initDatabaseConnection() {
   try {
-    let poolOptions;
-    if (dbUrl) {
-      const ssl = resolveSslConfig(dbUrl, useSsl || isTidb);
-      try {
-        const parsedUrl = new URL(dbUrl);
-        const urlDbName = parsedUrl.pathname.replace(/^\/+/, "") || database;
-        const urlPort = parsedUrl.port ? parseInt(parsedUrl.port, 10) : isTidb ? 4e3 : 3306;
-        poolOptions = {
-          host: parsedUrl.hostname,
-          port: urlPort,
-          user: decodeURIComponent(parsedUrl.username),
-          password: decodeURIComponent(parsedUrl.password),
-          database: urlDbName,
-          waitForConnections: true,
-          connectionLimit: 4,
-          maxIdle: 2,
-          idleTimeout: 3e4,
-          enableKeepAlive: true,
-          keepAliveInitialDelay: 1e4,
-          connectTimeout: 5e3,
-          queueLimit: 0,
-          ssl: ssl || (isTidb ? { minVersion: "TLSv1.2", rejectUnauthorized: false } : void 0)
-        };
-      } catch {
-        poolOptions = {
-          uri: dbUrl,
-          waitForConnections: true,
-          connectionLimit: 4,
-          maxIdle: 2,
-          idleTimeout: 3e4,
-          enableKeepAlive: true,
-          keepAliveInitialDelay: 1e4,
-          connectTimeout: 5e3,
-          queueLimit: 0,
-          ssl
-        };
-      }
-    } else {
-      const ssl = resolveSslConfig(host, useSsl || isTidb);
-      poolOptions = {
-        host,
-        user,
-        password,
-        database,
-        port: port || (isTidb ? 4e3 : 3306),
-        waitForConnections: true,
-        connectionLimit: 4,
-        maxIdle: 2,
-        idleTimeout: 3e4,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 1e4,
-        connectTimeout: 5e3,
-        queueLimit: 0,
-        ssl: ssl || (isTidb ? { minVersion: "TLSv1.2", rejectUnauthorized: false } : void 0)
-      };
-    }
-    try {
-      if (pool) {
-        try {
-          await pool.end();
-        } catch {
-        }
-      }
-      pool = mysql.createPool(poolOptions);
-      pool.on?.("error", (poolErr) => {
-        console.warn("[MySQL Pool Non-fatal Event]", poolErr?.message || poolErr);
-      });
-      const connection = await pool.getConnection();
-      await connection.ping();
-      connection.release();
-    } catch (connErr) {
-      const isBadDb = connErr?.code === "ER_BAD_DB_ERROR" || connErr?.errno === 1049 || connErr?.message && connErr.message.toLowerCase().includes("unknown database");
-      if (isBadDb) {
-        console.log(`[MySQL] Database "${database}" does not exist yet. Attempting to create automatically...`);
-        try {
-          const tempOptions = { ...poolOptions, database: isTidb ? "test" : void 0, connectTimeout: 3e3 };
-          const tempConn = await mysql.createConnection(tempOptions);
-          tempConn.on?.("error", (err) => console.warn("[MySQL Temp Connection Event]", err?.message));
-          await tempConn.query(`CREATE DATABASE IF NOT EXISTS \`${database}\` CHARACTER SET utf8mb4;`);
-          await tempConn.end();
-          pool = mysql.createPool(poolOptions);
-          pool.on?.("error", (poolErr) => {
-            console.warn("[MySQL Pool Non-fatal Event]", poolErr?.message || poolErr);
-          });
-          const connection = await pool.getConnection();
-          await connection.ping();
-          connection.release();
-          console.log(`[MySQL] Database "${database}" created and connected successfully.`);
-        } catch (createErr) {
-          console.warn("[MySQL] Auto-create database fallback warning:", createErr?.message);
-          if (isTidb) {
-            const fallbackOptions = { ...poolOptions, database: "test" };
-            pool = mysql.createPool(fallbackOptions);
-            pool.on?.("error", (poolErr) => {
-              console.warn("[MySQL Pool Non-fatal Event]", poolErr?.message || poolErr);
-            });
-            const connection = await pool.getConnection();
-            await connection.ping();
-            connection.release();
-          } else {
-            throw connErr;
-          }
-        }
-      } else {
-        throw connErr;
-      }
-    }
+    const connection = await pool2.getConnection();
+    await connection.ping();
+    connection.release();
     isMySqlConnected = true;
     mySqlError = null;
-    console.log(`[MySQL] Successfully connected to MySQL database: ${database} at ${host || "DATABASE_URL"}`);
-    if (customConfig) {
-      saveDbConfigFile(customConfig);
-    }
     await autoMigrateTables();
     return true;
   } catch (err) {
     isMySqlConnected = false;
-    if (err?.code === "ER_ACCESS_DENIED_ERROR" || err?.errno === 1045) {
-      mySqlError = `Akses Ditolak (ER_ACCESS_DENIED): Password atau Username database tidak cocok. Silakan periksa atau buat ulang password di dashboard database online Anda (misal TiDB Cloud Console).`;
-    } else if (err?.code === "ENOTFOUND") {
-      mySqlError = `Host Tidak Ditemukan (ENOTFOUND): Hostname '${host || "DATABASE_URL"}' tidak dapat dihubungi. Periksa URL koneksi database.`;
-    } else if (err?.code === "ETIMEDOUT") {
-      mySqlError = `Koneksi Timeout (ETIMEDOUT): Server database tidak merespons. Pastikan IP Allowlist diatur ke 0.0.0.0/0.`;
-    } else {
-      mySqlError = err?.message || "Gagal terhubung ke MySQL";
-    }
-    console.warn(`[MySQL Warning] Could not connect to MySQL: ${mySqlError}. Using fallback storage.`);
+    mySqlError = err?.message || "Failed to connect to TiDB";
+    console.error("[MySQL Warning] Could not connect:", mySqlError);
     return false;
   }
 }
 async function autoMigrateTables() {
-  if (!pool || !isMySqlConnected) return;
+  if (!pool2 || !isMySqlConnected) return;
   try {
     await runFullSchemaInit();
     try {
-      await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
+      await pool2.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
     } catch (colErr) {
     }
     try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN category_id VARCHAR(32) NOT NULL AFTER id");
+      await pool2.query("ALTER TABLE table_standings ADD COLUMN category_id VARCHAR(32) NOT NULL AFTER id");
     } catch {
     }
     try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN position INT NOT NULL DEFAULT 0 AFTER team_logo");
+      await pool2.query("ALTER TABLE table_standings ADD COLUMN position INT NOT NULL DEFAULT 0 AFTER team_logo");
     } catch {
     }
     try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN team_id VARCHAR(64) NULL AFTER team_name");
+      await pool2.query("ALTER TABLE table_standings ADD COLUMN team_id VARCHAR(64) NULL AFTER team_name");
     } catch {
     }
     try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN institution_name VARCHAR(200) NULL AFTER team_id");
+      await pool2.query("ALTER TABLE table_standings ADD COLUMN institution_name VARCHAR(200) NULL AFTER team_id");
     } catch {
     }
     try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN team_logo LONGTEXT NULL AFTER institution_name");
+      await pool2.query("ALTER TABLE table_standings ADD COLUMN team_logo LONGTEXT NULL AFTER institution_name");
     } catch {
     }
   } catch (err) {
@@ -581,15 +350,15 @@ async function autoMigrateTables() {
   }
 }
 async function runFullSchemaInit() {
-  if (!pool || !isMySqlConnected) {
+  if (!pool2 || !isMySqlConnected) {
     return { success: true, message: "In-memory data reloaded successfully" };
   }
   try {
-    await pool.query("SET FOREIGN_KEY_CHECKS = 0;");
+    await pool2.query("SET FOREIGN_KEY_CHECKS = 0;");
   } catch {
   }
   try {
-    await pool.query("ALTER TABLE players DROP FOREIGN KEY fk_players_registration;");
+    await pool2.query("ALTER TABLE players DROP FOREIGN KEY fk_players_registration;");
   } catch {
   }
   const queries = [
@@ -755,19 +524,19 @@ async function runFullSchemaInit() {
   ];
   for (const q of queries) {
     try {
-      await pool.query(q);
+      await pool2.query(q);
     } catch (qErr) {
       console.warn("[MySQL Schema Init] Non-blocking notice for query:", qErr?.message || qErr);
     }
   }
   try {
-    await pool.query("SET FOREIGN_KEY_CHECKS = 1;");
+    await pool2.query("SET FOREIGN_KEY_CHECKS = 1;");
   } catch {
   }
-  const [catRows] = await pool.query("SELECT COUNT(*) as count FROM categories");
+  const [catRows] = await pool2.query("SELECT COUNT(*) as count FROM categories");
   if (catRows[0].count === 0) {
     for (const cat of DEFAULT_CATEGORIES) {
-      await pool.query(
+      await pool2.query(
         `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -786,10 +555,10 @@ async function runFullSchemaInit() {
       );
     }
   }
-  const [admRows] = await pool.query("SELECT COUNT(*) as count FROM admin_users");
+  const [admRows] = await pool2.query("SELECT COUNT(*) as count FROM admin_users");
   if (admRows[0].count === 0) {
     for (const adm of DEFAULT_ADMIN_USERS) {
-      await pool.query(
+      await pool2.query(
         `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
@@ -805,9 +574,9 @@ async function runFullSchemaInit() {
       );
     }
   }
-  const [cfgRows] = await pool.query("SELECT COUNT(*) as count FROM tournament_config");
+  const [cfgRows] = await pool2.query("SELECT COUNT(*) as count FROM tournament_config");
   if (cfgRows[0].count === 0) {
-    await pool.query(
+    await pool2.query(
       `INSERT INTO tournament_config (config_key, config_value) VALUES (?, ?)`,
       ["main_config", JSON.stringify(DEFAULT_TOURNAMENT_CONFIG)]
     );
@@ -847,9 +616,9 @@ var Database = {
   // Config
   async getConfig() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT config_value FROM tournament_config WHERE config_key = ?", ["main_config"]);
+        const [rows] = await pool2.query("SELECT config_value FROM tournament_config WHERE config_key = ?", ["main_config"]);
         if (rows.length > 0) {
           const parsed = JSON.parse(rows[0].config_value);
           return {
@@ -1016,9 +785,9 @@ var Database = {
     }
     memStore.config = updated;
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query(
+        await pool2.query(
           `INSERT INTO tournament_config (config_key, config_value) VALUES (?, ?) 
            ON DUPLICATE KEY UPDATE config_value = ?`,
           ["main_config", JSON.stringify(updated), JSON.stringify(updated)]
@@ -1032,9 +801,9 @@ var Database = {
   // Categories
   async getCategories() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT * FROM categories ORDER BY sort_order ASC, id ASC");
+        const [rows] = await pool2.query("SELECT * FROM categories ORDER BY sort_order ASC, id ASC");
         return rows.map((r) => ({
           id: r.id,
           name: r.name,
@@ -1063,9 +832,9 @@ var Database = {
       memStore.categories.push(cat);
     }
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query(
+        await pool2.query(
           `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE name=?, badge_title=?, age_restriction=?, max_teams=?, registered_teams_count=?, registration_fee=?, total_prize=?, description=?, prizes_json=?, rules_json=?`,
@@ -1103,9 +872,9 @@ var Database = {
     await ensureDbConnected();
     memStore.categories = memStore.categories.filter((c) => c.id !== categoryId);
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM categories WHERE id = ?", [categoryId]);
+        await pool2.query("DELETE FROM categories WHERE id = ?", [categoryId]);
       } catch (err) {
         console.error("Error deleting category from MySQL:", err);
       }
@@ -1116,10 +885,10 @@ var Database = {
     await ensureDbConnected();
     memStore.categories = [...categories];
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         await Promise.all(categories.map(async (cat, i) => {
-          await pool.query(
+          await pool2.query(
             `INSERT INTO categories (id, name, badge_title, age_restriction, max_teams, registered_teams_count, registration_fee, total_prize, description, prizes_json, rules_json, sort_order)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE sort_order = ?, name = ?, max_teams = ?, registration_fee = ?, total_prize = ?`,
@@ -1152,16 +921,16 @@ var Database = {
   },
   async syncCategoryRegisteredCounts() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [counts] = await pool.query(`
+        const [counts] = await pool2.query(`
           SELECT category_id, category, COUNT(*) as count 
           FROM registrations 
           GROUP BY category_id, category
         `);
-        await pool.query("UPDATE categories SET registered_teams_count = 0");
+        await pool2.query("UPDATE categories SET registered_teams_count = 0");
         await Promise.all(counts.map(async (row) => {
-          await pool.query(
+          await pool2.query(
             "UPDATE categories SET registered_teams_count = ? WHERE name = ? OR id = ?",
             [row.count, row.category, row.category_id || row.category]
           );
@@ -1174,9 +943,9 @@ var Database = {
   // Registrations
   async getRegistrations() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT * FROM registrations ORDER BY created_at DESC");
+        const [rows] = await pool2.query("SELECT * FROM registrations ORDER BY created_at DESC");
         if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
@@ -1211,9 +980,9 @@ var Database = {
   },
   async getRegistrationDocument(regId, docKey) {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT documents_json FROM registrations WHERE id = ?", [regId]);
+        const [rows] = await pool2.query("SELECT documents_json FROM registrations WHERE id = ?", [regId]);
         if (Array.isArray(rows) && rows.length > 0) {
           const raw = rows[0].documents_json;
           const docs = typeof raw === "string" ? JSON.parse(raw) : raw || {};
@@ -1250,11 +1019,11 @@ var Database = {
       memStore.registrations.unshift(item);
     }
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [existingById] = await pool.query("SELECT id, reg_code FROM registrations WHERE id = ?", [item.id]);
+        const [existingById] = await pool2.query("SELECT id, reg_code FROM registrations WHERE id = ?", [item.id]);
         if (Array.isArray(existingById) && existingById.length > 0) {
-          await pool.execute(
+          await pool2.execute(
             `UPDATE registrations SET
               reg_code=?, category_id=?, team_name=?, team_logo=?, institution_name=?,
               coach_name=?, coach_phone=?, coach_email=?, player_count=?, official_count=?,
@@ -1283,9 +1052,9 @@ var Database = {
             ]
           );
         } else {
-          const [existingByCode] = await pool.query("SELECT id, reg_code FROM registrations WHERE reg_code = ?", [item.regCode]);
+          const [existingByCode] = await pool2.query("SELECT id, reg_code FROM registrations WHERE reg_code = ?", [item.regCode]);
           if (Array.isArray(existingByCode) && existingByCode.length > 0) {
-            const [allCatRows] = await pool.query("SELECT reg_code FROM registrations WHERE category_id = ?", [item.category]);
+            const [allCatRows] = await pool2.query("SELECT reg_code FROM registrations WHERE category_id = ?", [item.category]);
             const existingCatCodes = Array.isArray(allCatRows) ? allCatRows.map((r) => ({ regCode: r.reg_code })) : [];
             item.regCode = generateUniqueRegCode(item.category, [...memStore.registrations, ...existingCatCodes]);
             const mIdx = memStore.registrations.findIndex((r) => r.id === item.id);
@@ -1293,7 +1062,7 @@ var Database = {
             persistLocalStore();
           }
           try {
-            await pool.execute(
+            await pool2.execute(
               `INSERT INTO registrations (
                 id, reg_code, category_id, team_name, team_logo, institution_name,
                 coach_name, coach_phone, coach_email, player_count, official_count,
@@ -1325,13 +1094,13 @@ var Database = {
           } catch (insertErr) {
             if (insertErr?.code === "ER_DUP_ENTRY" || insertErr?.errno === 1062) {
               console.warn("[Database] Duplicate entry caught on insert, regenerating unique reg_code...");
-              const [allRows] = await pool.query("SELECT reg_code FROM registrations WHERE category_id = ?", [item.category]);
+              const [allRows] = await pool2.query("SELECT reg_code FROM registrations WHERE category_id = ?", [item.category]);
               const existingCodes = Array.isArray(allRows) ? allRows.map((r) => ({ regCode: r.reg_code })) : [];
               item.regCode = generateUniqueRegCode(item.category, existingCodes);
               const mIdx = memStore.registrations.findIndex((r) => r.id === item.id);
               if (mIdx >= 0) memStore.registrations[mIdx].regCode = item.regCode;
               persistLocalStore();
-              await pool.execute(
+              await pool2.execute(
                 `INSERT INTO registrations (
                   id, reg_code, category_id, team_name, team_logo, institution_name,
                   coach_name, coach_phone, coach_email, player_count, official_count,
@@ -1375,9 +1144,9 @@ var Database = {
     await ensureDbConnected();
     let localReg = memStore.registrations.find((r) => r.id === id || r.regCode === id);
     let mySqlRow = null;
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT * FROM registrations WHERE id = ? OR reg_code = ? LIMIT 1", [id, id]);
+        const [rows] = await pool2.query("SELECT * FROM registrations WHERE id = ? OR reg_code = ? LIMIT 1", [id, id]);
         if (Array.isArray(rows) && rows.length > 0) {
           mySqlRow = rows[0];
           if (!localReg) {
@@ -1441,12 +1210,12 @@ var Database = {
         mediaIdsToDelete.add(mId);
       }
     }
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         const refParams = [regId, id];
         if (regCode) refParams.push(regCode);
         const refPlaceholders = refParams.map(() => "?").join(",");
-        const [dbMediaRows] = await pool.query(
+        const [dbMediaRows] = await pool2.query(
           `SELECT id FROM app_media_storage WHERE ref_id IN (${refPlaceholders})`,
           refParams
         );
@@ -1455,19 +1224,19 @@ var Database = {
             if (row.id) mediaIdsToDelete.add(row.id);
           }
         }
-        await pool.query(
+        await pool2.query(
           `DELETE FROM app_media_storage WHERE ref_id IN (${refPlaceholders})`,
           refParams
         );
         if (mediaIdsToDelete.size > 0) {
           const idList = Array.from(mediaIdsToDelete);
           const idPlaceholders = idList.map(() => "?").join(",");
-          await pool.query(
+          await pool2.query(
             `DELETE FROM app_media_storage WHERE id IN (${idPlaceholders})`,
             idList
           );
         }
-        await pool.execute(
+        await pool2.execute(
           "DELETE FROM registrations WHERE id = ? OR id = ? OR reg_code = ?",
           [regId, id, regCode || id]
         );
@@ -1493,9 +1262,9 @@ var Database = {
   // Matches
   async getMatches() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC");
+        const [rows] = await pool2.query("SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC");
         if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
@@ -1544,9 +1313,9 @@ var Database = {
       memStore.matches.push(match);
     }
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query(
+        await pool2.query(
           `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE match_number=?, category_id=?, round_name=?, round_index=?, group_name=?, team_a_name=?, team_a_institution=?, team_a_logo=?, team_a_score=?, team_a_penalties=?, team_b_name=?, team_b_institution=?, team_b_logo=?, team_b_score=?, team_b_penalties=?, match_date=?, match_time=?, pitch=?, status=?, live_minute=?, events_json=?, winner_id=?, next_match_id=?, next_match_slot=?`,
@@ -1612,9 +1381,9 @@ var Database = {
     await ensureDbConnected();
     memStore.matches = memStore.matches.filter((m) => m.id !== matchId);
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM matches WHERE id = ?", [matchId]);
+        await pool2.query("DELETE FROM matches WHERE id = ?", [matchId]);
       } catch (err) {
         console.error("Error deleting match from MySQL:", err);
       }
@@ -1625,11 +1394,11 @@ var Database = {
     await ensureDbConnected();
     memStore.matches = memStore.matches.filter((m) => m.category !== category).concat(newMatches);
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM matches WHERE category_id = ?", [category]);
+        await pool2.query("DELETE FROM matches WHERE category_id = ?", [category]);
         for (const match of newMatches) {
-          await pool.query(
+          await pool2.query(
             `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
@@ -1676,9 +1445,9 @@ var Database = {
       } else {
         memStore.matches.push(match);
       }
-      if (pool && isMySqlConnected) {
+      if (pool2 && isMySqlConnected) {
         try {
-          await pool.query(
+          await pool2.query(
             `INSERT INTO matches (id, match_number, category_id, round_name, round_index, group_name, team_a_name, team_a_institution, team_a_logo, team_a_score, team_a_penalties, team_b_name, team_b_institution, team_b_logo, team_b_score, team_b_penalties, match_date, match_time, pitch, status, live_minute, events_json, winner_id, next_match_id, next_match_slot)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE match_number=?, category_id=?, round_name=?, round_index=?, group_name=?, team_a_name=?, team_a_institution=?, team_a_logo=?, team_a_score=?, team_a_penalties=?, team_b_name=?, team_b_institution=?, team_b_logo=?, team_b_score=?, team_b_penalties=?, match_date=?, match_time=?, pitch=?, status=?, live_minute=?, events_json=?, winner_id=?, next_match_id=?, next_match_slot=?`,
@@ -1744,9 +1513,9 @@ var Database = {
   // Sponsors
   async getSponsors() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT * FROM sponsors WHERE is_active = TRUE ORDER BY sort_order ASC");
+        const [rows] = await pool2.query("SELECT * FROM sponsors WHERE is_active = TRUE ORDER BY sort_order ASC");
         if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
@@ -1773,9 +1542,9 @@ var Database = {
       memStore.sponsors.push(sponsor);
     }
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query(
+        await pool2.query(
           `INSERT INTO sponsors (id, name, tier, logo_text, logo_url, website_url, description)
            VALUES (?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE name=?, tier=?, logo_text=?, logo_url=?, website_url=?, description=?`,
@@ -1810,10 +1579,10 @@ var Database = {
         memStore.media.delete(mId);
       }
     }
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM sponsors WHERE id = ?", [id]);
-        await pool.query("DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?", [id, "SPONSOR_LOGO"]);
+        await pool2.query("DELETE FROM sponsors WHERE id = ?", [id]);
+        await pool2.query("DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?", [id, "SPONSOR_LOGO"]);
         console.log(`[Storage Cleanup] Deleted sponsor logo for ${id} from TiDB Cloud`);
       } catch (err) {
         console.error("Error deleting sponsor from MySQL:", err);
@@ -1824,9 +1593,9 @@ var Database = {
   // Admin Users
   async getAdmins() {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users ORDER BY created_at ASC");
+        const [rows] = await pool2.query("SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users ORDER BY created_at ASC");
         if (Array.isArray(rows) && rows.length > 0) {
           const list = rows.map((r) => ({
             id: r.id,
@@ -1842,7 +1611,7 @@ var Database = {
           return list;
         } else if (Array.isArray(rows) && rows.length === 0) {
           for (const adm of DEFAULT_ADMIN_USERS) {
-            await pool.query(
+            await pool2.query(
               `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE full_name = VALUES(full_name)`,
@@ -1869,11 +1638,11 @@ var Database = {
   },
   async saveAdmin(admin, password) {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       const passHash = password || admin.password || "admin123";
       const roleToSave = admin.role || "PANITIA_INTI";
       try {
-        await pool.query(
+        await pool2.query(
           `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE 
@@ -1909,8 +1678,8 @@ var Database = {
         if (err?.code === "WARN_DATA_TRUNCATED" || err?.errno === 1265 || errMsg.includes("role") || errMsg.includes("Data truncated")) {
           try {
             console.log("[MySQL Auto-Migration] Migrating column role in admin_users to VARCHAR(64)...");
-            await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
-            await pool.query(
+            await pool2.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
+            await pool2.query(
               `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE 
@@ -1965,9 +1734,9 @@ var Database = {
       return false;
     }
     memStore.adminUsers = memStore.adminUsers.filter((a) => a.id !== id);
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM admin_users WHERE id = ? AND username != 'superadmin'", [id]);
+        await pool2.query("DELETE FROM admin_users WHERE id = ? AND username != 'superadmin'", [id]);
       } catch (err) {
         console.error("Error deleting admin from MySQL:", err);
         throw new Error(`Gagal menghapus admin dari MySQL: ${err?.message || err}`);
@@ -1979,9 +1748,9 @@ var Database = {
     await ensureDbConnected();
     const cleanUser = (username || "").trim().toLowerCase();
     const targetUser = cleanUser === "admin" ? "superadmin" : cleanUser;
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.query(
+        const [rows] = await pool2.query(
           "SELECT * FROM admin_users WHERE LOWER(username) = ? OR LOWER(username) = ?",
           [cleanUser, targetUser]
         );
@@ -2133,9 +1902,9 @@ var Database = {
   async saveMedia(item) {
     await ensureDbConnected();
     memStore.media.set(item.id, item);
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.execute(
+        await pool2.execute(
           `INSERT INTO app_media_storage (id, category, ref_id, sub_key, filename, content_type, file_size, file_data)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE category=?, ref_id=?, sub_key=?, filename=?, content_type=?, file_size=?, file_data=?`,
@@ -2165,9 +1934,9 @@ var Database = {
   },
   async getMedia(id) {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        const [rows] = await pool.execute("SELECT * FROM app_media_storage WHERE id = ? LIMIT 1", [id]);
+        const [rows] = await pool2.execute("SELECT * FROM app_media_storage WHERE id = ? LIMIT 1", [id]);
         if (Array.isArray(rows) && rows.length > 0) {
           const r = rows[0];
           return {
@@ -2192,9 +1961,9 @@ var Database = {
   async deleteMedia(id) {
     await ensureDbConnected();
     memStore.media.delete(id);
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.execute("DELETE FROM app_media_storage WHERE id = ?", [id]);
+        await pool2.execute("DELETE FROM app_media_storage WHERE id = ?", [id]);
       } catch (err) {
         console.error("Error deleting media from TiDB app_media_storage:", err);
       }
@@ -2208,12 +1977,12 @@ var Database = {
         memStore.media.delete(mId);
       }
     }
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         if (category) {
-          await pool.execute("DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?", [refId, category]);
+          await pool2.execute("DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?", [refId, category]);
         } else {
-          await pool.execute("DELETE FROM app_media_storage WHERE ref_id = ?", [refId]);
+          await pool2.execute("DELETE FROM app_media_storage WHERE ref_id = ?", [refId]);
         }
       } catch (err) {
         console.error("Error deleting media by ref from TiDB app_media_storage:", err);
@@ -2235,16 +2004,16 @@ var Database = {
         }
       }
     }
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         if (subKey) {
-          await pool.execute(
+          await pool2.execute(
             "DELETE FROM app_media_storage WHERE ref_id = ? AND sub_key = ? AND id != ?",
             [refId, subKey, id]
           );
-          await pool.execute("UPDATE app_media_storage SET ref_id = ?, sub_key = ? WHERE id = ?", [refId, subKey, id]);
+          await pool2.execute("UPDATE app_media_storage SET ref_id = ?, sub_key = ? WHERE id = ?", [refId, subKey, id]);
         } else {
-          await pool.execute("UPDATE app_media_storage SET ref_id = ? WHERE id = ?", [refId, id]);
+          await pool2.execute("UPDATE app_media_storage SET ref_id = ? WHERE id = ?", [refId, id]);
         }
       } catch (err) {
         console.error("Error updating media ref in TiDB app_media_storage:", err);
@@ -2255,7 +2024,7 @@ var Database = {
   // 12. Players (table_players)
   async getPlayers(category, teamName) {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         let query = "SELECT * FROM table_players WHERE 1=1";
         const params = [];
@@ -2268,7 +2037,7 @@ var Database = {
           params.push(teamName);
         }
         query += " ORDER BY team_name ASC, jersey_number ASC";
-        const [rows] = await pool.query(query, params);
+        const [rows] = await pool2.query(query, params);
         if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
@@ -2319,9 +2088,9 @@ var Database = {
       memStore.players.push(sanitizedPlayer);
     }
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query(
+        await pool2.query(
           `INSERT INTO table_players (id, team_id, team_name, category_id, name, jersey_number, position, goals, yellow_cards, red_cards, photo_url)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE team_id=?, team_name=?, category_id=?, name=?, jersey_number=?, position=?, goals=?, yellow_cards=?, red_cards=?, photo_url=?`,
@@ -2353,7 +2122,7 @@ var Database = {
         console.error("Error saving player to MySQL table_players:", err);
         if (err && (err.code === "ER_NO_SUCH_TABLE" || String(err.message || "").includes("doesn't exist"))) {
           try {
-            await pool.query(`CREATE TABLE IF NOT EXISTS table_players (
+            await pool2.query(`CREATE TABLE IF NOT EXISTS table_players (
               id VARCHAR(64) PRIMARY KEY,
               team_id VARCHAR(64) NULL,
               team_name VARCHAR(150) NOT NULL,
@@ -2370,7 +2139,7 @@ var Database = {
               INDEX idx_team (team_name),
               INDEX idx_category (category_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
-            await pool.query(
+            await pool2.query(
               `INSERT INTO table_players (id, team_id, team_name, category_id, name, jersey_number, position, goals, yellow_cards, red_cards, photo_url)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON DUPLICATE KEY UPDATE team_id=?, team_name=?, category_id=?, name=?, jersey_number=?, position=?, goals=?, yellow_cards=?, red_cards=?, photo_url=?`,
@@ -2434,10 +2203,10 @@ var Database = {
       sanitizedBatch.push(sp);
     }
     persistLocalStore();
-    if (pool && isMySqlConnected && sanitizedBatch.length > 0) {
+    if (pool2 && isMySqlConnected && sanitizedBatch.length > 0) {
       try {
         for (const p of sanitizedBatch) {
-          await pool.query(
+          await pool2.query(
             `INSERT INTO table_players (id, team_id, team_name, category_id, name, jersey_number, position, goals, yellow_cards, red_cards, photo_url)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE team_id=?, team_name=?, category_id=?, name=?, jersey_number=?, position=?, goals=?, yellow_cards=?, red_cards=?, photo_url=?`,
@@ -2476,9 +2245,9 @@ var Database = {
     await ensureDbConnected();
     memStore.players = memStore.players.filter((p) => p.id !== id);
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM table_players WHERE id = ?", [id]);
+        await pool2.query("DELETE FROM table_players WHERE id = ?", [id]);
       } catch (err) {
         console.error("Error deleting player from MySQL:", err);
       }
@@ -2488,7 +2257,7 @@ var Database = {
   // 13. Groups (tournament_groups)
   async getGroupStages(category) {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         let query = "SELECT * FROM tournament_groups WHERE 1=1";
         const params = [];
@@ -2497,7 +2266,7 @@ var Database = {
           params.push(category);
         }
         query += " ORDER BY group_name ASC";
-        const [rows] = await pool.query(query, params);
+        const [rows] = await pool2.query(query, params);
         if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
@@ -2518,11 +2287,11 @@ var Database = {
     await ensureDbConnected();
     memStore.groups = memStore.groups.filter((g) => g.category !== category).concat(groups);
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM tournament_groups WHERE category_id = ?", [category]);
+        await pool2.query("DELETE FROM tournament_groups WHERE category_id = ?", [category]);
         for (const g of groups) {
-          await pool.query(
+          await pool2.query(
             `INSERT INTO tournament_groups (id, category_id, group_name, teams_json)
              VALUES (?, ?, ?, ?)`,
             [g.id, g.category, g.groupName, JSON.stringify(g.teams || [])]
@@ -2539,11 +2308,11 @@ var Database = {
     memStore.groups = memStore.groups.filter((g) => g.category !== category);
     memStore.matches = memStore.matches.filter((m) => m.category !== category);
     persistLocalStore();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
-        await pool.query("DELETE FROM tournament_groups WHERE category_id = ?", [category]);
-        await pool.query("DELETE FROM matches WHERE category_id = ?", [category]);
-        await pool.query("DELETE FROM table_standings WHERE category_id = ?", [category]);
+        await pool2.query("DELETE FROM tournament_groups WHERE category_id = ?", [category]);
+        await pool2.query("DELETE FROM matches WHERE category_id = ?", [category]);
+        await pool2.query("DELETE FROM table_standings WHERE category_id = ?", [category]);
       } catch (err) {
         console.error("Error resetting category groups and matches from MySQL:", err);
       }
@@ -2663,13 +2432,13 @@ var Database = {
       });
       result[key] = sorted;
     }
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         for (const k of Object.keys(result)) {
           const items = result[k] || [];
           for (const item of items) {
             const standingId = `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, "_");
-            await pool.query(
+            await pool2.query(
               `INSERT INTO table_standings (
                 id, category_id, group_name, team_name, team_id, institution_name, team_logo,
                 position, played, won, drawn, lost, goals_for, goals_against, goal_difference, points
@@ -2717,7 +2486,7 @@ var Database = {
   },
   async getStandingsFromDb(category) {
     await ensureDbConnected();
-    if (pool && isMySqlConnected) {
+    if (pool2 && isMySqlConnected) {
       try {
         let query = "SELECT * FROM table_standings WHERE 1=1";
         const params = [];
@@ -2726,7 +2495,7 @@ var Database = {
           params.push(category);
         }
         query += " ORDER BY category_id ASC, group_name ASC, position ASC, points DESC, goal_difference DESC";
-        const [rows] = await pool.query(query, params);
+        const [rows] = await pool2.query(query, params);
         if (Array.isArray(rows) && rows.length > 0) {
           const map = {};
           for (const r of rows) {
@@ -3399,7 +3168,34 @@ apiRouter.post("/categories/reorder", async (req, res) => {
 });
 apiRouter.post("/categories/sync-counts", async (req, res) => {
   try {
-    await Database.syncCategoryRegisteredCounts();
+    const categories = await Database.getCategories();
+    const runInBatches = async (items, batchSize) => {
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (cat) => {
+          const conn = await pool.getConnection();
+          try {
+            await conn.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+            await conn.query("BEGIN PESSIMISTIC");
+            await conn.query("SELECT id FROM categories WHERE id = ? FOR UPDATE", [cat.id]);
+            const [rows] = await conn.query(
+              `SELECT COUNT(*) AS n FROM registrations WHERE category_id = ? AND status IN (?)`,
+              [cat.id, COUNTED_STATUSES]
+            );
+            const count = rows[0]?.n || 0;
+            await conn.query("UPDATE categories SET registered_teams_count = ? WHERE id = ?", [count, cat.id]);
+            await conn.commit();
+          } catch (e) {
+            await conn.rollback().catch(() => {
+            });
+            console.error(`Failed to sync count for category ${cat.id}`, e);
+          } finally {
+            conn.release();
+          }
+        }));
+      }
+    };
+    await runInBatches(categories, 3);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err?.message });
@@ -3479,26 +3275,13 @@ apiRouter.post("/registrations", async (req, res) => {
         error: "Data tidak lengkap. Field wajib: teamName, category, coachName, coachPhone."
       });
     }
-    const categories = await Database.getCategories();
-    const targetCategory = categories.find((c) => c.name === data.category || c.id === data.category);
-    if (!targetCategory) {
-      return res.status(400).json({ error: "Kategori perlombaan tidak valid atau tidak ditemukan." });
-    }
-    const existing = await Database.getRegistrations();
-    if (targetCategory.maxTeams && targetCategory.maxTeams > 0) {
-      const categoryRegsCount = existing.filter((r) => r.category === targetCategory.name || r.category === targetCategory.id).length;
-      if (categoryRegsCount >= targetCategory.maxTeams) {
-        return res.status(400).json({ error: "Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh." });
-      }
-    }
+    const categoryId = data.category;
     const now = /* @__PURE__ */ new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const candidateCode = typeof data.regCode === "string" ? data.regCode.trim().toUpperCase() : "";
-    const isCodeInUse = candidateCode !== "" && existing.some((r) => r.regCode && r.regCode.trim().toUpperCase() === candidateCode);
-    const regCode = !candidateCode || isCodeInUse ? generateUniqueRegCode(data.category, existing) : candidateCode;
+    const regCode = candidateCode || `REG-${Date.now().toString().slice(-6)}`;
     const candidateId = typeof data.id === "string" ? data.id.trim() : "";
-    const isIdInUse = candidateId !== "" && existing.some((r) => r.id === candidateId);
-    const id = !candidateId || isIdInUse ? `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}` : candidateId;
+    const id = candidateId || `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const newReg = {
       ...data,
       id,
@@ -3508,9 +3291,69 @@ apiRouter.post("/registrations", async (req, res) => {
       paymentStatus: data.paymentStatus || "UNPAID",
       lastUpdated: formattedDate
     };
-    const saved = await Database.saveRegistration(newReg);
-    await linkRegistrationMedia(newReg.id, newReg.teamLogo, newReg.documents);
-    res.status(201).json(saved);
+    let attempt = 0;
+    while (attempt < 3) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.query("SET SESSION innodb_lock_wait_timeout = 5");
+        await conn.query("BEGIN PESSIMISTIC");
+        const [resUpdate] = await conn.execute(
+          `UPDATE categories SET registered_teams_count = registered_teams_count + 1 WHERE id = ? AND registered_teams_count < max_teams`,
+          [categoryId]
+        );
+        if (resUpdate.affectedRows === 0) {
+          await conn.rollback();
+          return res.status(409).json({ error: "Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh." });
+        }
+        await conn.execute(
+          `INSERT INTO registrations (
+            id, reg_code, category_id, team_name, team_logo, institution_name,
+            coach_name, coach_phone, coach_email, player_count, official_count,
+            registration_date, status, payment_status, payment_amount,
+            rejection_reason, admin_notes, documents_json, last_updated
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newReg.id,
+            newReg.regCode,
+            newReg.category,
+            newReg.teamName,
+            newReg.teamLogo || null,
+            newReg.institutionName,
+            newReg.coachName,
+            newReg.coachPhone,
+            newReg.coachEmail || "",
+            newReg.playerCount,
+            newReg.officialCount,
+            newReg.registrationDate,
+            newReg.status,
+            newReg.paymentStatus,
+            newReg.paymentAmount,
+            newReg.rejectionReason || null,
+            newReg.adminNotes || null,
+            JSON.stringify(newReg.documents || {}),
+            newReg.lastUpdated
+          ]
+        );
+        await conn.commit();
+        break;
+      } catch (err) {
+        await conn.rollback().catch(() => {
+        });
+        const errCode = err?.errno || err?.code;
+        if ([9007, 8002, 1213, 1205].includes(Number(errCode)) || errCode === "ER_LOCK_WAIT_TIMEOUT") {
+          attempt++;
+          if (attempt >= 3) {
+            return res.status(503).json({ error: "Sistem sedang sibuk. Silakan coba lagi." });
+          }
+          await new Promise((r) => setTimeout(r, 50 + Math.random() * 150));
+        } else {
+          throw err;
+        }
+      } finally {
+        conn.release();
+      }
+    }
+    res.status(201).json(newReg);
   } catch (err) {
     console.error("[API] Error in POST /api/registrations:", err);
     res.status(500).json({ error: err?.message || "Gagal menyimpan pendaftaran" });
@@ -3605,8 +3448,34 @@ apiRouter.patch("/registrations/:id/payment", async (req, res) => {
 });
 apiRouter.delete("/registrations/:id", async (req, res) => {
   try {
-    await Database.deleteRegistration(req.params.id);
-    res.json({ success: true, id: req.params.id });
+    const regId = req.params.id;
+    const registrations = await Database.getRegistrations();
+    const reg = registrations.find((r) => r.id === regId);
+    if (!reg) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.query("BEGIN PESSIMISTIC");
+      if (COUNTED_STATUSES.includes(reg.status)) {
+        await conn.query(
+          `UPDATE categories SET registered_teams_count = GREATEST(0, registered_teams_count - 1) WHERE id = ?`,
+          [reg.category]
+          // The property is reg.category in RegistrationItem type
+        );
+      }
+      await conn.query(`DELETE FROM registrations WHERE id = ?`, [regId]);
+      await conn.commit();
+      await Database.deleteRegistration(regId).catch(() => {
+      });
+    } catch (e) {
+      await conn.rollback().catch(() => {
+      });
+      throw e;
+    } finally {
+      conn.release();
+    }
+    res.json({ success: true, id: regId });
   } catch (err) {
     res.status(500).json({ error: err?.message });
   }

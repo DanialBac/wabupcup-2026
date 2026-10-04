@@ -31,10 +31,10 @@ export const DatabaseManagerTab: React.FC = () => {
 
   // Interactive Connection Form State
   const [connectMode, setConnectMode] = useState<'URI' | 'PARAMS'>('URI');
-  const [dbUrlInput, setDbUrlInput] = useState('mysql://G3R4PBkMaCJzYe3.root:GDuXYLDpS53iSAeD@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026');
-  const [hostInput, setHostInput] = useState('gateway01.ap-southeast-1.prod.aws.tidbcloud.com');
+  const [dbUrlInput, setDbUrlInput] = useState('mysql://username.root:password@host.example.com:4000/wabupcup2026');
+  const [hostInput, setHostInput] = useState('host.example.com');
   const [portInput, setPortInput] = useState(4000);
-  const [userInput, setUserInput] = useState('G3R4PBkMaCJzYe3.root');
+  const [userInput, setUserInput] = useState('username.root');
   const [passwordInput, setPasswordInput] = useState('');
   const [databaseInput, setDatabaseInput] = useState('wabupcup2026');
   const [sslInput, setSslInput] = useState(true);
@@ -143,7 +143,7 @@ export const DatabaseManagerTab: React.FC = () => {
 
   const applyTidbPreset = () => {
     setConnectMode('URI');
-    setHostInput('gateway01.ap-southeast-1.prod.aws.tidbcloud.com');
+    setHostInput('host.example.com');
     setPortInput(4000);
     setDatabaseInput('wabupcup2026');
     setSslInput(true);
@@ -191,11 +191,11 @@ export const DatabaseManagerTab: React.FC = () => {
   const SAMPLE_ENV = `# Konfigurasi Database MySQL WabupCup 2026
 # OPSI A: TiDB Cloud Serverless / PlanetScale / Railway
 # Format URI:
-DATABASE_URL=mysql://<username>.<prefix>:<password>@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026?ssl={"rejectUnauthorized":true}
+DATABASE_URL=mysql://<username>.<prefix>:<password>@host.example.com:4000/wabupcup2026?ssl={"rejectUnauthorized":true}
 
 # OPSI B: Parameter Terpisah (TiDB Cloud / cPanel / VPS / Localhost)
 # TiDB Cloud Serverless wajib menggunakan port 4000 dan MYSQL_SSL=true
-MYSQL_HOST=gateway01.ap-southeast-1.prod.aws.tidbcloud.com
+MYSQL_HOST=host.example.com
 MYSQL_PORT=4000
 MYSQL_USER=xxxxxx.root
 MYSQL_PASSWORD=xxxxxx
@@ -466,7 +466,7 @@ USE \`wabupcup2026\`;
                   type="text"
                   value={dbUrlInput}
                   onChange={e => setDbUrlInput(e.target.value)}
-                  placeholder="mysql://username.root:password@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/wabupcup2026"
+                  placeholder="mysql://username.root:password@host.example.com:4000/wabupcup2026"
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-xs font-mono text-emerald-400 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
@@ -483,7 +483,7 @@ USE \`wabupcup2026\`;
                   type="text"
                   value={hostInput}
                   onChange={e => setHostInput(e.target.value)}
-                  placeholder="gateway01.ap-southeast-1.prod.aws.tidbcloud.com"
+                  placeholder="host.example.com"
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />

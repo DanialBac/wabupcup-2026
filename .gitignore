@@ -25,3 +25,13 @@ tmp/
 *.iso
 *.dmg
 
+
+# Sensitive configs
+.env
+.env.*
+!.env.example
+server/db-config.json
+server/local-storage.json
+.DS_Store
+bun.lock
+bun.lockb

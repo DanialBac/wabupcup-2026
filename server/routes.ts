@@ -222,7 +222,40 @@ apiRouter.post('/categories/reorder', async (req: Request, res: Response) => {
 
 apiRouter.post('/categories/sync-counts', async (req: Request, res: Response) => {
   try {
-    await Database.syncCategoryRegisteredCounts();
+    const categories = await Database.getCategories();
+    
+    // Process sync with connection limit in mind (e.g., using p-limit or just Promise.all)
+    // To respect connectionLimit, we can process in batches or all together if connectionLimit >= categories.length.
+    // For safety, process 3 at a time.
+    const runInBatches = async (items: any[], batchSize: number) => {
+      for (let i = 0; i < items.length; i += batchSize) {
+        const batch = items.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (cat) => {
+          const conn = await pool.getConnection();
+          try {
+            await conn.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+            await conn.query("BEGIN PESSIMISTIC");
+            await conn.query("SELECT id FROM categories WHERE id = ? FOR UPDATE", [cat.id]);
+            
+            const [rows]: any = await conn.query(
+              `SELECT COUNT(*) AS n FROM registrations WHERE category_id = ? AND status IN (?)`, 
+              [cat.id, COUNTED_STATUSES]
+            );
+            const count = rows[0]?.n || 0;
+            
+            await conn.query("UPDATE categories SET registered_teams_count = ? WHERE id = ?", [count, cat.id]);
+            await conn.commit();
+          } catch (e) {
+            await conn.rollback().catch(() => {});
+            console.error(`Failed to sync count for category ${cat.id}`, e);
+          } finally {
+            conn.release();
+          }
+        }));
+      }
+    };
+    
+    await runInBatches(categories, 3);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
@@ -318,43 +351,17 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
       });
     }
 
-    // Active Quota Validation
-    const categories = await Database.getCategories();
-    const targetCategory = categories.find(c => c.name === data.category || c.id === data.category);
-    if (!targetCategory) {
-      return res.status(400).json({ error: 'Kategori perlombaan tidak valid atau tidak ditemukan.' });
-    }
-
-    const existing = await Database.getRegistrations();
-
-    if (targetCategory.maxTeams && targetCategory.maxTeams > 0) {
-      // Hapus filter status: hitung semua tim (Pending, Approved, Rejected) yang mendaftar di kategori ini
-      const categoryRegsCount = existing.filter(r => r.category === targetCategory.name || r.category === targetCategory.id).length;
-      if (categoryRegsCount >= targetCategory.maxTeams) {
-        return res.status(400).json({ error: 'Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh.' });
-      }
-    }
-
+    const categoryId = data.category;
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
-    // Check if client-provided regCode is non-empty AND genuinely unused
+    // Fallback generate code and ID
     const candidateCode = typeof data.regCode === 'string' ? data.regCode.trim().toUpperCase() : '';
-    const isCodeInUse = candidateCode !== '' && existing.some(r => r.regCode && r.regCode.trim().toUpperCase() === candidateCode);
-
-    // If no regCode or candidate code is already in use by any team, generate a brand new unique sequential code
-    const regCode = (!candidateCode || isCodeInUse)
-      ? generateUniqueRegCode(data.category, existing)
-      : candidateCode;
-
-    // Ensure ID is fresh and cannot collide with any existing registration
+    const regCode = candidateCode || `REG-${Date.now().toString().slice(-6)}`;
     const candidateId = typeof data.id === 'string' ? data.id.trim() : '';
-    const isIdInUse = candidateId !== '' && existing.some(r => r.id === candidateId);
-    const id = (!candidateId || isIdInUse)
-      ? `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-      : candidateId;
+    const id = candidateId || `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-    const newReg: RegistrationItem = {
+    const newReg = {
       ...data,
       id,
       regCode,
@@ -364,10 +371,60 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
       lastUpdated: formattedDate,
     };
 
-    const saved = await Database.saveRegistration(newReg);
-    // Link uploaded media storage records to this registration ID for cascading cleanup
-    await linkRegistrationMedia(newReg.id, newReg.teamLogo, newReg.documents);
-    res.status(201).json(saved);
+    let attempt = 0;
+    while (attempt < 3) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.query("SET SESSION innodb_lock_wait_timeout = 5");
+        await conn.query("BEGIN PESSIMISTIC");
+        
+        // Cek Kuota & Kurangi Slot
+        const [resUpdate]: any = await conn.execute(
+          `UPDATE categories SET registered_teams_count = registered_teams_count + 1 WHERE id = ? AND registered_teams_count < max_teams`, 
+          [categoryId]
+        );
+        
+        if (resUpdate.affectedRows === 0) {
+          await conn.rollback(); 
+          return res.status(409).json({ error: 'Mohon maaf, pendaftaran ditolak karena kuota untuk kategori ini telah terisi penuh.' });
+        }
+        
+        // Simpan Data
+        await conn.execute(
+          `INSERT INTO registrations (
+            id, reg_code, category_id, team_name, team_logo, institution_name,
+            coach_name, coach_phone, coach_email, player_count, official_count,
+            registration_date, status, payment_status, payment_amount,
+            rejection_reason, admin_notes, documents_json, last_updated
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newReg.id, newReg.regCode, newReg.category, newReg.teamName, newReg.teamLogo || null, newReg.institutionName,
+            newReg.coachName, newReg.coachPhone, newReg.coachEmail || '', newReg.playerCount, newReg.officialCount,
+            newReg.registrationDate, newReg.status, newReg.paymentStatus, newReg.paymentAmount,
+            newReg.rejectionReason || null, newReg.adminNotes || null, JSON.stringify(newReg.documents || {}), newReg.lastUpdated,
+          ]
+        );
+        
+        await conn.commit();
+        break; // Sukses, keluar dari loop
+      } catch (err: any) {
+        await conn.rollback().catch(() => {});
+        const errCode = err?.errno || err?.code;
+        if ([9007, 8002, 1213, 1205].includes(Number(errCode)) || errCode === 'ER_LOCK_WAIT_TIMEOUT') {
+          attempt++;
+          if (attempt >= 3) {
+            return res.status(503).json({ error: 'Sistem sedang sibuk. Silakan coba lagi.' });
+          }
+          await new Promise(r => setTimeout(r, 50 + Math.random() * 150));
+        } else {
+          throw err;
+        }
+      } finally {
+        conn.release();
+      }
+    }
+
+    res.status(201).json(newReg);
   } catch (err: any) {
     console.error('[API] Error in POST /api/registrations:', err);
     res.status(500).json({ error: err?.message || 'Gagal menyimpan pendaftaran' });
@@ -472,8 +529,42 @@ apiRouter.patch('/registrations/:id/payment', async (req: Request, res: Response
 
 apiRouter.delete('/registrations/:id', async (req: Request, res: Response) => {
   try {
-    await Database.deleteRegistration(req.params.id);
-    res.json({ success: true, id: req.params.id });
+    const regId = req.params.id;
+    // We need to find the registration first to get its category_id and status
+    const registrations = await Database.getRegistrations();
+    const reg = registrations.find(r => r.id === regId);
+    
+    if (!reg) {
+      return res.status(404).json({ error: 'Registration not found' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.query("BEGIN PESSIMISTIC");
+      // Hanya kurangi kuota jika status pendaftar masuk dalam daftar yang dihitung
+      if (COUNTED_STATUSES.includes(reg.status)) {
+        await conn.query(
+          `UPDATE categories SET registered_teams_count = GREATEST(0, registered_teams_count - 1) WHERE id = ?`,
+          [reg.category] // The property is reg.category in RegistrationItem type
+        );
+      }
+      
+      await conn.query(`DELETE FROM registrations WHERE id = ?`, [regId]);
+      await conn.commit();
+      
+      // Also invoke memStore cleanup via db.ts if needed, but since we are modifying directly,
+      // Database.deleteRegistration should be updated or we can just call it (but it might delete again which is a no-op).
+      // Actually Database.deleteRegistration handles memory store deletion.
+      await Database.deleteRegistration(regId).catch(() => {});
+      
+    } catch (e) {
+      await conn.rollback().catch(() => {});
+      throw e;
+    } finally {
+      conn.release();
+    }
+    
+    res.json({ success: true, id: regId });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }

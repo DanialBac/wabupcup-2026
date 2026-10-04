@@ -951,6 +951,13 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setRegistrations(prev => [currentReg, ...prev.filter(r => r.id !== currentReg.id)]);
     idbSaveRegistration(currentReg).catch(() => {});
 
+    // Optimistically update category count
+    setCategories(prev => prev.map(c =>
+      c.id === data.category
+        ? { ...c, registeredTeamsCount: (c.registeredTeamsCount || 0) + 1 }
+        : c
+    ));
+
     // Send payload safely to backend API and await server response
     try {
       const apiPayload = prepareRegistrationForApi(currentReg);
@@ -965,24 +972,20 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Reconcile state and storage with server-confirmed registration
         setRegistrations(prev => [currentReg, ...prev.filter(r => r.id !== currentReg.id && r.id !== generatedId)]);
         idbSaveRegistration(currentReg).catch(() => {});
+        return currentReg;
       }
     } catch (err) {
-      console.warn('Could not persist new registration to backend, using local copy:', err);
-    }
-
-    // Update category count
-    setCategories(prev => {
-      const next = prev.map(c =>
+      console.error('Registration failed, rolling back optimistic updates:', err);
+      // Revert optimistic updates
+      setRegistrations(prev => prev.filter(r => r.id !== currentReg.id));
+      idbDeleteRegistration(currentReg.id).catch(() => {});
+      setCategories(prev => prev.map(c =>
         c.id === data.category
-          ? { ...c, registeredTeamsCount: c.registeredTeamsCount + 1 }
+          ? { ...c, registeredTeamsCount: Math.max(0, (c.registeredTeamsCount || 0) - 1) }
           : c
-      );
-      const updatedCat = next.find(c => c.id === data.category);
-      if (updatedCat) {
-        ApiService.saveCategory(updatedCat).catch(() => {});
-      }
-      return next;
-    });
+      ));
+      throw err; // Propagate the error so the UI can catch it (409, 503)
+    }
 
     return currentReg;
   };
