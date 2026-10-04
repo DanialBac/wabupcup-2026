@@ -15,7 +15,7 @@ import {
 const originalFetch = window.fetch;
 window.fetch = async function() {
   const args = Array.prototype.slice.call(arguments);
-  if (typeof args[0] === 'string' && args[0].includes('/api/')) {
+  if (typeof args[0] === 'string' && args[0].includes('/api/') && !args[0].includes('/api/media/view/')) {
     args[1] = args[1] || {};
     args[1].credentials = 'include';
   }
