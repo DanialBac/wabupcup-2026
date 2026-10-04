@@ -2,8 +2,42 @@ import 'dotenv/config';
 import { pool } from './config';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { isB2Configured, deleteB2Objects } from './b2';
 import { ensureMediaColumns } from './db/mediaSchema';
+
+export async function hashPassword(password: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(`scrypt$${salt}$${derivedKey.toString('hex')}`);
+    });
+  });
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (!hash) return false;
+  if (!hash.startsWith('scrypt$')) {
+    return password === hash || (hash === 'admin123' && password === 'admin123');
+  }
+  return new Promise((resolve, reject) => {
+    const parts = hash.split('$');
+    if (parts.length !== 3) return resolve(false);
+    const salt = parts[1];
+    const key = parts[2];
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      try {
+        const keyBuffer = Buffer.from(key, 'hex');
+        resolve(crypto.timingSafeEqual(keyBuffer, derivedKey));
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  });
+}
+
 import {
   DEFAULT_ADMIN_USERS,
   DEFAULT_CATEGORIES,
@@ -1402,9 +1436,12 @@ export const Database = {
   async saveAdmin(admin: AdminUser, password?: string): Promise<AdminUser> {
     await ensureDbConnected();
 
+    const plainPass = password || admin.password || 'admin123';
+    const passHash = await hashPassword(plainPass);
+    const roleToSave = admin.role || 'PANITIA_INTI';
+    const { password: _p, ...cleanAdmin } = admin;
+
     if (pool && isMySqlConnected) {
-      const passHash = password || admin.password || 'admin123';
-      const roleToSave = admin.role || 'PANITIA_INTI';
       try {
         await pool.query(
           `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color, created_at)
@@ -1427,16 +1464,16 @@ export const Database = {
             admin.phone || null,
             admin.avatarColor || 'bg-red-600',
             admin.createdAt ? new Date(admin.createdAt) : new Date(),
-            password || null,
+            password ? passHash : null,
           ]
         );
 
         // Keep local memory store cache in sync with MySQL
         const idx = memStore.adminUsers.findIndex(a => a.id === admin.id);
         if (idx >= 0) {
-          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...admin, role: roleToSave };
+          memStore.adminUsers[idx] = { ...memStore.adminUsers[idx], ...cleanAdmin, role: roleToSave };
         } else {
-          memStore.adminUsers.push({ ...admin, role: roleToSave });
+          memStore.adminUsers.push({ ...cleanAdmin, role: roleToSave });
         }
       } catch (err: any) {
         console.error('Error saving admin user to MySQL:', err);
@@ -1536,7 +1573,14 @@ export const Database = {
         if (rows && rows.length > 0) {
           const row = rows[0];
           const passHash = row.password_hash;
-          if (passHash === pass || (!passHash && pass === 'admin123') || pass === 'admin123') {
+          
+          const isMatch = await verifyPassword(pass, passHash);
+          if (isMatch) {
+            // Opportunistic Hashing: jika password di DB belum ter-hash scrypt
+            if (!passHash || !passHash.startsWith('scrypt$')) {
+              const newHash = await hashPassword(pass);
+              await pool.query('UPDATE admin_users SET password_hash = ? WHERE id = ?', [newHash, row.id]).catch(() => console.warn('Failed to hash password opportunistically'));
+            }
             const userObj: AdminUser = {
               id: row.id,
               username: row.username,
@@ -1549,7 +1593,7 @@ export const Database = {
             };
             return { success: true, user: userObj };
           } else {
-            return { success: false, error: 'Password tidak sesuai dengan database (default: admin123)' };
+            return { success: false, error: 'Password tidak sesuai' };
           }
         }
       } catch (err) {
@@ -1562,30 +1606,16 @@ export const Database = {
       a => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
     );
     if (found) {
-      const expectedPass = found.password || 'admin123';
-      if (pass === expectedPass || pass === 'admin123') {
+      const isMatch = await verifyPassword(pass, found.password || found.id);
+      const plainMatch = pass === (found.password || 'admin123'); // Still fallback for mock data
+      if (isMatch || plainMatch) {
         const { password, ...userWithoutPass } = found;
         return { success: true, user: userWithoutPass as AdminUser };
       }
-      return { success: false, error: 'Password tidak sesuai (default: admin123)' };
+      return { success: false, error: 'Password tidak sesuai' };
     }
 
-    // Default superadmin emergency fallback
-    if ((cleanUser === 'superadmin' || cleanUser === 'admin') && pass === 'admin123') {
-      const defaultUser: AdminUser = {
-        id: 'adm-001',
-        username: 'superadmin',
-        fullName: 'Administrator Resmi WabupCup',
-        role: 'SUPERADMIN',
-        email: 'admin@wabupcup2026.id',
-        phone: '081234567890',
-        createdAt: '2026-08-01',
-        avatarColor: 'bg-red-600',
-      };
-      return { success: true, user: defaultUser };
-    }
-
-    return { success: false, error: 'Akun username tidak ditemukan dalam database (Gunakan: superadmin / admin123)' };
+    return { success: false, error: 'Username tidak ditemukan' };
   },
 
   // Generate complete SQL Export dump

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { Database, AppMediaItem } from './db';
+import { requireAdmin } from './auth';
 import { isB2Configured, presignPut, presignGet } from './b2';
 
 export const mediaRouter = Router();
@@ -247,7 +248,7 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
 /**
  * 3. Delete Media by ID from TiDB Cloud
  */
-mediaRouter.delete('/media/:id', async (req: Request, res: Response) => {
+mediaRouter.delete('/media/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -265,7 +266,7 @@ mediaRouter.delete('/media/:id', async (req: Request, res: Response) => {
 /**
  * 3b. Delete all media by reference ID (e.g. registration ID)
  */
-mediaRouter.delete('/media/ref/:refId', async (req: Request, res: Response) => {
+mediaRouter.delete('/media/ref/:refId', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { refId } = req.params;
     if (!refId) {

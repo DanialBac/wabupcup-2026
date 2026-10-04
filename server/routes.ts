@@ -10,6 +10,14 @@ import { r2Router } from './r2';
 import { mediaRouter, decodeBase64File } from './mediaRoutes';
 import { sitemapHandler, robotsHandler } from './sitemap';
 
+import { requireAdmin, requireSuperAdmin } from './auth';
+
+
+const cachePublic = (req: Request, res: Response, next: any) => {
+  res.setHeader('Cache-Control', 'public, s-maxage=300');
+  next();
+};
+
 export const apiRouter = Router();
 
 // Dynamic Sitemap & Robots.txt endpoints under /api as well
@@ -172,7 +180,7 @@ apiRouter.post('/database/connect', async (req: Request, res: Response) => {
 });
 
 // 4. Export Complete SQL Dump
-apiRouter.get('/database/export-sql', async (req: Request, res: Response) => {
+apiRouter.get('/database/export-sql', requireAdmin, async (req: Request, res: Response) => {
   try {
     const sqlDump = await Database.exportFullSqlDump();
     res.setHeader('Content-Type', 'application/sql');
@@ -189,7 +197,7 @@ apiRouter.get('/config', async (req: Request, res: Response) => {
   res.json(config);
 });
 
-apiRouter.put('/config', async (req: Request, res: Response) => {
+apiRouter.put('/config', requireAdmin, async (req: Request, res: Response) => {
   try {
     const updated = await Database.updateConfig(req.body);
     res.json(updated);
@@ -199,12 +207,12 @@ apiRouter.put('/config', async (req: Request, res: Response) => {
 });
 
 // 6. Categories
-apiRouter.get('/categories', async (req: Request, res: Response) => {
+apiRouter.get('/categories', cachePublic, async (req: Request, res: Response) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
 
-apiRouter.post('/categories', async (req: Request, res: Response) => {
+apiRouter.post('/categories', requireAdmin, async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveCategory(req.body);
     res.status(201).json(saved);
@@ -265,7 +273,7 @@ apiRouter.post('/categories/sync-counts', async (req: Request, res: Response) =>
   }
 });
 
-apiRouter.put('/categories/:id', async (req: Request, res: Response) => {
+apiRouter.put('/categories/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveCategory(req.body);
     res.json(saved);
@@ -274,7 +282,7 @@ apiRouter.put('/categories/:id', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/categories/:id', async (req: Request, res: Response) => {
+apiRouter.delete('/categories/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     await Database.deleteCategory(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -284,7 +292,26 @@ apiRouter.delete('/categories/:id', async (req: Request, res: Response) => {
 });
 
 // 7. Registrations
-apiRouter.get('/registrations', async (req: Request, res: Response) => {
+apiRouter.get('/registrations/public', async (req: Request, res: Response) => {
+  try {
+    const regs = await Database.getRegistrations();
+    const publicData = regs.map(r => ({
+      id: r.id,
+      regCode: r.regCode,
+      category: r.category,
+      teamName: r.teamName,
+      teamLogo: (r.documents as any)?.teamLogo || null,
+      institutionName: r.institutionName,
+      status: r.status
+    }));
+    res.setHeader('Cache-Control', 'public, s-maxage=300');
+    res.json(publicData);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.get('/registrations', requireAdmin, async (req: Request, res: Response) => {
   const list = await Database.getRegistrations();
   res.json(list);
 });
@@ -468,7 +495,7 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/registrations/:id', async (req: Request, res: Response) => {
+apiRouter.put('/registrations/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -564,7 +591,7 @@ apiRouter.patch('/registrations/:id/payment', async (req: Request, res: Response
   }
 });
 
-apiRouter.delete('/registrations/:id', async (req: Request, res: Response) => {
+apiRouter.delete('/registrations/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const regId = req.params.id;
     // We need to find the registration first to get its category_id and status
@@ -608,12 +635,12 @@ apiRouter.delete('/registrations/:id', async (req: Request, res: Response) => {
 });
 
 // 8. Matches & Live Score
-apiRouter.get('/matches', async (req: Request, res: Response) => {
+apiRouter.get('/matches', cachePublic, async (req: Request, res: Response) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
 
-apiRouter.post('/matches', async (req: Request, res: Response) => {
+apiRouter.post('/matches', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = req.body.id || `match-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const saved = await Database.saveMatch({ ...req.body, id });
@@ -646,7 +673,7 @@ apiRouter.post('/matches/batch', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/matches/:id', async (req: Request, res: Response) => {
+apiRouter.put('/matches/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveMatch(req.body);
     res.json(saved);
@@ -655,7 +682,7 @@ apiRouter.put('/matches/:id', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/matches/:id', async (req: Request, res: Response) => {
+apiRouter.delete('/matches/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     await Database.deleteMatch(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -665,12 +692,12 @@ apiRouter.delete('/matches/:id', async (req: Request, res: Response) => {
 });
 
 // 9. Sponsors
-apiRouter.get('/sponsors', async (req: Request, res: Response) => {
+apiRouter.get('/sponsors', cachePublic, async (req: Request, res: Response) => {
   const list = await Database.getSponsors();
   res.json(list);
 });
 
-apiRouter.post('/sponsors', async (req: Request, res: Response) => {
+apiRouter.post('/sponsors', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = req.body.id || `sp-${Date.now()}`;
     const saved = await Database.saveSponsor({ ...req.body, id });
@@ -681,7 +708,7 @@ apiRouter.post('/sponsors', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/sponsors/:id', async (req: Request, res: Response) => {
+apiRouter.put('/sponsors/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveSponsor(req.body);
     await linkSponsorMedia(req.params.id, saved.logoUrl);
@@ -691,7 +718,7 @@ apiRouter.put('/sponsors/:id', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/sponsors/:id', async (req: Request, res: Response) => {
+apiRouter.delete('/sponsors/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     await Database.deleteSponsor(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -701,7 +728,7 @@ apiRouter.delete('/sponsors/:id', async (req: Request, res: Response) => {
 });
 
 // 10. Admin Users & Auth
-apiRouter.get('/admins', async (req: Request, res: Response) => {
+apiRouter.get('/admins', requireAdmin, async (req: Request, res: Response) => {
   try {
     const admins = await Database.getAdmins();
     res.json(admins);
@@ -710,7 +737,7 @@ apiRouter.get('/admins', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/admins', async (req: Request, res: Response) => {
+apiRouter.post('/admins', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { username, fullName, role, email, phone, avatarColor, password } = req.body;
     if (!username || !fullName) {
@@ -742,7 +769,7 @@ apiRouter.post('/admins', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/admins/:id', async (req: Request, res: Response) => {
+apiRouter.put('/admins/:id', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const { username, fullName, role, email, phone, avatarColor, password } = req.body;
     const existingList = await Database.getAdmins();
@@ -774,7 +801,7 @@ apiRouter.put('/admins/:id', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/admins/:id', async (req: Request, res: Response) => {
+apiRouter.delete('/admins/:id', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const success = await Database.deleteAdmin(req.params.id);
     if (!success) {
@@ -795,6 +822,13 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     }
     const result = await Database.verifyAdminLogin(username, password);
     if (result.success && result.user) {
+      try {
+        const { generateToken } = await import('./auth');
+        const token = generateToken(result.user.id, result.user.role || 'PANITIA_INTI');
+        res.setHeader('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12*60*60}`);
+      } catch (e: any) {
+        console.warn('Failed to generate token, returning stateless auth:', e.message);
+      }
       return res.json({ success: true, user: result.user });
     }
     res.status(401).json({ success: false, message: result.error || 'Username atau password salah' });
@@ -803,8 +837,32 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
   }
 });
 
+apiRouter.post('/auth/logout', async (req: Request, res: Response) => {
+  res.setHeader('Set-Cookie', 'admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.json({ success: true, message: 'Logged out' });
+});
+
+apiRouter.get('/auth/me', async (req: Request, res: Response) => {
+  try {
+    const { parseCookies, verifyToken } = await import('./auth');
+    const token = parseCookies(req)['admin_session'];
+    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+    const decoded = verifyToken(token);
+    if (!decoded) return res.status(401).json({ error: 'Invalid token' });
+    
+    const admins = await Database.getAdmins();
+    const user = admins.find(a => a.id === decoded.sub);
+    if (user) {
+      return res.json({ success: true, user });
+    }
+    return res.status(404).json({ error: 'User not found' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // 11. Players Management & Excel Import (table_players)
-apiRouter.get('/players', async (req: Request, res: Response) => {
+apiRouter.get('/players', cachePublic, async (req: Request, res: Response) => {
   try {
     const { category, teamName } = req.query;
     const players = await Database.getPlayers(
@@ -817,7 +875,7 @@ apiRouter.get('/players', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/players', async (req: Request, res: Response) => {
+apiRouter.post('/players', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = req.body.id || `ply-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const saved = await Database.savePlayer({ ...req.body, id });
@@ -853,7 +911,7 @@ apiRouter.post('/players/batch', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/players/:id', async (req: Request, res: Response) => {
+apiRouter.put('/players/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = req.params.id || req.body.id;
     const saved = await Database.savePlayer({ ...req.body, id });
@@ -863,7 +921,7 @@ apiRouter.put('/players/:id', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/players/:id', async (req: Request, res: Response) => {
+apiRouter.delete('/players/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     await Database.deletePlayer(req.params.id);
     res.json({ success: true, id: req.params.id });
@@ -886,7 +944,7 @@ apiRouter.get('/players/top-scorers', async (req: Request, res: Response) => {
 });
 
 // 12. Groups & Group Stages
-apiRouter.get('/groups', async (req: Request, res: Response) => {
+apiRouter.get('/groups', cachePublic, async (req: Request, res: Response) => {
   try {
     const { category } = req.query;
     const groups = await Database.getGroupStages(category as string | undefined);
@@ -896,7 +954,7 @@ apiRouter.get('/groups', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/groups', async (req: Request, res: Response) => {
+apiRouter.post('/groups', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { category, groups } = req.body;
     if (!category || !Array.isArray(groups)) {
@@ -922,7 +980,7 @@ apiRouter.post('/groups/replace', async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/groups/reset', async (req: Request, res: Response) => {
+apiRouter.post('/groups/reset', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { category } = req.body;
     if (!category) {
@@ -936,7 +994,7 @@ apiRouter.post('/groups/reset', async (req: Request, res: Response) => {
 });
 
 // 13. Standings (Klasemen Real-time & Sinkronisasi table_standings)
-apiRouter.get('/standings', async (req: Request, res: Response) => {
+apiRouter.get('/standings', cachePublic, async (req: Request, res: Response) => {
   try {
     const { category, source } = req.query;
     if (source === 'db') {
