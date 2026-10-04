@@ -413,10 +413,10 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         await Promise.all([
           ApiService.getConfig(),
           ApiService.getCategories(),
-          ApiService.getRegistrations(),
+          ApiService.getRegistrations(!!safeLocalStorageGet('wabupcup_current_admin', null)),
           ApiService.getMatches(),
           ApiService.getSponsors(),
-          ApiService.getAdmins(),
+          ApiService.getAdmins(!!safeLocalStorageGet('wabupcup_current_admin', null)),
           ApiService.getPlayers().catch(() => []),
           ApiService.getGroups().catch(() => []),
           ApiService.checkHealth().catch(() => null),
@@ -2622,6 +2622,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
         safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(res.user));
+        setTimeout(() => window.location.reload(), 300);
         return { success: true, admin: res.user };
       }
     } catch (err: any) {
@@ -2636,6 +2637,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if ((found.password && found.password === pass) || (!found.password && pass === 'admin123') || pass === 'admin123') {
         setCurrentAdmin(found);
         safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(found));
+        setTimeout(() => window.location.reload(), 300);
         return { success: true, admin: found };
       }
       return { success: false, message: 'Password salah! Kata sandi default adalah: admin123' };

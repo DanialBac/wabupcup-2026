@@ -10,6 +10,18 @@ import {
   TeamStandingItem,
 } from '../types';
 
+
+// Override fetch to always include credentials for admin cookies
+const originalFetch = window.fetch;
+window.fetch = async function() {
+  const args = Array.prototype.slice.call(arguments);
+  if (typeof args[0] === 'string' && args[0].includes('/api/')) {
+    args[1] = args[1] || {};
+    args[1].credentials = 'include';
+  }
+  return originalFetch.apply(this, args as any);
+};
+
 const API_BASE = '/api';
 
 async function safeJsonFetch<T>(url: string, options?: RequestInit): Promise<T | null> {
@@ -178,8 +190,8 @@ export const ApiService = {
   },
 
   // Registrations
-  async getRegistrations(): Promise<RegistrationItem[] | null> {
-    return safeJsonFetch<RegistrationItem[]>(`${API_BASE}/registrations`);
+  async getRegistrations(isAdmin?: boolean): Promise<RegistrationItem[] | null> {
+    return safeJsonFetch<RegistrationItem[]>(`${API_BASE}/registrations${isAdmin ? "" : "/public"}`);
   },
 
   async createRegistration(data: Partial<RegistrationItem>): Promise<RegistrationItem | null> {
@@ -303,7 +315,7 @@ export const ApiService = {
   },
 
   // Admins & Auth
-  async getAdmins(): Promise<AdminUser[] | null> {
+  async getAdmins(isAdmin?: boolean): Promise<AdminUser[] | null> {
     const res = await safeJsonFetch<any>(`${API_BASE}/admins`);
     if (res && Array.isArray(res.admins)) {
       return res.admins;
