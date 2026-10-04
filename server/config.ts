@@ -22,9 +22,14 @@ const sslOptions = {
   rejectUnauthorized: true,
 };
 
-const poolConfig: mysql.PoolOptions = dbUrl
+// Clean non-standard query parameters like ?sslaccept=strict that trigger MySQL2 warnings
+const cleanedDbUrl = dbUrl
+  ? dbUrl.replace(/([?&])sslaccept=[^&]*(&|$)/g, (_m, p1, p2) => (p1 === '?' && p2 ? '?' : '')).replace(/[?&]$/, '')
+  : dbUrl;
+
+const poolConfig: mysql.PoolOptions = cleanedDbUrl
   ? {
-      uri: dbUrl,
+      uri: cleanedDbUrl,
       ssl: sslOptions,
       connectionLimit: 5,
       enableKeepAlive: true,

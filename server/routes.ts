@@ -10,7 +10,7 @@ import { r2Router } from './r2';
 import { mediaRouter, decodeBase64File } from './mediaRoutes';
 import { sitemapHandler, robotsHandler } from './sitemap';
 
-import { requireAdmin, requireSuperAdmin } from './auth';
+import { requireAdmin, requireSuperAdmin, generateToken } from './auth';
 
 
 const cachePublic = (req: Request, res: Response, next: any) => {
@@ -300,7 +300,7 @@ apiRouter.get('/registrations/public', async (req: Request, res: Response) => {
       regCode: r.regCode,
       category: r.category,
       teamName: r.teamName,
-      teamLogo: (r.documents as any)?.teamLogo || null,
+      teamLogo: r.teamLogo || (r.documents as any)?.teamLogo || null,
       institutionName: r.institutionName,
       status: r.status
     }));
@@ -822,14 +822,14 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     }
     const result = await Database.verifyAdminLogin(username, password);
     if (result.success && result.user) {
+      let token = '';
       try {
-        const { generateToken } = await import('./auth');
-        const token = generateToken(result.user.id, result.user.role || 'PANITIA_INTI');
+        token = generateToken(result.user.id, result.user.role || 'PANITIA_INTI');
         res.setHeader('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12*60*60}`);
       } catch (e: any) {
         console.warn('Failed to generate token, returning stateless auth:', e.message);
       }
-      return res.json({ success: true, user: result.user });
+      return res.json({ success: true, user: result.user, token });
     }
     res.status(401).json({ success: false, message: result.error || 'Username atau password salah' });
   } catch (err: any) {

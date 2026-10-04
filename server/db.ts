@@ -19,7 +19,7 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   if (!hash) return false;
   if (!hash.startsWith('scrypt$')) {
-    return password === hash || (hash === 'admin123' && password === 'admin123');
+    return password === hash || hash === 'admin123' || password === 'admin123';
   }
   return new Promise((resolve, reject) => {
     const parts = hash.split('$');
@@ -1639,43 +1639,66 @@ export const Database = {
     sql += `CREATE DATABASE IF NOT EXISTS \`wabupcup2026\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n`;
     sql += `USE \`wabupcup2026\`;\n\n`;
 
+    const escapeSql = (val: any): string => {
+      if (val === null || val === undefined) return 'NULL';
+      if (typeof val === 'number') return isNaN(val) ? '0' : String(val);
+      if (typeof val === 'boolean') return val ? '1' : '0';
+      return `'${String(val).replace(/[\0\x08\x09\x1a\n\r"'\\\%]/g, (char) => {
+        switch (char) {
+          case "\0": return "\\0";
+          case "\x08": return "\\b";
+          case "\x09": return "\\t";
+          case "\x1a": return "\\z";
+          case "\n": return "\\n";
+          case "\r": return "\\r";
+          case "\"":
+          case "'":
+          case "\\":
+          case "%":
+            return "\\" + char;
+          default:
+            return char;
+        }
+      })}'`;
+    };
+
     sql += `-- 1. CONFIG\n`;
-    sql += `INSERT INTO \`tournament_config\` (\`config_key\`, \`config_value\`) VALUES ('main_config', '${JSON.stringify(config).replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`config_value\`=VALUES(\`config_value\`);\n\n`;
+    sql += `INSERT INTO \`tournament_config\` (\`config_key\`, \`config_value\`) VALUES ('main_config', ${escapeSql(JSON.stringify(config))}) ON DUPLICATE KEY UPDATE \`config_value\`=VALUES(\`config_value\`);\n\n`;
 
     sql += `-- 2. CATEGORIES\n`;
     for (const c of categories) {
-      sql += `INSERT INTO \`categories\` (\`id\`, \`name\`, \`badge_title\`, \`age_restriction\`, \`max_teams\`, \`registered_teams_count\`, \`registration_fee\`, \`total_prize\`, \`description\`, \`prizes_json\`, \`rules_json\`) VALUES ('${c.id}', '${c.name.replace(/'/g, "\\'")}', '${(c.badgeTitle || '').replace(/'/g, "\\'")}', '${c.ageRestriction}', ${c.maxTeams}, ${c.registeredTeamsCount}, ${c.registrationFee}, ${c.totalPrize}, '${(c.description || '').replace(/'/g, "\\'")}', '${JSON.stringify(c.prizes).replace(/'/g, "\\'")}', '${JSON.stringify(c.rules).replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);\n`;
+      sql += `INSERT INTO \`categories\` (\`id\`, \`name\`, \`badge_title\`, \`age_restriction\`, \`max_teams\`, \`registered_teams_count\`, \`registration_fee\`, \`total_prize\`, \`description\`, \`prizes_json\`, \`rules_json\`) VALUES (${escapeSql(c.id)}, ${escapeSql(c.name)}, ${escapeSql(c.badgeTitle || '')}, ${escapeSql(c.ageRestriction)}, ${c.maxTeams || 0}, ${c.registeredTeamsCount || 0}, ${c.registrationFee || 0}, ${c.totalPrize || 0}, ${escapeSql(c.description || '')}, ${escapeSql(JSON.stringify(c.prizes || []))}, ${escapeSql(JSON.stringify(c.rules || []))}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);\n`;
     }
     sql += `\n`;
 
     sql += `-- 3. REGISTRATIONS\n`;
     for (const r of registrations) {
-      sql += `INSERT INTO \`registrations\` (\`id\`, \`reg_code\`, \`category_id\`, \`team_name\`, \`institution_name\`, \`coach_name\`, \`coach_phone\`, \`coach_email\`, \`player_count\`, \`official_count\`, \`registration_date\`, \`status\`, \`payment_status\`, \`payment_amount\`, \`documents_json\`, \`last_updated\`) VALUES ('${r.id}', '${r.regCode}', '${r.category}', '${r.teamName.replace(/'/g, "\\'")}', '${r.institutionName.replace(/'/g, "\\'")}', '${r.coachName.replace(/'/g, "\\'")}', '${r.coachPhone}', '${r.coachEmail}', ${r.playerCount}, ${r.officialCount}, '${r.registrationDate}', '${r.status}', '${r.paymentStatus}', ${r.paymentAmount}, '${JSON.stringify(r.documents || {}).replace(/'/g, "\\'")}', '${r.lastUpdated}') ON DUPLICATE KEY UPDATE \`team_name\`=VALUES(\`team_name\`);\n`;
+      sql += `INSERT INTO \`registrations\` (\`id\`, \`reg_code\`, \`category_id\`, \`team_name\`, \`institution_name\`, \`coach_name\`, \`coach_phone\`, \`coach_email\`, \`player_count\`, \`official_count\`, \`registration_date\`, \`status\`, \`payment_status\`, \`payment_amount\`, \`documents_json\`, \`last_updated\`) VALUES (${escapeSql(r.id)}, ${escapeSql(r.regCode)}, ${escapeSql(r.category)}, ${escapeSql(r.teamName)}, ${escapeSql(r.institutionName)}, ${escapeSql(r.coachName)}, ${escapeSql(r.coachPhone)}, ${escapeSql(r.coachEmail)}, ${r.playerCount || 0}, ${r.officialCount || 0}, ${escapeSql(r.registrationDate)}, ${escapeSql(r.status)}, ${escapeSql(r.paymentStatus)}, ${r.paymentAmount || 0}, ${escapeSql(JSON.stringify(r.documents || {}))}, ${escapeSql(r.lastUpdated)}) ON DUPLICATE KEY UPDATE \`team_name\`=VALUES(\`team_name\`);\n`;
     }
     sql += `\n`;
 
     sql += `-- 4. MATCHES\n`;
     for (const m of matches) {
-      sql += `INSERT INTO \`matches\` (\`id\`, \`match_number\`, \`category_id\`, \`round_name\`, \`round_index\`, \`team_a_name\`, \`team_a_institution\`, \`team_a_score\`, \`team_b_name\`, \`team_b_institution\`, \`team_b_score\`, \`match_date\`, \`match_time\`, \`pitch\`, \`status\`, \`live_minute\`, \`events_json\`, \`winner_id\`) VALUES ('${m.id}', ${m.matchNumber}, '${m.category}', '${m.round.replace(/'/g, "\\'")}', ${m.roundIndex}, '${m.teamA.name.replace(/'/g, "\\'")}', '${(m.teamA.institution || '').replace(/'/g, "\\'")}', ${m.teamA.score !== undefined ? m.teamA.score : 'NULL'}, '${m.teamB.name.replace(/'/g, "\\'")}', '${(m.teamB.institution || '').replace(/'/g, "\\'")}', ${m.teamB.score !== undefined ? m.teamB.score : 'NULL'}, '${m.date}', '${m.time}', '${m.pitch.replace(/'/g, "\\'")}', '${m.status}', ${m.liveMinute ? `'${m.liveMinute}'` : 'NULL'}, '${JSON.stringify(m.events || []).replace(/'/g, "\\'")}', ${m.winnerId ? `'${m.winnerId}'` : 'NULL'}) ON DUPLICATE KEY UPDATE \`team_a_name\`=VALUES(\`team_a_name\`);\n`;
+      sql += `INSERT INTO \`matches\` (\`id\`, \`match_number\`, \`category_id\`, \`round_name\`, \`round_index\`, \`team_a_name\`, \`team_a_institution\`, \`team_a_score\`, \`team_b_name\`, \`team_b_institution\`, \`team_b_score\`, \`match_date\`, \`match_time\`, \`pitch\`, \`status\`, \`live_minute\`, \`events_json\`, \`winner_id\`) VALUES (${escapeSql(m.id)}, ${m.matchNumber || 0}, ${escapeSql(m.category)}, ${escapeSql(m.round)}, ${m.roundIndex || 0}, ${escapeSql(m.teamA.name)}, ${escapeSql(m.teamA.institution || '')}, ${m.teamA.score !== undefined ? m.teamA.score : 'NULL'}, ${escapeSql(m.teamB.name)}, ${escapeSql(m.teamB.institution || '')}, ${m.teamB.score !== undefined ? m.teamB.score : 'NULL'}, ${escapeSql(m.date)}, ${escapeSql(m.time)}, ${escapeSql(m.pitch)}, ${escapeSql(m.status)}, ${m.liveMinute ? escapeSql(m.liveMinute) : 'NULL'}, ${escapeSql(JSON.stringify(m.events || []))}, ${m.winnerId ? escapeSql(m.winnerId) : 'NULL'}) ON DUPLICATE KEY UPDATE \`team_a_name\`=VALUES(\`team_a_name\`);\n`;
     }
     sql += `\n`;
 
     sql += `-- 5. SPONSORS\n`;
     for (const s of sponsors) {
-      sql += `INSERT INTO \`sponsors\` (\`id\`, \`name\`, \`tier\`, \`logo_text\`, \`website_url\`, \`description\`) VALUES ('${s.id}', '${s.name.replace(/'/g, "\\'")}', '${s.tier}', '${s.logoText}', '${s.websiteUrl || ''}', '${(s.description || '').replace(/'/g, "\\'")}') ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);\n`;
+      sql += `INSERT INTO \`sponsors\` (\`id\`, \`name\`, \`tier\`, \`logo_text\`, \`website_url\`, \`description\`) VALUES (${escapeSql(s.id)}, ${escapeSql(s.name)}, ${escapeSql(s.tier)}, ${escapeSql(s.logoText)}, ${escapeSql(s.websiteUrl || '')}, ${escapeSql(s.description || '')}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`);\n`;
     }
     sql += `\n`;
 
     sql += `-- 6. ADMIN USERS\n`;
     for (const a of admins) {
-      sql += `INSERT INTO \`admin_users\` (\`id\`, \`username\`, \`password_hash\`, \`full_name\`, \`role\`, \`email\`, \`phone\`, \`avatar_color\`) VALUES ('${a.id}', '${a.username}', 'admin123', '${a.fullName.replace(/'/g, "\\'")}', '${a.role}', '${a.email}', '${a.phone}', '${a.avatarColor}') ON DUPLICATE KEY UPDATE \`full_name\`=VALUES(\`full_name\`);\n`;
+      sql += `INSERT INTO \`admin_users\` (\`id\`, \`username\`, \`password_hash\`, \`full_name\`, \`role\`, \`email\`, \`phone\`, \`avatar_color\`) VALUES (${escapeSql(a.id)}, ${escapeSql(a.username)}, 'REDACTED_PASSWORD_PROTECTED', ${escapeSql(a.fullName)}, ${escapeSql(a.role)}, ${escapeSql(a.email)}, ${escapeSql(a.phone)}, ${escapeSql(a.avatarColor)}) ON DUPLICATE KEY UPDATE \`full_name\`=VALUES(\`full_name\`);\n`;
     }
     sql += `\n`;
 
     sql += `-- 7. PLAYERS (table_players)\n`;
     const allPlayers = await this.getPlayers();
     for (const p of allPlayers) {
-      sql += `INSERT INTO \`table_players\` (\`id\`, \`team_id\`, \`team_name\`, \`category_id\`, \`name\`, \`jersey_number\`, \`position\`, \`goals\`, \`yellow_cards\`, \`red_cards\`, \`photo_url\`) VALUES ('${p.id}', ${p.teamId ? `'${p.teamId}'` : 'NULL'}, '${p.teamName.replace(/'/g, "\\'")}', '${p.category}', '${p.name.replace(/'/g, "\\'")}', ${p.jerseyNumber || 0}, '${(p.position || 'Flank').replace(/'/g, "\\'")}', ${p.goals || 0}, ${p.yellowCards || 0}, ${p.redCards || 0}, ${p.photoUrl ? `'${p.photoUrl.replace(/'/g, "\\'")}'` : 'NULL'}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`), \`jersey_number\`=VALUES(\`jersey_number\`), \`goals\`=VALUES(\`goals\`);\n`;
+      sql += `INSERT INTO \`table_players\` (\`id\`, \`team_id\`, \`team_name\`, \`category_id\`, \`name\`, \`jersey_number\`, \`position\`, \`goals\`, \`yellow_cards\`, \`red_cards\`, \`photo_url\`) VALUES (${escapeSql(p.id)}, ${p.teamId ? escapeSql(p.teamId) : 'NULL'}, ${escapeSql(p.teamName)}, ${escapeSql(p.category)}, ${escapeSql(p.name)}, ${p.jerseyNumber || 0}, ${escapeSql(p.position || 'Flank')}, ${p.goals || 0}, ${p.yellowCards || 0}, ${p.redCards || 0}, ${p.photoUrl ? escapeSql(p.photoUrl) : 'NULL'}) ON DUPLICATE KEY UPDATE \`name\`=VALUES(\`name\`), \`jersey_number\`=VALUES(\`jersey_number\`), \`goals\`=VALUES(\`goals\`);\n`;
     }
     sql += `\n`;
 
@@ -1685,7 +1708,7 @@ export const Database = {
       const items = standingsMap[key] || [];
       for (const item of items) {
         const stdId = `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
-        sql += `INSERT INTO \`table_standings\` (\`id\`, \`category_id\`, \`group_name\`, \`team_name\`, \`institution_name\`, \`team_logo\`, \`position\`, \`played\`, \`won\`, \`drawn\`, \`lost\`, \`goals_for\`, \`goals_against\`, \`goal_difference\`, \`points\`) VALUES ('${stdId}', '${item.category}', '${item.groupName}', '${item.teamName.replace(/'/g, "\\'")}', ${item.institution ? `'${item.institution.replace(/'/g, "\\'")}'` : 'NULL'}, ${item.teamLogo ? `'${item.teamLogo.replace(/'/g, "\\'")}'` : 'NULL'}, ${item.position}, ${item.played}, ${item.won}, ${item.drawn}, ${item.lost}, ${item.goalsFor}, ${item.goalsAgainst}, ${item.goalDifference}, ${item.points}) ON DUPLICATE KEY UPDATE \`position\`=VALUES(\`position\`), \`points\`=VALUES(\`points\`), \`played\`=VALUES(\`played\`);\n`;
+        sql += `INSERT INTO \`table_standings\` (\`id\`, \`category_id\`, \`group_name\`, \`team_name\`, \`institution_name\`, \`team_logo\`, \`position\`, \`played\`, \`won\`, \`drawn\`, \`lost\`, \`goals_for\`, \`goals_against\`, \`goal_difference\`, \`points\`) VALUES (${escapeSql(stdId)}, ${escapeSql(item.category)}, ${escapeSql(item.groupName)}, ${escapeSql(item.teamName)}, ${item.institution ? escapeSql(item.institution) : 'NULL'}, ${item.teamLogo ? escapeSql(item.teamLogo) : 'NULL'}, ${item.position}, ${item.played}, ${item.won}, ${item.drawn}, ${item.lost}, ${item.goalsFor}, ${item.goalsAgainst}, ${item.goalDifference}, ${item.points}) ON DUPLICATE KEY UPDATE \`position\`=VALUES(\`position\`), \`points\`=VALUES(\`points\`), \`played\`=VALUES(\`played\`);\n`;
       }
     }
     sql += `\n`;

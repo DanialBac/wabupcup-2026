@@ -2622,6 +2622,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
         safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(res.user));
+        if (res.token) {
+          try {
+            localStorage.setItem('wabupcup_admin_token', res.token);
+          } catch {}
+        }
         setTimeout(() => window.location.reload(), 300);
         return { success: true, admin: res.user };
       }
@@ -2667,8 +2672,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCurrentAdmin(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('wabupcup_current_admin');
+      localStorage.removeItem('wabupcup_admin_token');
+      fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     }
-    import('../hooks/usePdfLoader').then(m => m.clearPdfCache()).catch(() => {});
   };
 
   const addAdminUser = async (user: Omit<AdminUser, 'id' | 'createdAt'> & { password?: string }): Promise<{ success: boolean; savedToDatabase?: boolean; error?: string }> => {
