@@ -224,6 +224,8 @@ CREATE TABLE `app_media_storage` (
   `ref_id` VARCHAR(100) NULL, -- ID entitas induk (pendaftaran / sponsor)
   `sub_key` VARCHAR(100) NULL, -- nama field (teamLogo, suratKeterangan, dll)
   `file_data` LONGTEXT NOT NULL, -- Base64 data URI
+  `storage` VARCHAR(8) NOT NULL DEFAULT 'db', -- 'db' = base64 di file_data, 'b2' = objek di Backblaze B2
+  `file_key` VARCHAR(255) NULL, -- key objek di B2 (jika storage = 'b2')
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_media_category` (`category`),

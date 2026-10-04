@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { pool } from './config';
 import fs from 'fs';
 import path from 'path';
+import { isB2Configured, deleteB2Objects } from './b2';
+import { ensureMediaColumns } from './db/mediaSchema';
 import {
   DEFAULT_ADMIN_USERS,
   DEFAULT_CATEGORIES,
@@ -34,6 +36,8 @@ export interface AppMediaItem {
   contentType: string;
   fileSize: number;
   fileData: string;
+  storage?: 'db' | 'b2'; // 'b2' = file ada di Backblaze B2, file_data kosong
+  fileKey?: string; // key objek di B2
   createdAt?: string;
   updatedAt?: string;
 }
@@ -112,6 +116,7 @@ async function autoMigrateTables() {
     // Always run schema initialization (all queries use CREATE TABLE IF NOT EXISTS)
     // to guarantee that new tables like table_players, tournament_groups, app_media_storage exist in pre-existing databases.
     await runFullSchemaInit();
+    await ensureMediaColumns(pool);
 
     // Safe non-blocking column upgrade for existing databases (e.g. migrate ENUM role to VARCHAR(64))
     try {
@@ -266,6 +271,8 @@ export async function runFullSchemaInit() {
       content_type VARCHAR(100) NOT NULL,
       file_size INT NOT NULL,
       file_data LONGTEXT NOT NULL,
+      storage VARCHAR(8) NOT NULL DEFAULT 'db',
+      file_key VARCHAR(255) NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_category (category),
@@ -431,6 +438,24 @@ function sanitizeRegistrationDocuments(rawDocs: any, regId: string): Record<stri
   }
 
   return sanitized;
+}
+
+/**
+ * Hapus objek B2 milik baris app_media_storage yang akan dihapus.
+ * Dipanggil SEBELUM DELETE ke database; kegagalan tidak boleh menghalangi penghapusan baris.
+ */
+async function purgeB2Objects(where: string, params: any[]): Promise<void> {
+  if (!pool || !isMySqlConnected || !isB2Configured()) return;
+  try {
+    const [rows]: any = await pool.query(
+      `SELECT file_key FROM app_media_storage WHERE storage = 'b2' AND file_key IS NOT NULL AND (${where})`,
+      params
+    );
+    const keys = (rows as any[]).map((r) => String(r.file_key)).filter(Boolean);
+    if (keys.length) await deleteB2Objects(keys);
+  } catch (err) {
+    console.warn('[purgeB2Objects] dilewati:', (err as any)?.message || err);
+  }
 }
 
 export const Database = {
@@ -1054,6 +1079,13 @@ export const Database = {
           }
         }
 
+        // A0. Hapus objek B2 terkait (jika ada) sebelum baris database dihapus
+        await purgeB2Objects(`ref_id IN (${refPlaceholders})`, refParams);
+        if (mediaIdsToDelete.size > 0) {
+          const ids0 = Array.from(mediaIdsToDelete);
+          await purgeB2Objects(`id IN (${ids0.map(() => '?').join(',')})`, ids0);
+        }
+
         // A. Cascading delete from app_media_storage by ref_id
         await pool.query(
           `DELETE FROM app_media_storage WHERE ref_id IN (${refPlaceholders})`,
@@ -1309,6 +1341,7 @@ export const Database = {
       try {
         await pool.query('DELETE FROM sponsors WHERE id = ?', [id]);
         // Cascading delete: Automatically remove sponsor logo from TiDB app_media_storage
+        await purgeB2Objects('ref_id = ? AND category = ?', [id, 'SPONSOR_LOGO']);
         await pool.query('DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?', [id, 'SPONSOR_LOGO']);
         console.log(`[Storage Cleanup] Deleted sponsor logo for ${id} from TiDB Cloud`);
       } catch (err) {
@@ -1635,7 +1668,22 @@ export const Database = {
     await ensureDbConnected();
     memStore.media.set(item.id, item);
 
-    if (pool && isMySqlConnected) {
+    if (pool && isMySqlConnected && item.storage === 'b2' && item.fileKey) {
+      try {
+        await pool.execute(
+          `INSERT INTO app_media_storage (id, category, ref_id, sub_key, filename, content_type, file_size, file_data, storage, file_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, '', 'b2', ?)
+           ON DUPLICATE KEY UPDATE category=?, ref_id=?, sub_key=?, filename=?, content_type=?, file_size=?, storage='b2', file_key=?`,
+          [
+            item.id, item.category, item.refId || null, item.subKey || null, item.filename, item.contentType, item.fileSize, item.fileKey,
+            item.category, item.refId || null, item.subKey || null, item.filename, item.contentType, item.fileSize, item.fileKey,
+          ]
+        );
+      } catch (err) {
+        console.error('Error saving B2 media metadata to TiDB app_media_storage:', err);
+        throw err;
+      }
+    } else if (pool && isMySqlConnected) {
       try {
         await pool.execute(
           `INSERT INTO app_media_storage (id, category, ref_id, sub_key, filename, content_type, file_size, file_data)
@@ -1669,6 +1717,8 @@ export const Database = {
             contentType: r.content_type,
             fileSize: Number(r.file_size),
             fileData: r.file_data,
+            storage: r.storage === 'b2' ? 'b2' : 'db',
+            fileKey: r.file_key || undefined,
             createdAt: r.created_at ? new Date(r.created_at).toISOString() : undefined,
             updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
           };
@@ -1680,11 +1730,48 @@ export const Database = {
     return memStore.media.get(id) || null;
   },
 
+  /**
+   * Metadata saja (TANPA file_data). Dipakai untuk cek ETag/304 dan redirect B2
+   * supaya isi file tidak ikut dibaca dari TiDB.
+   */
+  async getMediaMeta(id: string): Promise<Omit<AppMediaItem, 'fileData'> | null> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.execute(
+          'SELECT id, category, ref_id, sub_key, filename, content_type, file_size, storage, file_key FROM app_media_storage WHERE id = ? LIMIT 1',
+          [id]
+        );
+        if (Array.isArray(rows) && rows.length > 0) {
+          const r = rows[0];
+          return {
+            id: r.id,
+            category: r.category,
+            refId: r.ref_id || undefined,
+            subKey: r.sub_key || undefined,
+            filename: r.filename,
+            contentType: r.content_type,
+            fileSize: Number(r.file_size),
+            storage: r.storage === 'b2' ? 'b2' : 'db',
+            fileKey: r.file_key || undefined,
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching media meta from TiDB app_media_storage:', err);
+      }
+    }
+    const mem = memStore.media.get(id);
+    if (!mem) return null;
+    const { fileData: _omit, ...meta } = mem;
+    return meta;
+  },
+
   async deleteMedia(id: string): Promise<boolean> {
     await ensureDbConnected();
     memStore.media.delete(id);
     if (pool && isMySqlConnected) {
       try {
+        await purgeB2Objects('id = ?', [id]);
         await pool.execute('DELETE FROM app_media_storage WHERE id = ?', [id]);
       } catch (err) {
         console.error('Error deleting media from TiDB app_media_storage:', err);
@@ -1704,8 +1791,10 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         if (category) {
+          await purgeB2Objects('ref_id = ? AND category = ?', [refId, category]);
           await pool.execute('DELETE FROM app_media_storage WHERE ref_id = ? AND category = ?', [refId, category]);
         } else {
+          await purgeB2Objects('ref_id = ?', [refId]);
           await pool.execute('DELETE FROM app_media_storage WHERE ref_id = ?', [refId]);
         }
       } catch (err) {
@@ -1736,6 +1825,7 @@ export const Database = {
       try {
         if (subKey) {
           // Cascading cleanup: delete prior media file for the same ref_id and sub_key if id is different
+          await purgeB2Objects('ref_id = ? AND sub_key = ? AND id != ?', [refId, subKey, id]);
           await pool.execute(
             'DELETE FROM app_media_storage WHERE ref_id = ? AND sub_key = ? AND id != ?',
             [refId, subKey, id]

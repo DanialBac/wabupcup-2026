@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { Database, AppMediaItem } from './db';
+import { isB2Configured, presignPut, presignGet } from './b2';
 
 export const mediaRouter = Router();
 
@@ -84,6 +86,70 @@ mediaRouter.post('/media/upload', async (req: Request, res: Response) => {
 });
 
 /**
+ * 1b. Presigned upload ke Backblaze B2 (khusus dokumen pendaftar / REG_DOC).
+ * Browser mengunggah langsung ke B2, jadi file tidak lewat fungsi Vercel (hemat FOT).
+ * Jika B2 belum dikonfigurasi, balas 503 dan klien otomatis memakai jalur lama (TiDB).
+ */
+const B2_ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const B2_MAX_BYTES = 3 * 1024 * 1024;
+
+// Hanya tipe ini yang boleh tampil inline di domain situs; selain itu dipaksa unduh (cegah stored XSS).
+const SAFE_INLINE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+mediaRouter.post('/media/presign', async (req: Request, res: Response) => {
+  try {
+    if (!isB2Configured()) {
+      return res.status(503).json({ error: 'Backblaze B2 belum dikonfigurasi', configured: false });
+    }
+
+    const { filename, contentType, fileSize, category = 'REG_DOC' } = req.body || {};
+    const type = String(contentType || '').toLowerCase();
+    const size = Number(fileSize);
+
+    if (category !== 'REG_DOC') {
+      return res.status(400).json({ error: 'Unggah langsung hanya untuk dokumen pendaftar (REG_DOC)' });
+    }
+    if (!filename || !B2_ALLOWED_TYPES.includes(type)) {
+      return res.status(400).json({ error: 'Tipe berkas tidak diizinkan. Hanya PDF, JPG, PNG, WEBP.' });
+    }
+    if (!Number.isFinite(size) || size <= 0 || size > B2_MAX_BYTES) {
+      return res.status(413).json({ error: 'Ukuran berkas melebihi batas 3MB.' });
+    }
+
+    const sanitizedFilename = String(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+    // ID acak yang sulit ditebak, tetap kompatibel dengan regex /med-\d+-[a-zA-Z0-9_-]+/
+    const id = `med-${Date.now()}-${crypto.randomBytes(9).toString('hex')}`;
+    const fileKey = `reg-docs/${id}`;
+
+    // Penautan ke pendaftaran (ref_id/sub_key) dan pembersihan berkas lama dilakukan oleh
+    // Database.updateMediaRef setelah pendaftaran dibuat, sama seperti jalur lama.
+    await Database.saveMedia({
+      id,
+      category,
+      filename: sanitizedFilename,
+      contentType: type,
+      fileSize: size,
+      fileData: '',
+      storage: 'b2',
+      fileKey,
+    });
+
+    const uploadUrl = await presignPut(fileKey, type, size, 600);
+    return res.status(201).json({
+      id,
+      url: `/api/media/view/${id}`,
+      uploadUrl,
+      contentType: type,
+      filename: sanitizedFilename,
+      fileSize: size,
+    });
+  } catch (err: any) {
+    console.error('[Media Presign Error]', err);
+    return res.status(500).json({ error: err?.message || 'Gagal menyiapkan unggahan' });
+  }
+});
+
+/**
  * 2. Serve / View Media directly from TiDB Cloud
  * Can be used directly in <img src="/api/media/view/:id" /> or <iframe>
  */
@@ -94,45 +160,68 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
       return res.status(400).send('ID media diperlukan');
     }
 
+    // Hanya metadata (tanpa file_data) supaya 304 dan redirect B2 tidak membaca isi file dari TiDB
+    const meta = await Database.getMediaMeta(id);
+    if (!meta) {
+      return res.status(404).send('Berkas tidak ditemukan');
+    }
+
+    const rawType = (meta.contentType || 'application/octet-stream').toLowerCase();
+    const isSafeInline = SAFE_INLINE_MIME_TYPES.includes(rawType);
+    const servedType = isSafeInline ? rawType : 'application/octet-stream';
+    const contentDisposition = `${isSafeInline ? 'inline' : 'attachment'}; filename="${encodeURIComponent(meta.filename)}"`;
+
+    // Dokumen pendaftar bersifat pribadi: jangan di-cache di CDN publik (hanya cache browser).
+    const isPrivateDoc = meta.category === 'REG_DOC';
+    const cacheControl = isPrivateDoc
+      ? 'private, max-age=86400'
+      : 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400';
+
+    // A. Berkas di Backblaze B2: redirect ke presigned URL berumur singkat (respons kecil, FOT hampir nol).
+    //    Range request untuk PDF viewer dilayani langsung oleh B2.
+    if (meta.storage === 'b2' && meta.fileKey) {
+      if (!isB2Configured()) {
+        return res.status(503).send('Penyimpanan berkas belum dikonfigurasi');
+      }
+      const url = await presignGet(meta.fileKey, {
+        contentType: servedType,
+        disposition: contentDisposition,
+        expiresIn: 600,
+      });
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.redirect(302, url);
+    }
+
+    // B. Berkas lama di TiDB (sampai dimigrasi)
+    const etag = `"${id}-${meta.fileSize}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', cacheControl);
+
+    // 1. If-None-Match (304) dijawab tanpa membaca file_data sama sekali
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+
     const media = await Database.getMedia(id);
     if (!media || !media.fileData) {
       return res.status(404).send('Berkas tidak ditemukan');
     }
 
-    const { buffer, mimeType } = decodeBase64File(media.fileData);
-    const contentType = media.contentType || mimeType || 'application/octet-stream';
+    const { buffer } = decodeBase64File(media.fileData);
     const total = buffer.length;
+    res.setHeader('Content-Disposition', contentDisposition);
+    res.setHeader('Content-Type', servedType);
 
-    // Stable strong ETag based on media ID and file size
-    const etag = `"${id}-${total}"`;
-
-    // 1. Conditional Request Check (304 Not Modified - 0 bytes payload)
-    if (req.headers['if-none-match'] === etag) {
-      res.setHeader('ETag', etag);
-      res.setHeader(
-        'Cache-Control',
-        'private, max-age=31536000, immutable'
-      );
-      return res.status(304).end();
-    }
-
-    // Common Edge CDN & Browser Caching Headers
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('ETag', etag);
-    res.setHeader(
-      'Cache-Control',
-      'private, max-age=31536000, immutable'
-    );
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(media.filename)}"`);
-
-    // 2. HTTP Range Requests (RFC 7233) for efficient PDF chunk reading & zooming
+    // 2. HTTP Range Requests (RFC 7233) untuk PDF viewer
     const range = req.headers.range;
     if (range && range.startsWith('bytes=')) {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
 
-      // Validate range
       if (isNaN(start) || start >= total || end >= total || start > end) {
         res.setHeader('Content-Range', `bytes */${total}`);
         return res.status(416).send('Requested range not satisfiable');
@@ -142,18 +231,16 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
       res.status(206);
       res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
       res.setHeader('Content-Length', chunk.length);
-      res.setHeader('Content-Type', contentType);
       return res.end(chunk);
     }
 
-    // 3. Full Content Delivery (Status 200)
+    // 3. Full Content
     res.status(200);
-    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', total);
     return res.end(buffer);
   } catch (err: any) {
     console.error('[Media View Error]', err);
-    return res.status(500).send('Gagal memuat berkas dari database');
+    return res.status(500).send('Gagal memuat berkas');
   }
 });
 

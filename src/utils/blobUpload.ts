@@ -21,6 +21,52 @@ function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 /**
+ * Dokumen pendaftar (REG_DOC) diunggah langsung dari browser ke Backblaze B2 lewat presigned URL.
+ * Mengembalikan null bila B2 belum aktif atau gagal, supaya jalur lama (TiDB) dipakai sebagai cadangan.
+ */
+async function tryUploadToB2(
+  dataUrl: string,
+  filename: string,
+  contentType: string,
+  category: string
+): Promise<UploadResult | null> {
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+
+    const presRes = await fetch('/api/media/presign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, contentType, fileSize: blob.size, category }),
+    });
+    if (!presRes.ok) return null; // 503 = B2 belum dikonfigurasi, lainnya = pakai jalur lama
+
+    const pres = await presRes.json();
+    const putRes = await fetch(pres.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: blob,
+    });
+
+    if (!putRes.ok) {
+      // Unggahan gagal: hapus metadata yatim, lalu jatuh ke jalur lama
+      fetch(`/api/media/${pres.id}`, { method: 'DELETE' }).catch(() => {});
+      return null;
+    }
+
+    return {
+      url: pres.url,
+      name: pres.filename || filename,
+      size: blob.size > 1024 * 1024 ? `${(blob.size / (1024 * 1024)).toFixed(2)} MB` : `${(blob.size / 1024).toFixed(1)} KB`,
+      type: pres.contentType || contentType,
+      fileData: pres.url,
+    };
+  } catch (err) {
+    console.warn('[B2 Upload] gagal, memakai jalur cadangan:', err);
+    return null;
+  }
+}
+
+/**
  * Centralized Storage in TiDB Cloud:
  * Uploads media (logos, PDF docs, CMS images) file-by-file directly into
  * the TiDB Cloud `app_media_storage` table via /api/media/upload.
@@ -82,6 +128,15 @@ export async function uploadToTiDbStorage(
   }
 
   if (progressFn) progressFn(50);
+
+  // Dokumen pendaftar: coba unggah langsung ke Backblaze B2 dulu
+  if (category === 'REG_DOC') {
+    const viaB2 = await tryUploadToB2(base64Data, file.name, contentType, category);
+    if (viaB2) {
+      if (progressFn) progressFn(100);
+      return viaB2;
+    }
+  }
 
   const res = await fetch('/api/media/upload', {
     method: 'POST',

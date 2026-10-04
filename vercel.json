@@ -29,15 +29,6 @@
       ]
     },
     {
-      "source": "/api/media/view/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400, immutable"
-        }
-      ]
-    },
-    {
       "source": "/index.html",
       "headers": [
         {
