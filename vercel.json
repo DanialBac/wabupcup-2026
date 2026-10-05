@@ -2,13 +2,6 @@
   "version": 2,
   "outputDirectory": "dist",
   "cleanUrls": true,
-  "redirects": [
-    {
-      "source": "/(.*)",
-      "destination": "https://wabupcup2026.vercel.app",
-      "permanent": true
-    }
-  ],
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -39,10 +32,6 @@
     }
   ],
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api"
-    },
     {
       "source": "/((?!api/|.*\\..*).*)",
       "destination": "/index.html"
