@@ -3137,7 +3137,7 @@ mediaRouter.post("/media/presign", async (req, res) => {
     return res.status(500).json({ error: err?.message || "Gagal menyiapkan unggahan" });
   }
 });
-mediaRouter.get("/media/view/:id", async (req, res) => {
+async function handleMediaServe(req, res, forceDownload = false) {
   try {
     const { id } = req.params;
     if (!id) {
@@ -3147,9 +3147,10 @@ mediaRouter.get("/media/view/:id", async (req, res) => {
     if (!meta) {
       return res.status(404).send("Berkas tidak ditemukan");
     }
+    const isDownload = forceDownload || req.query.download === "1" || req.query.download === "true" || req.query.dl === "1";
     const rawType = (meta.contentType || "application/octet-stream").toLowerCase();
-    const isSafeInline = SAFE_INLINE_MIME_TYPES.includes(rawType);
-    const servedType = isSafeInline ? rawType : "application/octet-stream";
+    const isSafeInline = !isDownload && SAFE_INLINE_MIME_TYPES.includes(rawType);
+    const servedType = isSafeInline ? rawType : rawType || "application/octet-stream";
     const contentDisposition = `${isSafeInline ? "inline" : "attachment"}; filename="${encodeURIComponent(meta.filename)}"`;
     const isPrivateDoc = meta.category === "REG_DOC";
     const cacheControl = isPrivateDoc ? "private, max-age=86400" : "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
@@ -3201,10 +3202,12 @@ mediaRouter.get("/media/view/:id", async (req, res) => {
     res.setHeader("Content-Length", total);
     return res.end(buffer);
   } catch (err) {
-    console.error("[Media View Error]", err);
+    console.error("[Media View/Download Error]", err);
     return res.status(500).send("Gagal memuat berkas");
   }
-});
+}
+mediaRouter.get("/media/view/:id", (req, res) => handleMediaServe(req, res, false));
+mediaRouter.get("/media/download/:id", (req, res) => handleMediaServe(req, res, true));
 mediaRouter.delete("/media/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;

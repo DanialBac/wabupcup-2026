@@ -4072,7 +4072,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
 
                           <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
                             <a
-                              href={doc.fileUrl}
+                              href={doc.fileUrl ? (doc.fileUrl.includes('?') ? `${doc.fileUrl}&download=1` : `${doc.fileUrl}?download=1`) : '#'}
                               target="_blank"
                               rel="noopener noreferrer"
                               download={doc.fileName}

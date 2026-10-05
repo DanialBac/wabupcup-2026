@@ -972,7 +972,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                     {config.downloadableDocs.map(doc => (
                       <a
                         key={doc.id}
-                        href={doc.fileUrl}
+                        href={doc.fileUrl ? (doc.fileUrl.includes('?') ? `${doc.fileUrl}&download=1` : `${doc.fileUrl}?download=1`) : '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         download={doc.fileName}

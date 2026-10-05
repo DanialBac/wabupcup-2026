@@ -32,6 +32,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 }) => {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [forceMode, setForceMode] = useState<'auto' | 'pdf' | 'image'>('auto');
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -43,6 +44,58 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   if (!isOpen || !document) return null;
 
   const effectiveSource = document.url || document.fileData || document.previewUrl || '';
+
+  const handleDownload = async () => {
+    if (!effectiveSource) return;
+    setIsDownloading(true);
+    const fileName = document.name || `${teamName || 'Dokumen'}-${documentTitle || 'Berkas'}.pdf`;
+
+    try {
+      if (effectiveSource.startsWith('data:')) {
+        const a = document.createElement('a');
+        a.href = effectiveSource;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      const downloadUrl = effectiveSource.includes('?')
+        ? `${effectiveSource}&download=1`
+        : `${effectiveSource}?download=1`;
+
+      // Coba fetch blob terlebih dahulu agar berkas langsung tersimpan ke komputer dengan nama yang benar
+      const res = await fetch(downloadUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        return;
+      }
+      throw new Error('Blob fetch failed');
+    } catch {
+      // Fallback: arahkan langsung ke endpoint download dengan header attachment
+      const downloadUrl = effectiveSource.includes('?')
+        ? `${effectiveSource}&download=1`
+        : `${effectiveSource}?download=1`;
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // Heuristic detection: is this an image?
   const docName = (document.name || '').toLowerCase();
@@ -143,17 +196,16 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
             {/* Download Button */}
             {effectiveSource && (
-              <a
-                href={effectiveSource}
-                download={document.name || `${teamName}-${documentTitle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition"
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-50"
                 title="Download Dokumen"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Unduh</span>
-              </a>
+                <span className="hidden sm:inline">{isDownloading ? 'Mengunduh...' : 'Unduh'}</span>
+              </button>
             )}
 
             {onVerify && (

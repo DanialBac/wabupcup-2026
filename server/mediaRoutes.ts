@@ -154,7 +154,7 @@ mediaRouter.post('/media/presign', async (req: Request, res: Response) => {
  * 2. Serve / View Media directly from TiDB Cloud
  * Can be used directly in <img src="/api/media/view/:id" /> or <iframe>
  */
-mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
+async function handleMediaServe(req: Request, res: Response, forceDownload = false) {
   try {
     const { id } = req.params;
     if (!id) {
@@ -167,9 +167,10 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
       return res.status(404).send('Berkas tidak ditemukan');
     }
 
+    const isDownload = forceDownload || req.query.download === '1' || req.query.download === 'true' || req.query.dl === '1';
     const rawType = (meta.contentType || 'application/octet-stream').toLowerCase();
-    const isSafeInline = SAFE_INLINE_MIME_TYPES.includes(rawType);
-    const servedType = isSafeInline ? rawType : 'application/octet-stream';
+    const isSafeInline = !isDownload && SAFE_INLINE_MIME_TYPES.includes(rawType);
+    const servedType = isSafeInline ? rawType : (rawType || 'application/octet-stream');
     const contentDisposition = `${isSafeInline ? 'inline' : 'attachment'}; filename="${encodeURIComponent(meta.filename)}"`;
 
     // Dokumen pendaftar bersifat pribadi: jangan di-cache di CDN publik (hanya cache browser).
@@ -240,10 +241,13 @@ mediaRouter.get('/media/view/:id', async (req: Request, res: Response) => {
     res.setHeader('Content-Length', total);
     return res.end(buffer);
   } catch (err: any) {
-    console.error('[Media View Error]', err);
+    console.error('[Media View/Download Error]', err);
     return res.status(500).send('Gagal memuat berkas');
   }
-});
+}
+
+mediaRouter.get('/media/view/:id', (req: Request, res: Response) => handleMediaServe(req, res, false));
+mediaRouter.get('/media/download/:id', (req: Request, res: Response) => handleMediaServe(req, res, true));
 
 /**
  * 3. Delete Media by ID from TiDB Cloud
