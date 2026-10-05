@@ -429,10 +429,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       if (authCheck) {
-        if (authCheck.authenticated && authCheck.user) {
+        const isAuth = Boolean(authCheck.authenticated || (authCheck as any).success);
+        if (isAuth && authCheck.user) {
           setCurrentAdmin(authCheck.user);
           safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(authCheck.user));
-        } else if (!authCheck.authenticated && safeLocalStorageGet('wabupcup_current_admin', null)) {
+        } else if (!isAuth && safeLocalStorageGet('wabupcup_current_admin', null)) {
           setCurrentAdmin(null);
           if (typeof window !== 'undefined') {
             localStorage.removeItem('wabupcup_current_admin');
@@ -2675,7 +2676,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
         safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(res.user));
-        setTimeout(() => window.location.reload(), 300);
+        await refreshDataFromServer();
         return { success: true, admin: res.user };
       }
       return {

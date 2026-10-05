@@ -391,6 +391,7 @@ export const ApiService = {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ username, password: pass }),
       });
       const text = await res.text();
@@ -405,19 +406,26 @@ export const ApiService = {
     }
   },
 
-  async getAuthMe(): Promise<{ authenticated: boolean; user?: AdminUser | null }> {
+  async getAuthMe(): Promise<{ authenticated: boolean; success?: boolean; user?: AdminUser | null }> {
     try {
-      const res = await fetch(`${API_BASE}/auth/me`);
-      if (!res.ok) return { authenticated: false, user: null };
-      return await res.json();
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return { authenticated: false, success: false, user: null };
+      const data = await res.json();
+      const isAuth = Boolean(data.authenticated ?? data.success);
+      return { authenticated: isAuth, success: isAuth, user: data.user || null };
     } catch {
-      return { authenticated: false, user: null };
+      return { authenticated: false, success: false, user: null };
     }
   },
 
   async logoutAdmin(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
       return res.ok;
     } catch {
       return false;

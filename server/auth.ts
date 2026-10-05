@@ -73,14 +73,20 @@ export function verifyToken(token: string): { sub: string, role: string } | null
   }
 }
 
-export function buildSessionCookie(token: string, maxAgeSeconds: number = 12 * 60 * 60): string {
+export function buildSessionCookie(token: string, req?: Request, maxAgeSeconds: number = 12 * 60 * 60): string {
+  const isHttps = req ? (req.secure || req.headers['x-forwarded-proto'] === 'https') : false;
+  const isLocal = req ? (req.hostname === 'localhost' || req.hostname === '127.0.0.1') : false;
   const isProd = process.env.NODE_ENV === 'production';
-  return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${isProd ? '; Secure' : ''}`;
+  const useSecure = isHttps || (isProd && !isLocal);
+  return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${useSecure ? '; Secure' : ''}`;
 }
 
-export function buildClearSessionCookie(): string {
+export function buildClearSessionCookie(req?: Request): string {
+  const isHttps = req ? (req.secure || req.headers['x-forwarded-proto'] === 'https') : false;
+  const isLocal = req ? (req.hostname === 'localhost' || req.hostname === '127.0.0.1') : false;
   const isProd = process.env.NODE_ENV === 'production';
-  return `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProd ? '; Secure' : ''}`;
+  const useSecure = isHttps || (isProd && !isLocal);
+  return `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${useSecure ? '; Secure' : ''}`;
 }
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {

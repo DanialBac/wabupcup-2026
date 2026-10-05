@@ -848,18 +848,18 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     if (result.success && result.user) {
       const safeUser = sanitizeAdmin(result.user);
       const token = generateToken(safeUser.id, safeUser.role || 'PANITIA_INTI');
-      res.setHeader('Set-Cookie', buildSessionCookie(token));
-      return res.json({ success: true, user: safeUser });
+      res.setHeader('Set-Cookie', buildSessionCookie(token, req));
+      return res.json({ success: true, authenticated: true, user: safeUser });
     }
-    res.status(401).json({ success: false, message: result.error || 'Username atau password salah' });
+    res.status(401).json({ success: false, authenticated: false, message: result.error || 'Username atau password salah' });
   } catch (err: any) {
-    res.status(500).json({ success: false, message: err?.message || 'Gagal memproses login' });
+    res.status(500).json({ success: false, authenticated: false, message: err?.message || 'Gagal memproses login' });
   }
 });
 
 apiRouter.post('/auth/logout', async (req: Request, res: Response) => {
-  res.setHeader('Set-Cookie', buildClearSessionCookie());
-  res.json({ success: true, message: 'Logged out' });
+  res.setHeader('Set-Cookie', buildClearSessionCookie(req));
+  res.json({ success: true, authenticated: false, message: 'Logged out' });
 });
 
 apiRouter.get('/auth/me', async (req: Request, res: Response) => {
@@ -870,18 +870,18 @@ apiRouter.get('/auth/me', async (req: Request, res: Response) => {
       ? authHeader.slice(7).trim()
       : null;
     const token = cookies['admin_session'] || bearerToken;
-    if (!token) return res.status(401).json({ error: 'Not authenticated' });
+    if (!token) return res.status(401).json({ authenticated: false, success: false, error: 'Not authenticated' });
     const decoded = verifyToken(token);
-    if (!decoded) return res.status(401).json({ error: 'Invalid token' });
+    if (!decoded) return res.status(401).json({ authenticated: false, success: false, error: 'Invalid token' });
     
     const admins = await Database.getAdmins();
     const user = admins.find(a => a.id === decoded.sub);
     if (user) {
-      return res.json({ success: true, user: sanitizeAdmin(user) });
+      return res.json({ authenticated: true, success: true, user: sanitizeAdmin(user) });
     }
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({ authenticated: false, success: false, error: 'User not found' });
   } catch (err) {
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ authenticated: false, success: false, error: 'Server error' });
   }
 });
 
