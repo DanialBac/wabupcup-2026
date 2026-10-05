@@ -1151,6 +1151,79 @@ var Database = {
       documents: sanitizeRegistrationDocuments(r.documents, r.id)
     }));
   },
+  async getPublicRegistrations() {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows] = await pool.query(
+          "SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status FROM registrations ORDER BY created_at DESC"
+        );
+        if (Array.isArray(rows)) {
+          return rows.map((r) => ({
+            id: r.id,
+            regCode: r.reg_code,
+            category: r.category_id,
+            teamName: r.team_name,
+            teamLogo: r.team_logo || null,
+            institutionName: r.institution_name,
+            status: r.status
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching public registrations from MySQL:", err);
+      }
+    }
+    return memStore.registrations.map((r) => ({
+      id: r.id,
+      regCode: r.regCode,
+      category: r.category,
+      teamName: r.teamName,
+      teamLogo: r.teamLogo || r.documents?.teamLogo || null,
+      institutionName: r.institutionName,
+      status: r.status
+    }));
+  },
+  async getRegistrationById(id) {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows] = await pool.query("SELECT * FROM registrations WHERE id = ? LIMIT 1", [id]);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const r = rows[0];
+          return {
+            id: r.id,
+            regCode: r.reg_code,
+            category: r.category_id,
+            teamName: r.team_name,
+            teamLogo: r.team_logo || void 0,
+            institutionName: r.institution_name,
+            coachName: r.coach_name,
+            coachPhone: r.coach_phone,
+            coachEmail: r.coach_email || "",
+            playerCount: r.player_count,
+            officialCount: r.official_count,
+            registrationDate: r.registration_date,
+            status: r.status,
+            paymentStatus: r.payment_status,
+            paymentAmount: Number(r.payment_amount),
+            rejectionReason: r.rejection_reason || void 0,
+            adminNotes: r.admin_notes || void 0,
+            documents: sanitizeRegistrationDocuments(r.documents_json, r.id),
+            lastUpdated: r.last_updated || r.registration_date
+          };
+        }
+        return null;
+      } catch (err) {
+        console.error("Error fetching registration by id from MySQL:", err);
+      }
+    }
+    const found = memStore.registrations.find((r) => r.id === id);
+    if (!found) return null;
+    return {
+      ...found,
+      documents: sanitizeRegistrationDocuments(found.documents, found.id)
+    };
+  },
   async getRegistrationDocument(regId, docKey) {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
@@ -2999,6 +3072,22 @@ function buildClearSessionCookie(req) {
   const useSecure = isHttps || isProd && !isLocal;
   return `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${useSecure ? "; Secure" : ""}`;
 }
+function getAdminFromRequest(req) {
+  if (!getAdminSecret()) {
+    return null;
+  }
+  const cookies = parseCookies(req);
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  const token = cookies["admin_session"] || bearerToken;
+  if (token) {
+    const decoded = verifyToken(token);
+    if (decoded) {
+      return decoded;
+    }
+  }
+  return null;
+}
 var requireAdmin = (req, res, next) => {
   if (!getAdminSecret()) {
     return res.status(500).json({
@@ -3150,6 +3239,15 @@ async function handleMediaServe(req, res, forceDownload = false) {
     if (!meta) {
       return res.status(404).send("Berkas tidak ditemukan");
     }
+    if (meta.category === "REG_DOC") {
+      const admin = getAdminFromRequest(req);
+      if (!admin) {
+        return res.status(401).json({
+          success: false,
+          error: "Sesi tidak valid atau telah berakhir."
+        });
+      }
+    }
     const isDownload = forceDownload || req.query.download === "1" || req.query.download === "true" || req.query.dl === "1";
     const rawType = (meta.contentType || "application/octet-stream").toLowerCase();
     const isSafeInline = !isDownload && SAFE_INLINE_MIME_TYPES.includes(rawType);
@@ -3169,7 +3267,8 @@ async function handleMediaServe(req, res, forceDownload = false) {
       if (!isB2Configured()) {
         return res.status(503).send("Penyimpanan berkas belum dikonfigurasi");
       }
-      if (isDownload) {
+      const allowStream = process.env.B2_STREAM_DOWNLOADS === "1" && Boolean(getAdminFromRequest(req));
+      if (isDownload && allowStream) {
         try {
           const b2Res = await getB2ObjectStream(meta.fileKey);
           if (b2Res && b2Res.Body) {
@@ -3633,6 +3732,7 @@ apiRouter.get("/database/export-sql", requireAdmin, async (req, res) => {
   }
 });
 apiRouter.get("/config", async (req, res) => {
+  res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
   const config = await Database.getConfig();
   res.json(config);
 });
@@ -3727,16 +3827,7 @@ apiRouter.delete("/categories/:id", requireAdmin, async (req, res) => {
 });
 apiRouter.get("/registrations/public", async (req, res) => {
   try {
-    const regs = await Database.getRegistrations();
-    const publicData = regs.map((r) => ({
-      id: r.id,
-      regCode: r.regCode,
-      category: r.category,
-      teamName: r.teamName,
-      teamLogo: r.teamLogo || r.documents?.teamLogo || null,
-      institutionName: r.institutionName,
-      status: r.status
-    }));
+    const publicData = await Database.getPublicRegistrations();
     res.setHeader("Cache-Control", "public, s-maxage=300");
     res.json(publicData);
   } catch (err) {
@@ -3747,7 +3838,7 @@ apiRouter.get("/registrations", requireAdmin, async (req, res) => {
   const list = await Database.getRegistrations();
   res.json(list);
 });
-apiRouter.get("/registrations/:id/doc/:docKey", async (req, res) => {
+apiRouter.get("/registrations/:id/doc/:docKey", requireAdmin, async (req, res) => {
   try {
     const { id, docKey } = req.params;
     const fileSource = await Database.getRegistrationDocument(id, docKey);
@@ -3962,8 +4053,7 @@ apiRouter.patch("/registrations/:id/status", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason, notes } = req.body;
-    const list = await Database.getRegistrations();
-    const item = list.find((r) => r.id === id);
+    const item = await Database.getRegistrationById(id);
     if (!item) {
       return res.status(404).json({ error: "Registration not found" });
     }
@@ -3984,8 +4074,7 @@ apiRouter.patch("/registrations/:id/payment", requireAdmin, async (req, res) => 
   try {
     const { id } = req.params;
     const { paymentStatus } = req.body;
-    const list = await Database.getRegistrations();
-    const item = list.find((r) => r.id === id);
+    const item = await Database.getRegistrationById(id);
     if (!item) {
       return res.status(404).json({ error: "Registration not found" });
     }

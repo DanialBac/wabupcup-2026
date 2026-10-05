@@ -89,6 +89,28 @@ export function buildClearSessionCookie(req?: Request): string {
   return `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${useSecure ? '; Secure' : ''}`;
 }
 
+export function getAdminFromRequest(req: Request): { sub: string; role: string } | null {
+  if (!getAdminSecret()) {
+    return null;
+  }
+
+  const cookies = parseCookies(req);
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : null;
+  const token = cookies['admin_session'] || bearerToken;
+
+  if (token) {
+    const decoded = verifyToken(token);
+    if (decoded) {
+      return decoded;
+    }
+  }
+
+  return null;
+}
+
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   // Fail-closed check: if ADMIN_SESSION_SECRET is missing or < 32 characters
   if (!getAdminSecret()) {

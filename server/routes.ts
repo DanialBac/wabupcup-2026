@@ -207,6 +207,7 @@ apiRouter.get('/database/export-sql', requireAdmin, async (req: Request, res: Re
 
 // 5. Config
 apiRouter.get('/config', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
   const config = await Database.getConfig();
   res.json(config);
 });
@@ -318,16 +319,7 @@ apiRouter.delete('/categories/:id', requireAdmin, async (req: Request, res: Resp
 // 7. Registrations
 apiRouter.get('/registrations/public', async (req: Request, res: Response) => {
   try {
-    const regs = await Database.getRegistrations();
-    const publicData = regs.map(r => ({
-      id: r.id,
-      regCode: r.regCode,
-      category: r.category,
-      teamName: r.teamName,
-      teamLogo: r.teamLogo || (r.documents as any)?.teamLogo || null,
-      institutionName: r.institutionName,
-      status: r.status
-    }));
+    const publicData = await Database.getPublicRegistrations();
     res.setHeader('Cache-Control', 'public, s-maxage=300');
     res.json(publicData);
   } catch (err: any) {
@@ -340,8 +332,8 @@ apiRouter.get('/registrations', requireAdmin, async (req: Request, res: Response
   res.json(list);
 });
 
-// On-demand single document viewer/streamer for registrations with Range and Edge Cache
-apiRouter.get('/registrations/:id/doc/:docKey', async (req: Request, res: Response) => {
+// On-demand single document viewer/streamer for registrations with Range and Edge Cache (Admin only)
+apiRouter.get('/registrations/:id/doc/:docKey', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id, docKey } = req.params;
     const fileSource = await Database.getRegistrationDocument(id, docKey);
@@ -573,8 +565,7 @@ apiRouter.patch('/registrations/:id/status', requireAdmin, async (req: Request, 
   try {
     const { id } = req.params;
     const { status, reason, notes } = req.body;
-    const list = await Database.getRegistrations();
-    const item = list.find(r => r.id === id);
+    const item = await Database.getRegistrationById(id);
     if (!item) {
       return res.status(404).json({ error: 'Registration not found' });
     }
@@ -596,8 +587,7 @@ apiRouter.patch('/registrations/:id/payment', requireAdmin, async (req: Request,
   try {
     const { id } = req.params;
     const { paymentStatus } = req.body;
-    const list = await Database.getRegistrations();
-    const item = list.find(r => r.id === id);
+    const item = await Database.getRegistrationById(id);
     if (!item) {
       return res.status(404).json({ error: 'Registration not found' });
     }

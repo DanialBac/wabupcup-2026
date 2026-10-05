@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { Database, AppMediaItem } from './db';
-import { requireAdmin } from './auth';
+import { requireAdmin, getAdminFromRequest } from './auth';
 import { isB2Configured, presignPut, presignGet, getB2ObjectStream } from './b2';
 
 export const mediaRouter = Router();
@@ -167,6 +167,17 @@ async function handleMediaServe(req: Request, res: Response, forceDownload = fal
       return res.status(404).send('Berkas tidak ditemukan');
     }
 
+    // 5c. Akses Dokumen Pendaftaran (REG_DOC) wajib login admin
+    if (meta.category === 'REG_DOC') {
+      const admin = getAdminFromRequest(req);
+      if (!admin) {
+        return res.status(401).json({
+          success: false,
+          error: 'Sesi tidak valid atau telah berakhir.'
+        });
+      }
+    }
+
     const isDownload = forceDownload || req.query.download === '1' || req.query.download === 'true' || req.query.dl === '1';
     const rawType = (meta.contentType || 'application/octet-stream').toLowerCase();
     const isSafeInline = !isDownload && SAFE_INLINE_MIME_TYPES.includes(rawType);
@@ -200,10 +211,9 @@ async function handleMediaServe(req: Request, res: Response, forceDownload = fal
         return res.status(503).send('Penyimpanan berkas belum dikonfigurasi');
       }
 
-      // Jika permintaan unduh (download=1 atau /media/download/:id):
-      // Alirkan langsung dari B2 secara SAME-ORIGIN ke browser dengan Content-Disposition: attachment!
-      // Browser dijamin 100% langsung menangkap stream ke Download Manager tanpa kendala cross-origin redirect.
-      if (isDownload) {
+      // 6b. Jalur streaming getB2ObjectStream HANYA jika B2_STREAM_DOWNLOADS === '1' dan admin login
+      const allowStream = process.env.B2_STREAM_DOWNLOADS === '1' && Boolean(getAdminFromRequest(req));
+      if (isDownload && allowStream) {
         try {
           const b2Res = await getB2ObjectStream(meta.fileKey);
           if (b2Res && b2Res.Body) {
@@ -222,8 +232,7 @@ async function handleMediaServe(req: Request, res: Response, forceDownload = fal
         }
       }
 
-      // Untuk VIEW / INLINE PREVIEW di modal:
-      // Redirect ke presigned URL berumur singkat (respons kecil, FOT hampir nol, range requests langsung dilayani B2).
+      // 6a. Default unduhan dan view: redirect 302 ke presigned URL berumur singkat (FOT ~0 bytes)
       const url = await presignGet(meta.fileKey, {
         contentType: servedType,
         disposition: contentDisposition,

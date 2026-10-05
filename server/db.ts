@@ -906,6 +906,81 @@ export const Database = {
     }));
   },
 
+  async getPublicRegistrations(): Promise<any[]> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.query(
+          'SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status FROM registrations ORDER BY created_at DESC'
+        );
+        if (Array.isArray(rows)) {
+          return rows.map((r: any) => ({
+            id: r.id,
+            regCode: r.reg_code,
+            category: r.category_id,
+            teamName: r.team_name,
+            teamLogo: r.team_logo || null,
+            institutionName: r.institution_name,
+            status: r.status,
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching public registrations from MySQL:', err);
+      }
+    }
+    return memStore.registrations.map(r => ({
+      id: r.id,
+      regCode: r.regCode,
+      category: r.category,
+      teamName: r.teamName,
+      teamLogo: r.teamLogo || (r.documents as any)?.teamLogo || null,
+      institutionName: r.institutionName,
+      status: r.status,
+    }));
+  },
+
+  async getRegistrationById(id: string): Promise<RegistrationItem | null> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.query('SELECT * FROM registrations WHERE id = ? LIMIT 1', [id]);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const r = rows[0];
+          return {
+            id: r.id,
+            regCode: r.reg_code,
+            category: r.category_id,
+            teamName: r.team_name,
+            teamLogo: r.team_logo || undefined,
+            institutionName: r.institution_name,
+            coachName: r.coach_name,
+            coachPhone: r.coach_phone,
+            coachEmail: r.coach_email || '',
+            playerCount: r.player_count,
+            officialCount: r.official_count,
+            registrationDate: r.registration_date,
+            status: r.status,
+            paymentStatus: r.payment_status,
+            paymentAmount: Number(r.payment_amount),
+            rejectionReason: r.rejection_reason || undefined,
+            adminNotes: r.admin_notes || undefined,
+            documents: sanitizeRegistrationDocuments(r.documents_json, r.id),
+            lastUpdated: r.last_updated || r.registration_date,
+          };
+        }
+        return null;
+      } catch (err) {
+        console.error('Error fetching registration by id from MySQL:', err);
+      }
+    }
+    const found = memStore.registrations.find(r => r.id === id);
+    if (!found) return null;
+    return {
+      ...found,
+      documents: sanitizeRegistrationDocuments(found.documents, found.id),
+    };
+  },
+
   async getRegistrationDocument(regId: string, docKey: string): Promise<any | null> {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
