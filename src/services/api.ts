@@ -163,6 +163,19 @@ export const ApiService = {
     return safeJsonFetch<CategoryDetail[]>(`${API_BASE}/categories`);
   },
 
+  async getCategoryQuotas(): Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }> | null> {
+    return safeJsonFetch<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>>(`${API_BASE}/categories/quota`);
+  },
+
+  async syncCategoryCounts(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/categories/sync-counts`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   async saveCategory(category: CategoryDetail): Promise<CategoryDetail | null> {
     return safeJsonFetch<CategoryDetail>(`${API_BASE}/categories`, {
       method: 'POST',

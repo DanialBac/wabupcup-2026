@@ -751,6 +751,29 @@ export const Database = {
     return memStore.categories;
   },
 
+  async getCategoryQuotas(): Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>> {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows]: any = await pool.query('SELECT id, max_teams, registered_teams_count FROM categories');
+        if (Array.isArray(rows)) {
+          return rows.map((r: any) => ({
+            id: r.id,
+            maxTeams: Number(r.max_teams || 0),
+            registeredTeamsCount: Number(r.registered_teams_count || 0),
+          }));
+        }
+      } catch (err) {
+        console.error('Error getting category quotas from MySQL:', err);
+      }
+    }
+    return memStore.categories.map(c => ({
+      id: c.id,
+      maxTeams: Number(c.maxTeams || 0),
+      registeredTeamsCount: Number(c.registeredTeamsCount || 0),
+    }));
+  },
+
   async saveCategory(cat: CategoryDetail): Promise<CategoryDetail> {
     await ensureDbConnected();
     const idx = memStore.categories.findIndex(c => c.id === cat.id);

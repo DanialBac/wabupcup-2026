@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import {
   AdminUser,
   CategoryDetail,
@@ -226,6 +226,7 @@ interface TournamentContextType {
   deleteCategory: (categoryId: string) => void;
   reorderCategories: (newCategories: CategoryDetail[]) => Promise<void>;
   syncCategoryQuotas: () => Promise<void>;
+  refreshCategoryQuotas: (force?: boolean) => Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }> | null>;
   registrations: RegistrationItem[];
   submitNewRegistration: (data: Omit<RegistrationItem, 'id' | 'regCode' | 'registrationDate' | 'status' | 'paymentStatus' | 'lastUpdated'>) => Promise<RegistrationItem>;
   updateRegistration: (item: RegistrationItem) => void;
@@ -820,9 +821,47 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  const lastQuotaFetchTimeRef = useRef<number>(0);
+
+  const refreshCategoryQuotas = useCallback(async (force = false): Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }> | null> => {
+    const now = Date.now();
+    if (!force && (now - lastQuotaFetchTimeRef.current < 15000)) {
+      return null;
+    }
+
+    try {
+      const quotas = await ApiService.getCategoryQuotas();
+      if (quotas && Array.isArray(quotas)) {
+        lastQuotaFetchTimeRef.current = Date.now();
+        setCategories(prev => {
+          const quotaMap = new Map(quotas.map(q => [q.id, q]));
+          const updated = prev.map(cat => {
+            const fresh = quotaMap.get(cat.id);
+            if (fresh) {
+              return {
+                ...cat,
+                maxTeams: fresh.maxTeams,
+                registeredTeamsCount: fresh.registeredTeamsCount,
+              };
+            }
+            return cat;
+          });
+          safeLocalStorageSet('wabupcup_categories', JSON.stringify(updated));
+          return updated;
+        });
+        return quotas;
+      }
+    } catch (err) {
+      console.warn('Failed to refresh category quotas:', err);
+    }
+    return null;
+  }, []);
+
   const syncCategoryQuotas = async () => {
     try {
-      await fetch('/api/categories/sync-counts', { method: 'POST' });
+      const ok = await ApiService.syncCategoryCounts();
+      if (!ok) throw new Error('Gagal melakukan sinkronisasi kuota');
+      await refreshCategoryQuotas(true);
     } catch (err) {
       console.error('Failed to sync category quotas', err);
       throw err;
@@ -2805,6 +2844,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteCategory,
         reorderCategories,
         syncCategoryQuotas,
+        refreshCategoryQuotas,
         registrations,
         submitNewRegistration,
         updateRegistration,

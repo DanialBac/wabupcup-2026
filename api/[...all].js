@@ -970,6 +970,28 @@ var Database = {
     }
     return memStore.categories;
   },
+  async getCategoryQuotas() {
+    await ensureDbConnected();
+    if (pool && isMySqlConnected) {
+      try {
+        const [rows] = await pool.query("SELECT id, max_teams, registered_teams_count FROM categories");
+        if (Array.isArray(rows)) {
+          return rows.map((r) => ({
+            id: r.id,
+            maxTeams: Number(r.max_teams || 0),
+            registeredTeamsCount: Number(r.registered_teams_count || 0)
+          }));
+        }
+      } catch (err) {
+        console.error("Error getting category quotas from MySQL:", err);
+      }
+    }
+    return memStore.categories.map((c) => ({
+      id: c.id,
+      maxTeams: Number(c.maxTeams || 0),
+      registeredTeamsCount: Number(c.registeredTeamsCount || 0)
+    }));
+  },
   async saveCategory(cat) {
     await ensureDbConnected();
     const idx = memStore.categories.findIndex((c) => c.id === cat.id);
@@ -3588,6 +3610,15 @@ apiRouter.get("/categories", cachePublic, async (req, res) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
+apiRouter.get("/categories/quota", async (_req, res) => {
+  try {
+    res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=20");
+    const quotas = await Database.getCategoryQuotas();
+    res.json(quotas);
+  } catch (err) {
+    res.status(500).json({ error: err?.message || "Gagal memuat kuota kategori" });
+  }
+});
 apiRouter.post("/categories", requireAdmin, async (req, res) => {
   try {
     const saved = await Database.saveCategory(req.body);
@@ -3605,7 +3636,7 @@ apiRouter.post("/categories/reorder", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/categories/sync-counts", async (req, res) => {
+apiRouter.post("/categories/sync-counts", requireAdmin, async (req, res) => {
   try {
     const categories = await Database.getCategories();
     const runInBatches = async (items, batchSize) => {

@@ -226,6 +226,16 @@ apiRouter.get('/categories', cachePublic, async (req: Request, res: Response) =>
   res.json(categories);
 });
 
+apiRouter.get('/categories/quota', async (_req: Request, res: Response) => {
+  try {
+    res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=20');
+    const quotas = await Database.getCategoryQuotas();
+    res.json(quotas);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Gagal memuat kuota kategori' });
+  }
+});
+
 apiRouter.post('/categories', requireAdmin, async (req: Request, res: Response) => {
   try {
     const saved = await Database.saveCategory(req.body);
@@ -245,7 +255,7 @@ apiRouter.post('/categories/reorder', requireAdmin, async (req: Request, res: Re
   }
 });
 
-apiRouter.post('/categories/sync-counts', async (req: Request, res: Response) => {
+apiRouter.post('/categories/sync-counts', requireAdmin, async (req: Request, res: Response) => {
   try {
     const categories = await Database.getCategories();
     

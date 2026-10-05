@@ -43,7 +43,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onClose,
   preselectedCategory = 'SMA',
 }) => {
-  const { config, categories, registrations, submitNewRegistration, getWhatsAppNotificationUrl, committeeContacts } = useTournament();
+  const { config, categories, registrations, submitNewRegistration, getWhatsAppNotificationUrl, committeeContacts, refreshCategoryQuotas } = useTournament();
 
   // Helper to calculate real-time registered count for a category
   const getCategoryCount = (catId: TournamentCategory) => {
@@ -105,6 +105,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const lastFormQuotaFetchRef = useRef<number>(0);
 
   // Stable registration ID generated for this form session so all uploaded files are linked directly to ref_id in TiDB Cloud
   const generateNewFormId = () => `reg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -124,6 +125,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     setUploadErrors({});
     setSubmittedItem(null);
     setCopiedCode(false);
+    setQuotaError(null);
   };
 
   const handleClose = () => {
@@ -138,16 +140,80 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   }, [isOpen]);
 
+  // (i) Refresh quota when form opens (isOpen becomes true)
+  useEffect(() => {
+    if (isOpen) {
+      refreshCategoryQuotas().then((fresh) => {
+        lastFormQuotaFetchRef.current = Date.now();
+        if (fresh) {
+          const cur = fresh.find(f => f.id === category);
+          if (cur && cur.registeredTeamsCount >= cur.maxTeams) {
+            setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+          }
+        }
+      }).catch(() => {});
+    }
+  }, [isOpen]);
+
+  // (ii) Refresh quota when tab becomes active again if data > 60s
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const elapsed = Date.now() - lastFormQuotaFetchRef.current;
+        if (elapsed > 60000) {
+          refreshCategoryQuotas(true).then((fresh) => {
+            lastFormQuotaFetchRef.current = Date.now();
+            if (fresh) {
+              const cur = fresh.find(f => f.id === category);
+              if (cur && cur.registeredTeamsCount >= cur.maxTeams) {
+                setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+              }
+            }
+          }).catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isOpen, category, refreshCategoryQuotas]);
+
   if (!isOpen) return null;
 
   const currentCatDetail = categories.find(c => c.id === category);
 
   // File validator for max 1MB (1024KB) PDF with Base64 encoding
-  const handleFileUpload = (
+  const handleFileUpload = async (
     docKey: keyof RegistrationDocuments,
     file: File | null
   ) => {
     if (!file) return;
+
+    // Check fresh quota with force before uploading document
+    try {
+      const fresh = await refreshCategoryQuotas(true);
+      if (fresh) {
+        lastFormQuotaFetchRef.current = Date.now();
+        const cur = fresh.find(f => f.id === category);
+        if (cur && cur.registeredTeamsCount >= cur.maxTeams) {
+          setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+          return;
+        }
+      } else if (isCategoryFull(category)) {
+        setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+        return;
+      }
+    } catch (err) {
+      console.warn('Gagal memverifikasi kuota sebelum upload:', err);
+      if (isCategoryFull(category)) {
+        setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+        return;
+      }
+    }
 
     // Validate type (must be PDF)
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
@@ -287,10 +353,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       return;
     }
 
-    // Check if category has reached its maximum quota
-    if (isCategoryFull(category)) {
-      setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
-      return;
+    // Force refresh quota right before submit
+    try {
+      const fresh = await refreshCategoryQuotas(true);
+      if (fresh) {
+        lastFormQuotaFetchRef.current = Date.now();
+        const cur = fresh.find(f => f.id === category);
+        if (cur && cur.registeredTeamsCount >= cur.maxTeams) {
+          setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+          return;
+        }
+      } else if (isCategoryFull(category)) {
+        setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+        return;
+      }
+    } catch (err) {
+      console.warn('Gagal memverifikasi kuota sebelum submit:', err);
+      if (isCategoryFull(category)) {
+        setQuotaError(`Mohon maaf, kuota pendaftaran untuk kategori ${category} saat ini telah penuh!`);
+        return;
+      }
     }
 
     // Validate required documents and logo

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "migrate:media": "tsx scripts/migrate-media-to-b2.ts"
+    "migrate:media": "tsx scripts/migrate-media-to-b2.ts",
+    "cleanup:media": "tsx scripts/cleanup-orphan-media.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1126.0",
