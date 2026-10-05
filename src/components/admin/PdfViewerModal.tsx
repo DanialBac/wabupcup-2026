@@ -32,7 +32,6 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 }) => {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [forceMode, setForceMode] = useState<'auto' | 'pdf' | 'image'>('auto');
-  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -44,58 +43,6 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   if (!isOpen || !document) return null;
 
   const effectiveSource = document.url || document.fileData || document.previewUrl || '';
-
-  const handleDownload = async () => {
-    if (!effectiveSource) return;
-    setIsDownloading(true);
-    const fileName = document.name || `${teamName || 'Dokumen'}-${documentTitle || 'Berkas'}.pdf`;
-
-    try {
-      if (effectiveSource.startsWith('data:')) {
-        const a = document.createElement('a');
-        a.href = effectiveSource;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        return;
-      }
-
-      const downloadUrl = effectiveSource.includes('?')
-        ? `${effectiveSource}&download=1`
-        : `${effectiveSource}?download=1`;
-
-      // Coba fetch blob terlebih dahulu agar berkas langsung tersimpan ke komputer dengan nama yang benar
-      const res = await fetch(downloadUrl);
-      if (res.ok) {
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        return;
-      }
-      throw new Error('Blob fetch failed');
-    } catch {
-      // Fallback: arahkan langsung ke endpoint download dengan header attachment
-      const downloadUrl = effectiveSource.includes('?')
-        ? `${effectiveSource}&download=1`
-        : `${effectiveSource}?download=1`;
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = fileName;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
 
   // Heuristic detection: is this an image?
   const docName = (document.name || '').toLowerCase();
@@ -113,6 +60,108 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   const isImageFile = forceMode === 'image' || (forceMode === 'auto' && looksLikeImage);
   const isPdfFile = forceMode === 'pdf' || (forceMode === 'auto' && !looksLikeImage && Boolean(effectiveSource));
 
+  // Tentukan nama berkas dan ekstensi yang akurat sesuai tipe file
+  const getDownloadFileName = () => {
+    const rawName = (document.name || '').trim();
+    if (rawName && rawName.includes('.')) {
+      return rawName;
+    }
+
+    let ext = '.pdf';
+    if (isImageFile) {
+      if (docType.includes('png') || effectiveSource.startsWith('data:image/png') || rawName.toLowerCase().endsWith('.png')) {
+        ext = '.png';
+      } else if (docType.includes('webp') || effectiveSource.startsWith('data:image/webp') || rawName.toLowerCase().endsWith('.webp')) {
+        ext = '.webp';
+      } else if (docType.includes('svg') || effectiveSource.startsWith('data:image/svg') || rawName.toLowerCase().endsWith('.svg')) {
+        ext = '.svg';
+      } else {
+        ext = '.jpg';
+      }
+    }
+
+    if (rawName) {
+      return rawName.toLowerCase().endsWith(ext) ? rawName : `${rawName}${ext}`;
+    }
+
+    const cleanTeam = (teamName || 'Dokumen').replace(/[/\\?%*:|"<>]/g, '_').trim();
+    const cleanTitle = (documentTitle || 'Berkas').replace(/[/\\?%*:|"<>]/g, '_').trim();
+    return `${cleanTeam}-${cleanTitle}${ext}`;
+  };
+
+  const downloadFileName = getDownloadFileName();
+
+  // Helper untuk mendapatkan URL download yang mengembalikan header attachment
+  const getDownloadUrl = (source: string) => {
+    if (!source || source.startsWith('data:') || source.startsWith('blob:')) {
+      return source;
+    }
+    if (source.includes('/api/media/view/')) {
+      return source.replace('/api/media/view/', '/api/media/download/');
+    }
+    if (source.includes('/api/media/download/')) {
+      return source;
+    }
+    return source.includes('?') ? `${source}&download=1` : `${source}?download=1`;
+  };
+
+  const downloadUrl = getDownloadUrl(effectiveSource);
+
+  // Download handler untuk data URI base64 secara sinkronus tanpa async network lag
+  const downloadBase64Data = (dataUri: string, targetFilename: string) => {
+    try {
+      const parts = dataUri.split(',');
+      if (parts.length < 2) {
+        const a = window.document.createElement('a');
+        a.href = dataUri;
+        a.download = targetFilename;
+        window.document.body.appendChild(a);
+        a.click();
+        window.document.body.removeChild(a);
+        return;
+      }
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+      const binary = atob(parts[1]);
+      const len = binary.length;
+      const buffer = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        buffer[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([buffer], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = blobUrl;
+      a.download = targetFilename;
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch (err) {
+      console.error('[Download DataURI Failed]', err);
+      window.open(dataUri, '_blank');
+    }
+  };
+
+  const handleDownloadClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!effectiveSource) {
+      e.preventDefault();
+      return;
+    }
+
+    if (effectiveSource.startsWith('data:')) {
+      e.preventDefault();
+      downloadBase64Data(effectiveSource, downloadFileName);
+      return;
+    }
+
+    // Untuk URL remote (HTTP), target adalah hidden iframe "pdf-download-frame".
+    // Browser akan meminta GET ke downloadUrl di dalam iframe,
+    // server / B2 membalas dengan Content-Disposition: attachment,
+    // dan browser langsung mengarahkan stream ke native Download Manager browser
+    // tanpa reload halaman dan tanpa popup blocker!
+  };
+
   return (
     <div
       id="pdf-viewer-modal-overlay"
@@ -122,6 +171,15 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
         id="pdf-viewer-container"
         className="relative w-full max-w-5xl h-[88vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col overflow-hidden text-white"
       >
+        {/* Hidden target frame for native file downloads without page navigation or popup blocking */}
+        <iframe
+          name="pdf-download-frame"
+          id="pdf-download-frame"
+          className="hidden"
+          style={{ display: 'none', width: 0, height: 0, border: 0 }}
+          title="Download Frame"
+          tabIndex={-1}
+        />
         {/* HEADER TOOLBAR */}
         <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center space-x-3 min-w-0">
@@ -196,16 +254,17 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
             {/* Download Button */}
             {effectiveSource && (
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-50"
-                title="Download Dokumen"
+              <a
+                href={downloadUrl}
+                target="pdf-download-frame"
+                download={downloadFileName}
+                onClick={handleDownloadClick}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer"
+                title="Unduh Berkas ke Komputer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{isDownloading ? 'Mengunduh...' : 'Unduh'}</span>
-              </button>
+                <span className="hidden sm:inline">Unduh</span>
+              </a>
             )}
 
             {onVerify && (

@@ -3151,7 +3151,15 @@ async function handleMediaServe(req, res, forceDownload = false) {
     const rawType = (meta.contentType || "application/octet-stream").toLowerCase();
     const isSafeInline = !isDownload && SAFE_INLINE_MIME_TYPES.includes(rawType);
     const servedType = isSafeInline ? rawType : rawType || "application/octet-stream";
-    const contentDisposition = `${isSafeInline ? "inline" : "attachment"}; filename="${encodeURIComponent(meta.filename)}"`;
+    const cleanFilename = (meta.filename || "berkas").replace(/^.*[\\\/]/, "").replace(/["\r\n\\]/g, "").replace(/[^\x20-\x7E]/g, "_").trim() || "berkas";
+    let finalFilename = cleanFilename;
+    if (!finalFilename.includes(".")) {
+      if (rawType.includes("pdf")) finalFilename += ".pdf";
+      else if (rawType.includes("png")) finalFilename += ".png";
+      else if (rawType.includes("jpeg") || rawType.includes("jpg")) finalFilename += ".jpg";
+      else if (rawType.includes("webp")) finalFilename += ".webp";
+    }
+    const contentDisposition = `${isSafeInline ? "inline" : "attachment"}; filename="${finalFilename}"`;
     const isPrivateDoc = meta.category === "REG_DOC";
     const cacheControl = isPrivateDoc ? "private, max-age=86400" : "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400";
     if (meta.storage === "b2" && meta.fileKey) {
