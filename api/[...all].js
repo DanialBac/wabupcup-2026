@@ -116,6 +116,9 @@ async function presignGet(key, opts = {}) {
     { expiresIn: opts.expiresIn ?? 600 }
   );
 }
+async function getB2ObjectStream(key) {
+  return await getClient().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+}
 async function deleteB2Objects(keys) {
   if (!isB2Configured() || keys.length === 0) return;
   await Promise.allSettled(
@@ -3165,6 +3168,24 @@ async function handleMediaServe(req, res, forceDownload = false) {
     if (meta.storage === "b2" && meta.fileKey) {
       if (!isB2Configured()) {
         return res.status(503).send("Penyimpanan berkas belum dikonfigurasi");
+      }
+      if (isDownload) {
+        try {
+          const b2Res = await getB2ObjectStream(meta.fileKey);
+          if (b2Res && b2Res.Body) {
+            res.setHeader("Content-Disposition", contentDisposition);
+            res.setHeader("Content-Type", servedType);
+            if (b2Res.ContentLength) {
+              res.setHeader("Content-Length", b2Res.ContentLength);
+            }
+            res.setHeader("Cache-Control", "private, no-cache");
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            b2Res.Body.pipe(res);
+            return;
+          }
+        } catch (b2StreamErr) {
+          console.error("[B2 Download Stream Error, fallback to presigned redirect]", b2StreamErr);
+        }
       }
       const url = await presignGet(meta.fileKey, {
         contentType: servedType,

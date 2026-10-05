@@ -70,6 +70,11 @@ export async function putB2Object(key: string, body: Buffer, contentType: string
   );
 }
 
+/** Mengambil readable stream berkas dari B2 untuk pengunduhan same-origin tanpa terbentur kebijakan lintas origin browser */
+export async function getB2ObjectStream(key: string) {
+  return await getClient().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+}
+
 export async function headB2Object(key: string): Promise<{ size: number } | null> {
   try {
     const out = await getClient().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));

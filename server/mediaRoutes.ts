@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { Database, AppMediaItem } from './db';
 import { requireAdmin } from './auth';
-import { isB2Configured, presignPut, presignGet } from './b2';
+import { isB2Configured, presignPut, presignGet, getB2ObjectStream } from './b2';
 
 export const mediaRouter = Router();
 
@@ -194,12 +194,36 @@ async function handleMediaServe(req: Request, res: Response, forceDownload = fal
       ? 'private, max-age=86400'
       : 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400';
 
-    // A. Berkas di Backblaze B2: redirect ke presigned URL berumur singkat (respons kecil, FOT hampir nol).
-    //    Range request untuk PDF viewer dilayani langsung oleh B2.
+    // A. Berkas di Backblaze B2:
     if (meta.storage === 'b2' && meta.fileKey) {
       if (!isB2Configured()) {
         return res.status(503).send('Penyimpanan berkas belum dikonfigurasi');
       }
+
+      // Jika permintaan unduh (download=1 atau /media/download/:id):
+      // Alirkan langsung dari B2 secara SAME-ORIGIN ke browser dengan Content-Disposition: attachment!
+      // Browser dijamin 100% langsung menangkap stream ke Download Manager tanpa kendala cross-origin redirect.
+      if (isDownload) {
+        try {
+          const b2Res = await getB2ObjectStream(meta.fileKey);
+          if (b2Res && b2Res.Body) {
+            res.setHeader('Content-Disposition', contentDisposition);
+            res.setHeader('Content-Type', servedType);
+            if (b2Res.ContentLength) {
+              res.setHeader('Content-Length', b2Res.ContentLength);
+            }
+            res.setHeader('Cache-Control', 'private, no-cache');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            (b2Res.Body as any).pipe(res);
+            return;
+          }
+        } catch (b2StreamErr) {
+          console.error('[B2 Download Stream Error, fallback to presigned redirect]', b2StreamErr);
+        }
+      }
+
+      // Untuk VIEW / INLINE PREVIEW di modal:
+      // Redirect ke presigned URL berumur singkat (respons kecil, FOT hampir nol, range requests langsung dilayani B2).
       const url = await presignGet(meta.fileKey, {
         contentType: servedType,
         disposition: contentDisposition,

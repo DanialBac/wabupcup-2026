@@ -155,10 +155,10 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
       return;
     }
 
-    // Untuk URL remote (HTTP), target adalah hidden iframe "pdf-download-frame".
-    // Browser akan meminta GET ke downloadUrl di dalam iframe,
-    // server / B2 membalas dengan Content-Disposition: attachment,
-    // dan browser langsung mengarahkan stream ke native Download Manager browser
+    // Untuk URL remote (HTTP):
+    // Request mengarah ke /api/media/download/:id yang mengembalikan stream berstatus 200 OK
+    // dengan header Content-Disposition: attachment secara same-origin.
+    // Browser native download manager langsung menangkap berkas dan menyimpannya ke folder Downloads
     // tanpa reload halaman dan tanpa popup blocker!
   };
 
@@ -171,15 +171,6 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
         id="pdf-viewer-container"
         className="relative w-full max-w-5xl h-[88vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col overflow-hidden text-white"
       >
-        {/* Hidden target frame for native file downloads without page navigation or popup blocking */}
-        <iframe
-          name="pdf-download-frame"
-          id="pdf-download-frame"
-          className="hidden"
-          style={{ display: 'none', width: 0, height: 0, border: 0 }}
-          title="Download Frame"
-          tabIndex={-1}
-        />
         {/* HEADER TOOLBAR */}
         <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center space-x-3 min-w-0">
@@ -256,7 +247,6 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
             {effectiveSource && (
               <a
                 href={downloadUrl}
-                target="pdf-download-frame"
                 download={downloadFileName}
                 onClick={handleDownloadClick}
                 className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer"
