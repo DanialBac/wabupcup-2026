@@ -1,104 +1,5 @@
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
-// server/auth.ts
-var auth_exports = {};
-__export(auth_exports, {
-  generateToken: () => generateToken,
-  parseCookies: () => parseCookies,
-  requireAdmin: () => requireAdmin,
-  requireSuperAdmin: () => requireSuperAdmin,
-  verifyToken: () => verifyToken
-});
-import crypto2 from "crypto";
-function parseCookies(req) {
-  const list = {};
-  const cookieHeader = req.headers?.cookie;
-  if (!cookieHeader) return list;
-  cookieHeader.split(";").forEach((cookie) => {
-    let [name, ...rest] = cookie.split("=");
-    name = name?.trim();
-    if (!name) return;
-    const value = rest.join("=").trim();
-    list[name] = decodeURIComponent(value);
-  });
-  return list;
-}
-function generateToken(adminId, role) {
-  const secret = process.env.ADMIN_SESSION_SECRET || "wabupcup-secret-2026";
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({
-    sub: adminId,
-    role,
-    exp: Math.floor(Date.now() / 1e3) + 12 * 60 * 60
-    // 12 hours
-  })).toString("base64url");
-  const signature = crypto2.createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
-  return `${header}.${payload}.${signature}`;
-}
-function verifyToken(token) {
-  const secret = process.env.ADMIN_SESSION_SECRET || "wabupcup-secret-2026";
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [header, payload, signature] = parts;
-  const expectedSig = crypto2.createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
-  if (signature !== expectedSig) return null;
-  try {
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
-    if (data.exp && data.exp < Math.floor(Date.now() / 1e3)) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-var requireAdmin, requireSuperAdmin;
-var init_auth = __esm({
-  "server/auth.ts"() {
-    requireAdmin = (req, res, next) => {
-      const cookies = parseCookies(req);
-      const authHeader = req.headers?.authorization;
-      const bearerToken = authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
-      const token = cookies["admin_session"] || bearerToken;
-      if (token) {
-        const decoded = verifyToken(token);
-        if (decoded) {
-          req.adminUser = decoded;
-          return next();
-        }
-      }
-      const adminHeader = req.headers?.["x-admin-user"] || req.headers?.["x-admin-id"];
-      const isLocalDev = process.env.NODE_ENV !== "production";
-      if (adminHeader || isLocalDev) {
-        req.adminUser = {
-          sub: typeof adminHeader === "string" ? adminHeader : "adm-local",
-          role: "SUPERADMIN"
-        };
-        return next();
-      }
-      return res.status(401).json({ success: false, error: "Sesi tidak valid atau telah berakhir. Harap login kembali." });
-    };
-    requireSuperAdmin = (req, res, next) => {
-      requireAdmin(req, res, () => {
-        const user = req.adminUser;
-        if (user.role !== "SUPERADMIN") {
-          return res.status(403).json({ success: false, error: "Akses ditolak. Tindakan ini membutuhkan level SUPERADMIN." });
-        }
-        next();
-      });
-    };
-  }
-});
-
 // server/serverless.ts
 import express from "express";
-import cors from "cors";
 import compression from "compression";
 
 // server/routes.ts
@@ -110,6 +11,7 @@ import "dotenv/config";
 // server/config.ts
 import "dotenv/config";
 import mysql from "mysql2/promise";
+import cors from "cors";
 var dbUrl = process.env.DATABASE_URL;
 var tidbHost = process.env.TIDB_HOST || process.env.MYSQL_HOST;
 var tidbPort = process.env.TIDB_PORT || process.env.MYSQL_PORT || "4000";
@@ -145,6 +47,20 @@ var poolConfig = cleanedDbUrl ? {
   idleTimeout: 6e4
 };
 var pool = mysql.createPool(poolConfig);
+var corsMiddleware = (req, res, next) => {
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+  if (!allowedOriginsEnv || !allowedOriginsEnv.trim()) {
+    return next();
+  }
+  const origins = allowedOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean);
+  if (origins.length === 0) {
+    return next();
+  }
+  return cors({
+    origin: origins,
+    credentials: true
+  })(req, res, next);
+};
 
 // server/db.ts
 import crypto from "crypto";
@@ -837,6 +753,11 @@ async function purgeB2Objects(where, params) {
   } catch (err) {
     console.warn("[purgeB2Objects] dilewati:", err?.message || err);
   }
+}
+function sanitizeAdminUser(admin) {
+  if (!admin) return admin;
+  const { password, password_hash, ...rest } = admin;
+  return rest;
 }
 var Database = {
   // Config
@@ -1861,13 +1782,13 @@ var Database = {
             );
           }
           memStore.adminUsers = [...DEFAULT_ADMIN_USERS];
-          return memStore.adminUsers;
+          return memStore.adminUsers.map(sanitizeAdminUser);
         }
       } catch (err) {
         console.error("Error fetching admins from MySQL:", err);
       }
     }
-    return memStore.adminUsers;
+    return memStore.adminUsers.map(sanitizeAdminUser);
   },
   async saveAdmin(admin, password) {
     await ensureDbConnected();
@@ -1945,7 +1866,7 @@ var Database = {
             } else {
               memStore.adminUsers.push({ ...admin, role: roleToSave });
             }
-            return { ...admin, role: roleToSave };
+            return sanitizeAdminUser({ ...admin, role: roleToSave });
           } catch (retryErr) {
             console.error("[MySQL Auto-Migration] Retry after role migration failed:", retryErr);
           }
@@ -1960,7 +1881,7 @@ var Database = {
         memStore.adminUsers.push(admin);
       }
     }
-    return admin;
+    return sanitizeAdminUser(admin);
   },
   async deleteAdmin(id) {
     await ensureDbConnected();
@@ -2024,10 +1945,12 @@ var Database = {
       (a) => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
     );
     if (found) {
-      const isMatch = await verifyPassword(pass, found.password || found.id);
+      if (!found.password) {
+        return { success: false, error: "Akun tidak memiliki kata sandi" };
+      }
+      const isMatch = await verifyPassword(pass, found.password);
       if (isMatch) {
-        const { password, ...userWithoutPass } = found;
-        return { success: true, user: userWithoutPass };
+        return { success: true, user: sanitizeAdminUser(found) };
       }
       return { success: false, error: "Password tidak sesuai" };
     }
@@ -2977,7 +2900,111 @@ r2Router.post("/storage/presigned-url", async (req, res) => {
 // server/mediaRoutes.ts
 import { Router as Router3 } from "express";
 import crypto3 from "crypto";
-init_auth();
+
+// server/auth.ts
+import crypto2 from "crypto";
+function parseCookies(req) {
+  const list = {};
+  const cookieHeader = req.headers?.cookie;
+  if (!cookieHeader) return list;
+  cookieHeader.split(";").forEach((cookie) => {
+    let [name, ...rest] = cookie.split("=");
+    name = name?.trim();
+    if (!name) return;
+    const value = rest.join("=").trim();
+    list[name] = decodeURIComponent(value);
+  });
+  return list;
+}
+function getAdminSecret() {
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  if (!secret || secret.trim().length < 32) {
+    return null;
+  }
+  return secret.trim();
+}
+function generateToken(adminId, role) {
+  const secret = getAdminSecret();
+  if (!secret) {
+    throw new Error("CONFIG_INCOMPLETE: ADMIN_SESSION_SECRET is missing or less than 32 characters");
+  }
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    sub: adminId,
+    role,
+    exp: Math.floor(Date.now() / 1e3) + 12 * 60 * 60
+    // 12 hours
+  })).toString("base64url");
+  const signature = crypto2.createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
+  return `${header}.${payload}.${signature}`;
+}
+function verifyToken(token) {
+  const secret = getAdminSecret();
+  if (!secret) {
+    return null;
+  }
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  const expectedSig = crypto2.createHmac("sha256", secret).update(`${header}.${payload}`).digest("base64url");
+  const sigBuf = Buffer.from(signature);
+  const expectedSigBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedSigBuf.length || !crypto2.timingSafeEqual(sigBuf, expectedSigBuf)) {
+    return null;
+  }
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (data.exp && data.exp < Math.floor(Date.now() / 1e3)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+function buildSessionCookie(token, maxAgeSeconds = 12 * 60 * 60) {
+  const isProd = process.env.NODE_ENV === "production";
+  return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${isProd ? "; Secure" : ""}`;
+}
+function buildClearSessionCookie() {
+  const isProd = process.env.NODE_ENV === "production";
+  return `admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProd ? "; Secure" : ""}`;
+}
+var requireAdmin = (req, res, next) => {
+  if (!getAdminSecret()) {
+    return res.status(500).json({
+      success: false,
+      error: "Konfigurasi server otentikasi belum lengkap (ADMIN_SESSION_SECRET)."
+    });
+  }
+  const cookies = parseCookies(req);
+  const authHeader = req.headers?.authorization;
+  const bearerToken = authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  const token = cookies["admin_session"] || bearerToken;
+  if (token) {
+    const decoded = verifyToken(token);
+    if (decoded) {
+      req.adminUser = decoded;
+      return next();
+    }
+  }
+  return res.status(401).json({
+    success: false,
+    error: "Sesi tidak valid atau telah berakhir. Harap login kembali."
+  });
+};
+var requireSuperAdmin = (req, res, next) => {
+  requireAdmin(req, res, () => {
+    const user = req.adminUser;
+    if (!user || user.role !== "SUPERADMIN") {
+      return res.status(403).json({
+        success: false,
+        error: "Akses ditolak. Tindakan ini membutuhkan level SUPERADMIN."
+      });
+    }
+    next();
+  });
+};
+
+// server/mediaRoutes.ts
 var mediaRouter = Router3();
 function decodeBase64File(fileData) {
   const matches = fileData.match(/^data:([A-Za-z0-9-+/]+);base64,(.+)$/);
@@ -3384,7 +3411,11 @@ function robotsHandler(req, res) {
 }
 
 // server/routes.ts
-init_auth();
+function sanitizeAdmin(user) {
+  if (!user) return user;
+  const { password, password_hash, ...safe } = user;
+  return safe;
+}
 var cachePublic = (req, res, next) => {
   res.setHeader("Cache-Control", "public, s-maxage=300");
   next();
@@ -3479,7 +3510,7 @@ apiRouter.get("/health", async (req, res) => {
     database: status
   });
 });
-apiRouter.post("/database/init", async (req, res) => {
+apiRouter.post("/database/init", requireSuperAdmin, async (req, res) => {
   try {
     const result = await runFullSchemaInit();
     res.json(result);
@@ -3487,7 +3518,7 @@ apiRouter.post("/database/init", async (req, res) => {
     res.status(500).json({ success: false, error: err?.message || "Database init failed" });
   }
 });
-apiRouter.post("/database/reconnect", async (req, res) => {
+apiRouter.post("/database/reconnect", requireSuperAdmin, async (req, res) => {
   try {
     const connected = await initDatabaseConnection();
     const status = getMySqlStatus();
@@ -3505,7 +3536,7 @@ apiRouter.post("/database/reconnect", async (req, res) => {
     });
   }
 });
-apiRouter.post("/database/connect", async (req, res) => {
+apiRouter.post("/database/connect", requireSuperAdmin, async (req, res) => {
   try {
     const config = req.body || {};
     const connected = await initDatabaseConnection();
@@ -3565,7 +3596,7 @@ apiRouter.post("/categories", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/categories/reorder", async (req, res) => {
+apiRouter.post("/categories/reorder", requireAdmin, async (req, res) => {
   try {
     const list = Array.isArray(req.body) ? req.body : req.body.categories;
     const saved = await Database.reorderCategories(list || []);
@@ -3858,7 +3889,7 @@ apiRouter.put("/registrations/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal memperbarui pendaftaran" });
   }
 });
-apiRouter.patch("/registrations/:id/status", async (req, res) => {
+apiRouter.patch("/registrations/:id/status", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reason, notes } = req.body;
@@ -3880,7 +3911,7 @@ apiRouter.patch("/registrations/:id/status", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.patch("/registrations/:id/payment", async (req, res) => {
+apiRouter.patch("/registrations/:id/payment", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { paymentStatus } = req.body;
@@ -3949,7 +3980,7 @@ apiRouter.post("/matches", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/matches/replace-category", async (req, res) => {
+apiRouter.post("/matches/replace-category", requireAdmin, async (req, res) => {
   try {
     const { category, matches } = req.body;
     if (!category || !Array.isArray(matches)) {
@@ -3961,7 +3992,7 @@ apiRouter.post("/matches/replace-category", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/matches/batch", async (req, res) => {
+apiRouter.post("/matches/batch", requireAdmin, async (req, res) => {
   try {
     const list = Array.isArray(req.body) ? req.body : req.body.matches;
     const saved = await Database.saveMatchesBatch(list || []);
@@ -4020,7 +4051,7 @@ apiRouter.delete("/sponsors/:id", requireAdmin, async (req, res) => {
 apiRouter.get("/admins", requireAdmin, async (req, res) => {
   try {
     const admins = await Database.getAdmins();
-    res.json(admins);
+    res.json(admins.map(sanitizeAdmin));
   } catch (err) {
     res.status(500).json({ error: err?.message });
   }
@@ -4047,7 +4078,7 @@ apiRouter.post("/admins", requireSuperAdmin, async (req, res) => {
     const dbStatus = getMySqlStatus();
     res.status(201).json({
       success: true,
-      ...saved,
+      ...sanitizeAdmin(saved),
       savedToDatabase: dbStatus.connected,
       databaseMode: dbStatus.mode,
       databaseHost: dbStatus.host
@@ -4078,7 +4109,7 @@ apiRouter.put("/admins/:id", requireSuperAdmin, async (req, res) => {
     const dbStatus = getMySqlStatus();
     res.json({
       success: true,
-      ...saved,
+      ...sanitizeAdmin(saved),
       savedToDatabase: dbStatus.connected,
       databaseMode: dbStatus.mode,
       databaseHost: dbStatus.host
@@ -4107,14 +4138,10 @@ apiRouter.post("/auth/login", async (req, res) => {
     }
     const result = await Database.verifyAdminLogin(username, password);
     if (result.success && result.user) {
-      let token = "";
-      try {
-        token = generateToken(result.user.id, result.user.role || "PANITIA_INTI");
-        res.setHeader("Set-Cookie", `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12 * 60 * 60}`);
-      } catch (e) {
-        console.warn("Failed to generate token, returning stateless auth:", e.message);
-      }
-      return res.json({ success: true, user: result.user, token });
+      const safeUser = sanitizeAdmin(result.user);
+      const token = generateToken(safeUser.id, safeUser.role || "PANITIA_INTI");
+      res.setHeader("Set-Cookie", buildSessionCookie(token));
+      return res.json({ success: true, user: safeUser });
     }
     res.status(401).json({ success: false, message: result.error || "Username atau password salah" });
   } catch (err) {
@@ -4122,20 +4149,22 @@ apiRouter.post("/auth/login", async (req, res) => {
   }
 });
 apiRouter.post("/auth/logout", async (req, res) => {
-  res.setHeader("Set-Cookie", "admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  res.setHeader("Set-Cookie", buildClearSessionCookie());
   res.json({ success: true, message: "Logged out" });
 });
 apiRouter.get("/auth/me", async (req, res) => {
   try {
-    const { parseCookies: parseCookies2, verifyToken: verifyToken2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
-    const token = parseCookies2(req)["admin_session"];
+    const cookies = parseCookies(req);
+    const authHeader = req.headers?.authorization;
+    const bearerToken = authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+    const token = cookies["admin_session"] || bearerToken;
     if (!token) return res.status(401).json({ error: "Not authenticated" });
-    const decoded = verifyToken2(token);
+    const decoded = verifyToken(token);
     if (!decoded) return res.status(401).json({ error: "Invalid token" });
     const admins = await Database.getAdmins();
     const user = admins.find((a) => a.id === decoded.sub);
     if (user) {
-      return res.json({ success: true, user });
+      return res.json({ success: true, user: sanitizeAdmin(user) });
     }
     return res.status(404).json({ error: "User not found" });
   } catch (err) {
@@ -4163,7 +4192,7 @@ apiRouter.post("/players", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal menyimpan pemain" });
   }
 });
-apiRouter.post("/players/batch", async (req, res) => {
+apiRouter.post("/players/batch", requireAdmin, async (req, res) => {
   try {
     const rawList = Array.isArray(req.body) ? req.body : req.body.players;
     if (!Array.isArray(rawList)) {
@@ -4236,7 +4265,7 @@ apiRouter.post("/groups", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.post("/groups/replace", async (req, res) => {
+apiRouter.post("/groups/replace", requireAdmin, async (req, res) => {
   try {
     const { category, groups } = req.body;
     if (!category || !Array.isArray(groups)) {
@@ -4277,7 +4306,7 @@ apiRouter.get("/standings", cachePublic, async (req, res) => {
 // server/serverless.ts
 var app = express();
 app.use(compression());
-app.use(cors({ origin: true, credentials: true }));
+app.use(corsMiddleware);
 app.use(express.json({ limit: "4mb" }));
 app.use(express.urlencoded({ extended: true, limit: "4mb" }));
 app.use((err, req, res, next) => {

@@ -10,7 +10,21 @@ import { r2Router } from './r2';
 import { mediaRouter, decodeBase64File } from './mediaRoutes';
 import { sitemapHandler, robotsHandler } from './sitemap';
 
-import { requireAdmin, requireSuperAdmin, generateToken } from './auth';
+import {
+  requireAdmin,
+  requireSuperAdmin,
+  generateToken,
+  parseCookies,
+  verifyToken,
+  buildSessionCookie,
+  buildClearSessionCookie
+} from './auth';
+
+export function sanitizeAdmin(user: any): any {
+  if (!user) return user;
+  const { password, password_hash, ...safe } = user;
+  return safe;
+}
 
 
 const cachePublic = (req: Request, res: Response, next: any) => {
@@ -122,7 +136,7 @@ apiRouter.get('/health', async (req: Request, res: Response) => {
 });
 
 // 2. Database Init / Migration Trigger
-apiRouter.post('/database/init', async (req: Request, res: Response) => {
+apiRouter.post('/database/init', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const result = await runFullSchemaInit();
     res.json(result);
@@ -132,7 +146,7 @@ apiRouter.post('/database/init', async (req: Request, res: Response) => {
 });
 
 // 3. Test & Reconnect Database
-apiRouter.post('/database/reconnect', async (req: Request, res: Response) => {
+apiRouter.post('/database/reconnect', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const connected = await initDatabaseConnection();
     const status = getMySqlStatus();
@@ -152,7 +166,7 @@ apiRouter.post('/database/reconnect', async (req: Request, res: Response) => {
 });
 
 // 3b. Configure & Connect Database dynamically (TiDB Cloud / Custom MySQL)
-apiRouter.post('/database/connect', async (req: Request, res: Response) => {
+apiRouter.post('/database/connect', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     const config = req.body || {};
     const connected = await initDatabaseConnection();
@@ -221,7 +235,7 @@ apiRouter.post('/categories', requireAdmin, async (req: Request, res: Response) 
   }
 });
 
-apiRouter.post('/categories/reorder', async (req: Request, res: Response) => {
+apiRouter.post('/categories/reorder', requireAdmin, async (req: Request, res: Response) => {
   try {
     const list = Array.isArray(req.body) ? req.body : req.body.categories;
     const saved = await Database.reorderCategories(list || []);
@@ -545,7 +559,7 @@ apiRouter.put('/registrations/:id', requireAdmin, async (req: Request, res: Resp
   }
 });
 
-apiRouter.patch('/registrations/:id/status', async (req: Request, res: Response) => {
+apiRouter.patch('/registrations/:id/status', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, reason, notes } = req.body;
@@ -568,7 +582,7 @@ apiRouter.patch('/registrations/:id/status', async (req: Request, res: Response)
   }
 });
 
-apiRouter.patch('/registrations/:id/payment', async (req: Request, res: Response) => {
+apiRouter.patch('/registrations/:id/payment', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { paymentStatus } = req.body;
@@ -650,7 +664,7 @@ apiRouter.post('/matches', requireAdmin, async (req: Request, res: Response) => 
   }
 });
 
-apiRouter.post('/matches/replace-category', async (req: Request, res: Response) => {
+apiRouter.post('/matches/replace-category', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { category, matches } = req.body;
     if (!category || !Array.isArray(matches)) {
@@ -663,7 +677,7 @@ apiRouter.post('/matches/replace-category', async (req: Request, res: Response) 
   }
 });
 
-apiRouter.post('/matches/batch', async (req: Request, res: Response) => {
+apiRouter.post('/matches/batch', requireAdmin, async (req: Request, res: Response) => {
   try {
     const list = Array.isArray(req.body) ? req.body : req.body.matches;
     const saved = await Database.saveMatchesBatch(list || []);
@@ -731,7 +745,7 @@ apiRouter.delete('/sponsors/:id', requireAdmin, async (req: Request, res: Respon
 apiRouter.get('/admins', requireAdmin, async (req: Request, res: Response) => {
   try {
     const admins = await Database.getAdmins();
-    res.json(admins);
+    res.json(admins.map(sanitizeAdmin));
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
@@ -759,7 +773,7 @@ apiRouter.post('/admins', requireSuperAdmin, async (req: Request, res: Response)
     const dbStatus = getMySqlStatus();
     res.status(201).json({
       success: true,
-      ...saved,
+      ...sanitizeAdmin(saved),
       savedToDatabase: dbStatus.connected,
       databaseMode: dbStatus.mode,
       databaseHost: dbStatus.host,
@@ -791,7 +805,7 @@ apiRouter.put('/admins/:id', requireSuperAdmin, async (req: Request, res: Respon
     const dbStatus = getMySqlStatus();
     res.json({
       success: true,
-      ...saved,
+      ...sanitizeAdmin(saved),
       savedToDatabase: dbStatus.connected,
       databaseMode: dbStatus.mode,
       databaseHost: dbStatus.host,
@@ -822,14 +836,10 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     }
     const result = await Database.verifyAdminLogin(username, password);
     if (result.success && result.user) {
-      let token = '';
-      try {
-        token = generateToken(result.user.id, result.user.role || 'PANITIA_INTI');
-        res.setHeader('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12*60*60}`);
-      } catch (e: any) {
-        console.warn('Failed to generate token, returning stateless auth:', e.message);
-      }
-      return res.json({ success: true, user: result.user, token });
+      const safeUser = sanitizeAdmin(result.user);
+      const token = generateToken(safeUser.id, safeUser.role || 'PANITIA_INTI');
+      res.setHeader('Set-Cookie', buildSessionCookie(token));
+      return res.json({ success: true, user: safeUser });
     }
     res.status(401).json({ success: false, message: result.error || 'Username atau password salah' });
   } catch (err: any) {
@@ -838,14 +848,18 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
 });
 
 apiRouter.post('/auth/logout', async (req: Request, res: Response) => {
-  res.setHeader('Set-Cookie', 'admin_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.setHeader('Set-Cookie', buildClearSessionCookie());
   res.json({ success: true, message: 'Logged out' });
 });
 
 apiRouter.get('/auth/me', async (req: Request, res: Response) => {
   try {
-    const { parseCookies, verifyToken } = await import('./auth');
-    const token = parseCookies(req)['admin_session'];
+    const cookies = parseCookies(req);
+    const authHeader = req.headers?.authorization;
+    const bearerToken = authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7).trim()
+      : null;
+    const token = cookies['admin_session'] || bearerToken;
     if (!token) return res.status(401).json({ error: 'Not authenticated' });
     const decoded = verifyToken(token);
     if (!decoded) return res.status(401).json({ error: 'Invalid token' });
@@ -853,7 +867,7 @@ apiRouter.get('/auth/me', async (req: Request, res: Response) => {
     const admins = await Database.getAdmins();
     const user = admins.find(a => a.id === decoded.sub);
     if (user) {
-      return res.json({ success: true, user });
+      return res.json({ success: true, user: sanitizeAdmin(user) });
     }
     return res.status(404).json({ error: 'User not found' });
   } catch (err) {
@@ -885,7 +899,7 @@ apiRouter.post('/players', requireAdmin, async (req: Request, res: Response) => 
   }
 });
 
-apiRouter.post('/players/batch', async (req: Request, res: Response) => {
+apiRouter.post('/players/batch', requireAdmin, async (req: Request, res: Response) => {
   try {
     const rawList = Array.isArray(req.body) ? req.body : req.body.players;
     if (!Array.isArray(rawList)) {
@@ -967,7 +981,7 @@ apiRouter.post('/groups', requireAdmin, async (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/groups/replace', async (req: Request, res: Response) => {
+apiRouter.post('/groups/replace', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { category, groups } = req.body;
     if (!category || !Array.isArray(groups)) {

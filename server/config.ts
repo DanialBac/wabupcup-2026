@@ -74,3 +74,30 @@ export async function withTransaction<T>(cb: (conn: mysql.PoolConnection) => Pro
     conn.release();
   }
 }
+
+// 5. CORS Middleware
+import cors from 'cors';
+import type { RequestHandler } from 'express';
+
+export const corsMiddleware: RequestHandler = (req, res, next) => {
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+  if (!allowedOriginsEnv || !allowedOriginsEnv.trim()) {
+    // Jika env kosong, jangan aktifkan CORS (hanya same-origin)
+    return next();
+  }
+
+  const origins = allowedOriginsEnv
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
+  if (origins.length === 0) {
+    return next();
+  }
+
+  return cors({
+    origin: origins,
+    credentials: true,
+  })(req, res, next);
+};
+

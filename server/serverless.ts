@@ -1,13 +1,13 @@
 import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
 import compression from 'compression';
 import { apiRouter } from './routes';
 import { ensureDbConnected } from './db';
+import { corsMiddleware } from './config';
 
 const app = express();
 
 app.use(compression());
-app.use(cors({ origin: true, credentials: true }));
+app.use(corsMiddleware);
 app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 

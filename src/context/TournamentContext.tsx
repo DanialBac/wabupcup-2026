@@ -409,7 +409,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const refreshDataFromServer = useCallback(async () => {
     try {
       setIsSyncingWithServer(true);
-      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors, serverAdmins, serverPlayers, serverGroups, health] =
+      const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors, serverAdmins, serverPlayers, serverGroups, health, authCheck] =
         await Promise.all([
           ApiService.getConfig(),
           ApiService.getCategories(),
@@ -420,10 +420,24 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ApiService.getPlayers().catch(() => []),
           ApiService.getGroups().catch(() => []),
           ApiService.checkHealth().catch(() => null),
+          ApiService.getAuthMe().catch(() => null),
         ]);
 
       if (health && health.database) {
         setDbStatus(health.database);
+      }
+
+      if (authCheck) {
+        if (authCheck.authenticated && authCheck.user) {
+          setCurrentAdmin(authCheck.user);
+          safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(authCheck.user));
+        } else if (!authCheck.authenticated && safeLocalStorageGet('wabupcup_current_admin', null)) {
+          setCurrentAdmin(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('wabupcup_current_admin');
+            localStorage.removeItem('wabupcup_admin_token');
+          }
+        }
       }
 
       if (serverConfig) {
@@ -2622,11 +2636,6 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (res && res.success && res.user) {
         setCurrentAdmin(res.user);
         safeLocalStorageSet('wabupcup_current_admin', JSON.stringify(res.user));
-        if (res.token) {
-          try {
-            localStorage.setItem('wabupcup_admin_token', res.token);
-          } catch {}
-        }
         setTimeout(() => window.location.reload(), 300);
         return { success: true, admin: res.user };
       }

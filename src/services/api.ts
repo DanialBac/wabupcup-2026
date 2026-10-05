@@ -11,26 +11,13 @@ import {
 } from '../types';
 
 
-// Override fetch to always include credentials & auth headers for admin sessions
+// Override fetch to always include credentials for HttpOnly cookie sessions
 const originalFetch = window.fetch;
 window.fetch = async function() {
   const args = Array.prototype.slice.call(arguments);
   if (typeof args[0] === 'string' && args[0].includes('/api/') && !args[0].includes('/api/media/view/')) {
     args[1] = args[1] || {};
     args[1].credentials = 'include';
-    const headers = new Headers(args[1].headers || {});
-    try {
-      const storedToken = localStorage.getItem('wabupcup_admin_token');
-      if (storedToken && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${storedToken}`);
-      }
-      const currentAdmin = localStorage.getItem('wabupcup_current_admin');
-      if (currentAdmin && !headers.has('X-Admin-User')) {
-        const parsed = JSON.parse(currentAdmin);
-        if (parsed?.id) headers.set('X-Admin-User', parsed.id);
-      }
-    } catch {}
-    args[1].headers = headers;
   }
   return originalFetch.apply(this, args as any);
 };
@@ -386,7 +373,7 @@ export const ApiService = {
     }
   },
 
-  async loginAdmin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser; token?: string; message?: string }> {
+  async loginAdmin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser; message?: string }> {
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -396,17 +383,31 @@ export const ApiService = {
       const text = await res.text();
       try {
         const data = JSON.parse(text);
-        if (data && data.success && data.token) {
-          try {
-            localStorage.setItem('wabupcup_admin_token', data.token);
-          } catch {}
-        }
         return data;
       } catch {
         return { success: false, message: 'Invalid response from server' };
       }
     } catch (err: any) {
       return { success: false, message: err?.message || 'Network error during login' };
+    }
+  },
+
+  async getAuthMe(): Promise<{ authenticated: boolean; user?: AdminUser | null }> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`);
+      if (!res.ok) return { authenticated: false, user: null };
+      return await res.json();
+    } catch {
+      return { authenticated: false, user: null };
+    }
+  },
+
+  async logoutAdmin(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
     }
   },
 

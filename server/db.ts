@@ -492,6 +492,12 @@ async function purgeB2Objects(where: string, params: any[]): Promise<void> {
   }
 }
 
+function sanitizeAdminUser(admin: any): AdminUser {
+  if (!admin) return admin;
+  const { password, password_hash, ...rest } = admin;
+  return rest as AdminUser;
+}
+
 export const Database = {
   // Config
   async getConfig(): Promise<TournamentConfig> {
@@ -1424,13 +1430,13 @@ export const Database = {
             );
           }
           memStore.adminUsers = [...DEFAULT_ADMIN_USERS];
-          return memStore.adminUsers;
+          return memStore.adminUsers.map(sanitizeAdminUser);
         }
       } catch (err) {
         console.error('Error fetching admins from MySQL:', err);
       }
     }
-    return memStore.adminUsers;
+    return memStore.adminUsers.map(sanitizeAdminUser);
   },
 
   async saveAdmin(admin: AdminUser, password?: string): Promise<AdminUser> {
@@ -1520,7 +1526,7 @@ export const Database = {
             } else {
               memStore.adminUsers.push({ ...admin, role: roleToSave });
             }
-            return { ...admin, role: roleToSave };
+            return sanitizeAdminUser({ ...admin, role: roleToSave });
           } catch (retryErr: any) {
             console.error('[MySQL Auto-Migration] Retry after role migration failed:', retryErr);
           }
@@ -1537,7 +1543,7 @@ export const Database = {
       }
     }
 
-    return admin;
+    return sanitizeAdminUser(admin);
   },
 
   async deleteAdmin(id: string): Promise<boolean> {
@@ -1609,10 +1615,12 @@ export const Database = {
       a => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
     );
     if (found) {
-      const isMatch = await verifyPassword(pass, found.password || found.id);
+      if (!found.password) {
+        return { success: false, error: 'Akun tidak memiliki kata sandi' };
+      }
+      const isMatch = await verifyPassword(pass, found.password);
       if (isMatch) {
-        const { password, ...userWithoutPass } = found;
-        return { success: true, user: userWithoutPass as AdminUser };
+        return { success: true, user: sanitizeAdminUser(found) };
       }
       return { success: false, error: 'Password tidak sesuai' };
     }

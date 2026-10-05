@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import compression from 'compression';
@@ -8,6 +7,7 @@ import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
 import { initDatabaseConnection } from './server/db';
 import { sitemapHandler, robotsHandler } from './server/sitemap';
+import { corsMiddleware } from './server/config';
 
 async function startServer() {
   const app = express();
@@ -15,7 +15,7 @@ async function startServer() {
 
   // Middlewares
   app.use(compression());
-  app.use(cors({ origin: true, credentials: true }));
+  app.use(corsMiddleware);
   app.use(express.json({ limit: '4mb' }));
   app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 
