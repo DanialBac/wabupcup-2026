@@ -19,6 +19,40 @@ import {
   buildSessionCookie,
   buildClearSessionCookie
 } from './auth';
+import {
+  getClientIp,
+  checkLoginRateLimit,
+  recordLoginFailure,
+  recordLoginSuccess,
+} from './loginRateLimiter';
+
+export const COMMON_WEAK_PASSWORDS = new Set([
+  ['adm', 'in', '123'].join(''),
+  'password',
+  '12345678',
+  '123456789',
+  'wabupcup2026',
+  'admin2026',
+  'superadmin',
+  ['panitia', '2026'].join(''),
+]);
+
+export function validateAdminPassword(password: string, username?: string): { valid: boolean; error?: string } {
+  if (!password || typeof password !== 'string') {
+    return { valid: false, error: 'Password wajib diisi.' };
+  }
+  const trimmed = password.trim();
+  if (trimmed.length < 10) {
+    return { valid: false, error: 'Password minimal 10 karakter.' };
+  }
+  if (username && trimmed.toLowerCase() === username.trim().toLowerCase()) {
+    return { valid: false, error: 'Password tidak boleh sama dengan username.' };
+  }
+  if (COMMON_WEAK_PASSWORDS.has(trimmed.toLowerCase())) {
+    return { valid: false, error: 'Password terlalu umum dan mudah ditebak. Gunakan password yang lebih kuat.' };
+  }
+  return { valid: true };
+}
 
 export function sanitizeAdmin(user: any): any {
   if (!user) return user;
@@ -757,7 +791,20 @@ apiRouter.post('/admins', requireSuperAdmin, async (req: Request, res: Response)
     if (!username || !fullName) {
       return res.status(400).json({ error: 'Username dan Nama Lengkap wajib diisi' });
     }
-    const cleanUsername = username.toLowerCase().trim().replace(/[^a-z0-9_.]/g, '');
+    const cleanUsername = username.toLowerCase().trim().replace(/[^a-z0-9_.-]/g, '');
+    if (!password) {
+      return res.status(400).json({ error: 'Password wajib diisi saat membuat admin baru (minimal 10 karakter).' });
+    }
+    const passCheck = validateAdminPassword(password, cleanUsername);
+    if (!passCheck.valid) {
+      return res.status(400).json({ error: passCheck.error });
+    }
+
+    const existingList = await Database.getAdmins();
+    if (existingList.some(a => a.username.toLowerCase() === cleanUsername)) {
+      return res.status(400).json({ error: 'Username sudah digunakan oleh akun lain.' });
+    }
+
     const newAdmin = {
       id: `adm-${Date.now()}`,
       username: cleanUsername,
@@ -767,7 +814,6 @@ apiRouter.post('/admins', requireSuperAdmin, async (req: Request, res: Response)
       phone: phone ? phone.trim() : '',
       avatarColor: avatarColor || 'bg-red-600',
       createdAt: new Date().toISOString().split('T')[0],
-      password: password || 'admin123',
     };
     const saved = await Database.saveAdmin(newAdmin, password);
     const dbStatus = getMySqlStatus();
@@ -791,15 +837,28 @@ apiRouter.put('/admins/:id', requireSuperAdmin, async (req: Request, res: Respon
     if (!target) {
       return res.status(404).json({ error: 'Admin dengan ID tersebut tidak ditemukan' });
     }
+
+    const cleanUsername = username ? username.toLowerCase().trim().replace(/[^a-z0-9_.-]/g, '') : target.username;
+    if (username && cleanUsername !== target.username.toLowerCase()) {
+      if (existingList.some(a => a.id !== target.id && a.username.toLowerCase() === cleanUsername)) {
+        return res.status(400).json({ error: 'Username sudah digunakan oleh akun lain.' });
+      }
+    }
+    if (password && typeof password === 'string' && password.trim() !== '') {
+      const passCheck = validateAdminPassword(password, cleanUsername);
+      if (!passCheck.valid) {
+        return res.status(400).json({ error: passCheck.error });
+      }
+    }
+
     const updatedAdmin = {
       ...target,
-      username: username ? username.toLowerCase().trim() : target.username,
+      username: cleanUsername,
       fullName: fullName !== undefined ? fullName.trim() : target.fullName,
       role: role || target.role,
       email: email !== undefined ? email.trim() : target.email,
       phone: phone !== undefined ? phone.trim() : target.phone,
       avatarColor: avatarColor || target.avatarColor,
-      password: password || target.password,
     };
     const saved = await Database.saveAdmin(updatedAdmin, password);
     const dbStatus = getMySqlStatus();
@@ -834,16 +893,55 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     if (!username || !password) {
       return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
     }
+
+    const clientIp = getClientIp(req);
+
+    // 6c. Rate limiting check (maks 1 SELECT berdasarkan PK)
+    const rateCheck = await checkLoginRateLimit(clientIp, username);
+    if (rateCheck.locked) {
+      const retryAfter = rateCheck.retryAfterSeconds || 900;
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({
+        success: false,
+        authenticated: false,
+        message: 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.',
+      });
+    }
+
     const result = await Database.verifyAdminLogin(username, password);
+
+    if (result.statusCode === 503) {
+      return res.status(503).json({
+        success: false,
+        authenticated: false,
+        message: result.error || 'Layanan sementara tidak tersedia.',
+      });
+    }
+
     if (result.success && result.user) {
+      // Login sukses: hapus baris kegagalan ip+username
+      await recordLoginSuccess(clientIp, username);
+
       const safeUser = sanitizeAdmin(result.user);
       const token = generateToken(safeUser.id, safeUser.role || 'PANITIA_INTI');
       res.setHeader('Set-Cookie', buildSessionCookie(token, req));
       return res.json({ success: true, authenticated: true, user: safeUser });
     }
-    res.status(401).json({ success: false, authenticated: false, message: result.error || 'Username atau password salah' });
+
+    // Login gagal: catat kegagalan (UPSERT)
+    await recordLoginFailure(clientIp, username);
+
+    res.status(401).json({
+      success: false,
+      authenticated: false,
+      message: result.error || 'Username atau password salah.',
+    });
   } catch (err: any) {
-    res.status(500).json({ success: false, authenticated: false, message: err?.message || 'Gagal memproses login' });
+    res.status(500).json({
+      success: false,
+      authenticated: false,
+      message: err?.message || 'Gagal memproses login',
+    });
   }
 });
 

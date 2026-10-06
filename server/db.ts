@@ -38,6 +38,9 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   });
 }
 
+// Hash tiruan valid untuk menyetarakan waktu komputasi saat username tidak ditemukan (mencegah timing attack & enumerasi)
+export const DUMMY_SCRYPT_HASH = 'scrypt$d04130089e0ad78f5664d99e557224f8$20412e8b2b73bc367408d6d6719b22a07d32a0c7eb16c87e45214ad6e87f2ffbe88dbd144ba972e35a1a1e7b8c73b062aa48d6728da5e02e860959eeea50c58a';
+
 import {
   DEFAULT_ADMIN_USERS,
   DEFAULT_CATEGORIES,
@@ -177,6 +180,72 @@ async function autoMigrateTables() {
   } catch (err) {
     console.error('[MySQL] Error checking tables:', err);
   }
+}
+
+/**
+ * 4c. Penyemaian admin awal:
+ * Hanya jika tabel admin_users KOSONG dan env INITIAL_ADMIN_USERNAME dan INITIAL_ADMIN_PASSWORD (minimal 12 karakter) terisi.
+ * Membuat SATU akun SUPERADMIN dengan password di-hash scrypt (hashPassword).
+ * Jika env tidak lengkap, jangan menyemai apa pun dan cetak peringatan tanpa nilai rahasia.
+ */
+export async function seedInitialAdminIfConfigured(): Promise<boolean> {
+  const initUser = (process.env.INITIAL_ADMIN_USERNAME || '').trim().toLowerCase();
+  const initPass = (process.env.INITIAL_ADMIN_PASSWORD || '').trim();
+
+  if (!initUser || !initPass) {
+    console.warn('[Security] Tabel admin_users kosong dan INITIAL_ADMIN_USERNAME / INITIAL_ADMIN_PASSWORD tidak dikonfigurasi. Tidak ada akun admin bawaan yang dibuat.');
+    return false;
+  }
+
+  if (initPass.length < 12) {
+    console.warn('[Security] INITIAL_ADMIN_PASSWORD kurang dari 12 karakter. Penyemaian admin awal dibatalkan demi keamanan.');
+    return false;
+  }
+
+  const passHash = await hashPassword(initPass);
+  const adminId = `adm-${Date.now()}`;
+
+  if (pool && isMySqlConnected) {
+    try {
+      await pool.query(
+        `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          adminId,
+          initUser,
+          passHash,
+          'Administrator Utama',
+          'SUPERADMIN',
+          null,
+          null,
+          'bg-red-600',
+        ]
+      );
+      console.log(`[Security] Berhasil menyemai 1 akun SUPERADMIN awal (${initUser}) dengan scrypt password hash.`);
+    } catch (err: any) {
+      console.error('[Security] Gagal menyemai admin awal ke MySQL:', err?.message || err);
+      return false;
+    }
+  }
+
+  const safeAdmin: AdminUser = {
+    id: adminId,
+    username: initUser,
+    fullName: 'Administrator Utama',
+    role: 'SUPERADMIN',
+    email: '',
+    phone: '',
+    avatarColor: 'bg-red-600',
+    createdAt: new Date().toISOString().split('T')[0],
+  };
+  const memIdx = memStore.adminUsers.findIndex(a => a.username.toLowerCase() === initUser);
+  if (memIdx >= 0) {
+    memStore.adminUsers[memIdx] = safeAdmin;
+  } else {
+    memStore.adminUsers.push(safeAdmin);
+  }
+
+  return true;
 }
 
 export async function runFullSchemaInit() {
@@ -364,6 +433,14 @@ export async function runFullSchemaInit() {
       INDEX idx_standing_cat_group (category_id, group_name),
       INDEX idx_standing_team (team_name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    `CREATE TABLE IF NOT EXISTS admin_login_attempts (
+      key_hash VARCHAR(64) PRIMARY KEY,
+      failed_count INT NOT NULL DEFAULT 0,
+      first_failed_at DATETIME NOT NULL,
+      locked_until DATETIME NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
   ];
 
   for (const q of queries) {
@@ -402,25 +479,10 @@ export async function runFullSchemaInit() {
     }
   }
 
-  // Seed default admin users if empty
+  // Seed initial admin user only if table is empty and env is provided
   const [admRows]: any = await pool.query('SELECT COUNT(*) as count FROM admin_users');
   if (admRows[0].count === 0) {
-    for (const adm of DEFAULT_ADMIN_USERS) {
-      await pool.query(
-        `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          adm.id,
-          adm.username,
-          adm.password || 'admin123',
-          adm.fullName,
-          adm.role,
-          adm.email || '',
-          adm.phone || '',
-          adm.avatarColor || 'bg-red-600',
-        ]
-      );
-    }
+    await seedInitialAdminIfConfigured();
   }
 
   // Seed default config if empty
@@ -1509,26 +1571,25 @@ export const Database = {
           memStore.adminUsers = list;
           return list;
         } else if (Array.isArray(rows) && rows.length === 0) {
-          // Table exists in MySQL but has 0 rows -> Seed default admins
-          for (const adm of DEFAULT_ADMIN_USERS) {
-            await pool.query(
-              `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE full_name = VALUES(full_name)`,
-              [
-                adm.id,
-                adm.username,
-                adm.password || 'admin123',
-                adm.fullName,
-                adm.role,
-                adm.email || '',
-                adm.phone || '',
-                adm.avatarColor || 'bg-red-600',
-              ]
-            );
+          // Table exists in MySQL but has 0 rows -> Seed initial admin only if configured
+          await seedInitialAdminIfConfigured();
+          const [recheck]: any = await pool.query('SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users ORDER BY created_at ASC');
+          if (Array.isArray(recheck) && recheck.length > 0) {
+            const list = recheck.map((r: any) => ({
+              id: r.id,
+              username: r.username,
+              fullName: r.full_name,
+              role: r.role,
+              email: r.email || '',
+              phone: r.phone || '',
+              avatarColor: r.avatar_color,
+              createdAt: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : '2026-08-01',
+            }));
+            memStore.adminUsers = list;
+            return list;
           }
-          memStore.adminUsers = [...DEFAULT_ADMIN_USERS];
-          return memStore.adminUsers.map(sanitizeAdminUser);
+          memStore.adminUsers = [];
+          return [];
         }
       } catch (err) {
         console.error('Error fetching admins from MySQL:', err);
@@ -1540,8 +1601,11 @@ export const Database = {
   async saveAdmin(admin: AdminUser, password?: string): Promise<AdminUser> {
     await ensureDbConnected();
 
-    const plainPass = password || admin.password || 'admin123';
-    const passHash = await hashPassword(plainPass);
+    let passHash: string | null = null;
+    const cleanPass = (password || admin.password || '').trim();
+    if (cleanPass.length > 0) {
+      passHash = await hashPassword(cleanPass);
+    }
     const roleToSave = admin.role || 'PANITIA_INTI';
     const { password: _p, ...cleanAdmin } = admin;
 
@@ -1561,14 +1625,14 @@ export const Database = {
           [
             admin.id,
             admin.username,
-            passHash,
+            passHash || '',
             admin.fullName,
             roleToSave,
             admin.email || null,
             admin.phone || null,
             admin.avatarColor || 'bg-red-600',
             admin.createdAt ? new Date(admin.createdAt) : new Date(),
-            password ? passHash : null,
+            passHash,
           ]
         );
 
@@ -1607,14 +1671,14 @@ export const Database = {
               [
                 admin.id,
                 admin.username,
-                passHash,
+                passHash || '',
                 admin.fullName,
                 roleToSave,
                 admin.email || null,
                 admin.phone || null,
                 admin.avatarColor || 'bg-red-600',
                 admin.createdAt ? new Date(admin.createdAt) : new Date(),
-                password || null,
+                passHash,
               ]
             );
             console.log('[MySQL Auto-Migration] Successfully saved admin user after column role auto-migration!');
@@ -1663,7 +1727,7 @@ export const Database = {
     return true;
   },
 
-  async verifyAdminLogin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser; error?: string }> {
+  async verifyAdminLogin(username: string, pass: string): Promise<{ success: boolean; user?: AdminUser; error?: string; statusCode?: number }> {
     await ensureDbConnected();
     const cleanUser = (username || '').trim().toLowerCase();
     const targetUser = cleanUser === 'admin' ? 'superadmin' : cleanUser;
@@ -1697,10 +1761,12 @@ export const Database = {
             };
             return { success: true, user: userObj };
           } else {
-            return { success: false, error: 'Password tidak sesuai dengan database' };
+            return { success: false, error: 'Username atau password salah.' };
           }
         } else {
-          return { success: false, error: 'Username tidak ditemukan di database' };
+          // User tidak ditemukan: eksekusi hash tiruan agar waktu respons setara dengan user yang ada (mencegah timing attack)
+          await verifyPassword(pass, DUMMY_SCRYPT_HASH).catch(() => false);
+          return { success: false, error: 'Username atau password salah.' };
         }
       } catch (err) {
         console.error('Error verifying admin login with MySQL:', err);
@@ -1708,22 +1774,40 @@ export const Database = {
       }
     }
 
-    // Fallback to memStore only if database is completely offline
-    const found = memStore.adminUsers.find(
-      a => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
-    );
-    if (found) {
-      if (!found.password) {
-        return { success: false, error: 'Akun tidak memiliki kata sandi' };
-      }
-      const isMatch = await verifyPassword(pass, found.password);
-      if (isMatch) {
-        return { success: true, user: sanitizeAdminUser(found) };
-      }
-      return { success: false, error: 'Password tidak sesuai' };
+    // 4e. Database tidak terhubung:
+    // Di NODE_ENV=production, JANGAN PERNAH mengautentikasi terhadap memStore (fail-closed)
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        success: false,
+        error: 'Layanan sementara tidak tersedia. Basis data sedang tidak terhubung.',
+        statusCode: 503,
+      };
     }
 
-    return { success: false, error: 'Username tidak ditemukan' };
+    // Non-production memory mode fallback: hanya izinkan akun dari INITIAL_ADMIN_* (jika ada)
+    const initUser = (process.env.INITIAL_ADMIN_USERNAME || '').trim().toLowerCase();
+    const initPass = (process.env.INITIAL_ADMIN_PASSWORD || '').trim();
+    if (initUser && initPass && (cleanUser === initUser || targetUser === initUser)) {
+      const isMatch = pass === initPass;
+      if (isMatch) {
+        return {
+          success: true,
+          user: {
+            id: 'adm-env-local',
+            username: initUser,
+            fullName: 'Administrator Lokal',
+            role: 'SUPERADMIN',
+            email: '',
+            phone: '',
+            avatarColor: 'bg-red-600',
+            createdAt: new Date().toISOString().split('T')[0],
+          },
+        };
+      }
+    }
+
+    await verifyPassword(pass, DUMMY_SCRYPT_HASH).catch(() => false);
+    return { success: false, error: 'Username atau password salah.' };
   },
 
   // Generate complete SQL Export dump

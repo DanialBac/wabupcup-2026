@@ -5,15 +5,11 @@
 
 USE `wabupcup2026`;
 
--- 1. SEED DEFAULT ADMIN USERS
-INSERT INTO `admin_users` (`id`, `username`, `password_hash`, `full_name`, `role`, `email`, `phone`, `avatar_color`) VALUES
-('adm-00', 'admin', 'admin123', 'Administrator Utama WabupCup', 'SUPERADMIN', 'admin@wabupcup2026.id', '081234567890', 'bg-red-600'),
-('adm-01', 'superadmin', 'admin123', 'Ketua Panitia WabupCup 2026', 'SUPERADMIN', 'ketua.panitia@wabupcup2026.id', '081234567890', 'bg-red-600'),
-('adm-02', 'sekretariat', 'admin123', 'Sekretariat Pendaftaran', 'PANITIA_INTI', 'sekretariat.inti@wabupcup2026.id', '081398765432', 'bg-indigo-600'),
-('adm-03', 'panitia', 'admin123', 'Divisi Acara & Pertandingan', 'PANITIA', 'panitia.umum@wabupcup2026.id', '085288990011', 'bg-emerald-600'),
-('adm-04', 'wasit', 'admin123', 'Inspektur & Tim Wasit Resmi', 'WASIT', 'wasit@wabupcup2026.id', '085211223344', 'bg-amber-600'),
-('adm-05', 'operator', 'admin123', 'Operator Live Score & Data', 'OPERATOR', 'operator@wabupcup2026.id', '085277889900', 'bg-cyan-600')
-ON DUPLICATE KEY UPDATE `full_name`=VALUES(`full_name`);
+-- 1. SEED DEFAULT ADMIN USERS (DIHAPUS DEMI KEAMANAN)
+-- Akun admin awal disemai secara aman dan terenkripsi scrypt saat database kosong
+-- menggunakan environment variable INITIAL_ADMIN_USERNAME dan INITIAL_ADMIN_PASSWORD (min. 12 karakter),
+-- atau dibuat secara langsung oleh Superadmin melalui dashboard.
+
 
 -- 2. SEED DEFAULT CATEGORIES
 INSERT INTO `categories` (`id`, `name`, `badge_title`, `age_restriction`, `max_teams`, `registered_teams_count`, `registration_fee`, `total_prize`, `description`, `prizes_json`, `rules_json`) VALUES

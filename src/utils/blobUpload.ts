@@ -138,9 +138,14 @@ export async function uploadToTiDbStorage(
     }
   }
 
+  const uploadHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (category === 'REG_DOC') {
+    uploadHeaders['X-Upload-Fallback'] = 'b2-failed';
+  }
+
   const res = await fetch('/api/media/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: uploadHeaders,
     body: JSON.stringify({
       filename: file.name,
       contentType,

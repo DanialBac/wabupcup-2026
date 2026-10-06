@@ -161,15 +161,12 @@ sudo certbot --nginx -d turnamen.kabupaten.go.id
 
 ---
 
-## 🔐 Akun Akses Default Admin Panel Panitia
-
-Setelah import seed data atau saat pertama kali membuka web:
-- **URL Admin**: Klik tombol **Admin CMS** di navbar/footer.
-- **PIN Cepat**: `2026`
-- **Username Akun Panitia**:
-  - Superadmin: `superadmin` / Password: `admin123`
-  - Panitia Pertandingan: `panitia` / Password: `panitia2026`
-  - Wasit / Live Score: `wasit` / Password: `wasit123`
+## 🔐 Akun Akses Admin Panel Panitia
+ 
+Akun awal panitia/superadmin dikonfigurasi secara aman melalui Environment Variables:
+- `INITIAL_ADMIN_USERNAME`: Username admin awal (contoh: `superadmin`).
+- `INITIAL_ADMIN_PASSWORD`: Password kuat awal (minimal 12 karakter).
+Sistem akan otomatis mengenkripsi password dengan algoritma `scrypt` saat database pertama kali diinisialisasi. Akun-akun panitia lainnya dapat dibuat melalui menu Manajemen Admin di dalam dashboard Superadmin.
 
 ---
 

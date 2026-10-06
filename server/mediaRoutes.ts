@@ -21,6 +21,34 @@ export function decodeBase64File(fileData: string): { buffer: Buffer; mimeType?:
 }
 
 /**
+ * 7b. Verifikasi byte awal (magic bytes) berkas biner
+ * PDF: %PDF- (0x25, 0x50, 0x44, 0x46, 0x2D)
+ * JPEG: 0xFF, 0xD8, 0xFF
+ * PNG: 0x89, 0x50, 0x4E, 0x47 (\x89PNG)
+ * WEBP: RIFF pada offset 0, WEBP pada offset 8
+ */
+export function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (!buffer || buffer.length < 12) return false;
+  const type = mimeType.toLowerCase();
+
+  if (type === 'application/pdf') {
+    return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46 && buffer[4] === 0x2d;
+  }
+  if (type === 'image/jpeg' || type === 'image/jpg') {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (type === 'image/png') {
+    return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+  }
+  if (type === 'image/webp') {
+    const isRiff = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46;
+    const isWebp = buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50;
+    return isRiff && isWebp;
+  }
+  return false;
+}
+
+/**
  * 1. Upload Media (File-by-file direct to TiDB Cloud storage)
  * Payload is typically small (<1MB per file), completely safe from Vercel's 4.5MB limit.
  */
@@ -35,6 +63,31 @@ mediaRouter.post('/media/upload', async (req: Request, res: Response) => {
     const { buffer, mimeType } = decodeBase64File(fileData);
     const resolvedContentType = contentType || mimeType || 'application/octet-stream';
     const fileSize = buffer.length;
+
+    // 7. Pembatasan khusus jalur cadangan untuk category REG_DOC
+    if (category === 'REG_DOC') {
+      // 7a. Pagar lunak: Jika Backblaze B2 terkonfigurasi, wajib membawa header X-Upload-Fallback: b2-failed
+      // Catatan keamanan: Ini adalah pagar lunak (header dapat dipalsukan klien), ditujukan untuk memastikan
+      // klien normal tidak langsung membanjiri fungsi serverless & basis data ketika B2 aktif.
+      if (isB2Configured() && req.headers['x-upload-fallback'] !== 'b2-failed') {
+        return res.status(409).json({ error: 'Gunakan unggahan langsung.' });
+      }
+
+      // 7b. Ukuran biner maksimal 1.2 MB (1.2 * 1024 * 1024 = 1,258,291 byte)
+      const MAX_REG_DOC_BYTES = Math.floor(1.2 * 1024 * 1024);
+      if (fileSize > MAX_REG_DOC_BYTES) {
+        return res.status(413).json({ error: 'Ukuran berkas melebihi batas 1.2MB untuk jalur cadangan.' });
+      }
+
+      const ALLOWED_REG_DOC_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (!ALLOWED_REG_DOC_TYPES.includes(resolvedContentType)) {
+        return res.status(400).json({ error: 'Tipe berkas tidak diizinkan. Hanya PDF, JPEG, PNG, atau WEBP.' });
+      }
+
+      if (!verifyMagicBytes(buffer, resolvedContentType)) {
+        return res.status(400).json({ error: 'Isi berkas tidak valid atau tidak cocok dengan format yang dideklarasikan.' });
+      }
+    }
 
     // Hard safety check per single file: max 4MB to protect Vercel Serverless & TiDB payload
     if (fileSize > 4 * 1024 * 1024) {

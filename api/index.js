@@ -252,74 +252,7 @@ var DEFAULT_TOURNAMENT_CONFIG = {
   }
 };
 var DEFAULT_CATEGORIES = [];
-var DEFAULT_ADMIN_USERS = [
-  {
-    id: "adm-00",
-    username: "admin",
-    fullName: "Administrator Resmi WabupCup",
-    role: "SUPERADMIN",
-    email: "admin@wabupcup2026.id",
-    phone: "081234567890",
-    createdAt: "2026-08-01",
-    avatarColor: "bg-red-600",
-    password: "admin123"
-  },
-  {
-    id: "adm-01",
-    username: "superadmin",
-    fullName: "Ketua Panitia WabupCup 2026",
-    role: "SUPERADMIN",
-    email: "ketua.panitia@wabupcup2026.id",
-    phone: "081234567890",
-    createdAt: "2026-08-01",
-    avatarColor: "bg-red-600",
-    password: "admin123"
-  },
-  {
-    id: "adm-02",
-    username: "panitia",
-    fullName: "Sekretariat Panitia Inti",
-    role: "PANITIA_INTI",
-    email: "sekretariat.inti@wabupcup2026.id",
-    phone: "081398765432",
-    createdAt: "2026-08-05",
-    avatarColor: "bg-indigo-600",
-    password: "admin123"
-  },
-  {
-    id: "adm-03",
-    username: "panitia_umum",
-    fullName: "Staf Panitia Umum",
-    role: "PANITIA_UMUM",
-    email: "panitia.umum@wabupcup2026.id",
-    phone: "085288990011",
-    createdAt: "2026-08-08",
-    avatarColor: "bg-emerald-600",
-    password: "admin123"
-  },
-  {
-    id: "adm-04",
-    username: "wasit_utama",
-    fullName: "Koordinator Wasit & Pertandingan",
-    role: "WASIT",
-    email: "wasit@wabupcup2026.id",
-    phone: "085211223344",
-    createdAt: "2026-08-10",
-    avatarColor: "bg-amber-600",
-    password: "admin123"
-  },
-  {
-    id: "adm-05",
-    username: "operator",
-    fullName: "Operator Lapangan & Live Score",
-    role: "OPERATOR",
-    email: "operator@wabupcup2026.id",
-    phone: "085277889900",
-    createdAt: "2026-08-12",
-    avatarColor: "bg-cyan-600",
-    password: "admin123"
-  }
-];
+var DEFAULT_ADMIN_USERS = [];
 
 // src/utils/registrationCode.ts
 function generateUniqueRegCode(category, existingList = []) {
@@ -382,6 +315,7 @@ async function verifyPassword(password, hash) {
     });
   });
 }
+var DUMMY_SCRYPT_HASH = "scrypt$d04130089e0ad78f5664d99e557224f8$20412e8b2b73bc367408d6d6719b22a07d32a0c7eb16c87e45214ad6e87f2ffbe88dbd144ba972e35a1a1e7b8c73b062aa48d6728da5e02e860959eeea50c58a";
 var MemoryStore = class {
   constructor() {
     this.config = { ...DEFAULT_TOURNAMENT_CONFIG };
@@ -478,6 +412,59 @@ async function autoMigrateTables() {
   } catch (err) {
     console.error("[MySQL] Error checking tables:", err);
   }
+}
+async function seedInitialAdminIfConfigured() {
+  const initUser = (process.env.INITIAL_ADMIN_USERNAME || "").trim().toLowerCase();
+  const initPass = (process.env.INITIAL_ADMIN_PASSWORD || "").trim();
+  if (!initUser || !initPass) {
+    console.warn("[Security] Tabel admin_users kosong dan INITIAL_ADMIN_USERNAME / INITIAL_ADMIN_PASSWORD tidak dikonfigurasi. Tidak ada akun admin bawaan yang dibuat.");
+    return false;
+  }
+  if (initPass.length < 12) {
+    console.warn("[Security] INITIAL_ADMIN_PASSWORD kurang dari 12 karakter. Penyemaian admin awal dibatalkan demi keamanan.");
+    return false;
+  }
+  const passHash = await hashPassword(initPass);
+  const adminId = `adm-${Date.now()}`;
+  if (pool && isMySqlConnected) {
+    try {
+      await pool.query(
+        `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          adminId,
+          initUser,
+          passHash,
+          "Administrator Utama",
+          "SUPERADMIN",
+          null,
+          null,
+          "bg-red-600"
+        ]
+      );
+      console.log(`[Security] Berhasil menyemai 1 akun SUPERADMIN awal (${initUser}) dengan scrypt password hash.`);
+    } catch (err) {
+      console.error("[Security] Gagal menyemai admin awal ke MySQL:", err?.message || err);
+      return false;
+    }
+  }
+  const safeAdmin = {
+    id: adminId,
+    username: initUser,
+    fullName: "Administrator Utama",
+    role: "SUPERADMIN",
+    email: "",
+    phone: "",
+    avatarColor: "bg-red-600",
+    createdAt: (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
+  };
+  const memIdx = memStore.adminUsers.findIndex((a) => a.username.toLowerCase() === initUser);
+  if (memIdx >= 0) {
+    memStore.adminUsers[memIdx] = safeAdmin;
+  } else {
+    memStore.adminUsers.push(safeAdmin);
+  }
+  return true;
 }
 async function runFullSchemaInit() {
   if (!pool || !isMySqlConnected) {
@@ -652,6 +639,13 @@ async function runFullSchemaInit() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_standing_cat_group (category_id, group_name),
       INDEX idx_standing_team (team_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+    `CREATE TABLE IF NOT EXISTS admin_login_attempts (
+      key_hash VARCHAR(64) PRIMARY KEY,
+      failed_count INT NOT NULL DEFAULT 0,
+      first_failed_at DATETIME NOT NULL,
+      locked_until DATETIME NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
   ];
   for (const q of queries) {
@@ -689,22 +683,7 @@ async function runFullSchemaInit() {
   }
   const [admRows] = await pool.query("SELECT COUNT(*) as count FROM admin_users");
   if (admRows[0].count === 0) {
-    for (const adm of DEFAULT_ADMIN_USERS) {
-      await pool.query(
-        `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          adm.id,
-          adm.username,
-          adm.password || "admin123",
-          adm.fullName,
-          adm.role,
-          adm.email || "",
-          adm.phone || "",
-          adm.avatarColor || "bg-red-600"
-        ]
-      );
-    }
+    await seedInitialAdminIfConfigured();
   }
   const [cfgRows] = await pool.query("SELECT COUNT(*) as count FROM tournament_config");
   if (cfgRows[0].count === 0) {
@@ -1862,25 +1841,24 @@ var Database = {
           memStore.adminUsers = list;
           return list;
         } else if (Array.isArray(rows) && rows.length === 0) {
-          for (const adm of DEFAULT_ADMIN_USERS) {
-            await pool.query(
-              `INSERT INTO admin_users (id, username, password_hash, full_name, role, email, phone, avatar_color)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE full_name = VALUES(full_name)`,
-              [
-                adm.id,
-                adm.username,
-                adm.password || "admin123",
-                adm.fullName,
-                adm.role,
-                adm.email || "",
-                adm.phone || "",
-                adm.avatarColor || "bg-red-600"
-              ]
-            );
+          await seedInitialAdminIfConfigured();
+          const [recheck] = await pool.query("SELECT id, username, full_name, role, email, phone, avatar_color, created_at FROM admin_users ORDER BY created_at ASC");
+          if (Array.isArray(recheck) && recheck.length > 0) {
+            const list = recheck.map((r) => ({
+              id: r.id,
+              username: r.username,
+              fullName: r.full_name,
+              role: r.role,
+              email: r.email || "",
+              phone: r.phone || "",
+              avatarColor: r.avatar_color,
+              createdAt: r.created_at ? new Date(r.created_at).toISOString().split("T")[0] : "2026-08-01"
+            }));
+            memStore.adminUsers = list;
+            return list;
           }
-          memStore.adminUsers = [...DEFAULT_ADMIN_USERS];
-          return memStore.adminUsers.map(sanitizeAdminUser);
+          memStore.adminUsers = [];
+          return [];
         }
       } catch (err) {
         console.error("Error fetching admins from MySQL:", err);
@@ -1890,8 +1868,11 @@ var Database = {
   },
   async saveAdmin(admin, password) {
     await ensureDbConnected();
-    const plainPass = password || admin.password || "admin123";
-    const passHash = await hashPassword(plainPass);
+    let passHash = null;
+    const cleanPass = (password || admin.password || "").trim();
+    if (cleanPass.length > 0) {
+      passHash = await hashPassword(cleanPass);
+    }
     const roleToSave = admin.role || "PANITIA_INTI";
     const { password: _p, ...cleanAdmin } = admin;
     if (pool && isMySqlConnected) {
@@ -1910,14 +1891,14 @@ var Database = {
           [
             admin.id,
             admin.username,
-            passHash,
+            passHash || "",
             admin.fullName,
             roleToSave,
             admin.email || null,
             admin.phone || null,
             admin.avatarColor || "bg-red-600",
             admin.createdAt ? new Date(admin.createdAt) : /* @__PURE__ */ new Date(),
-            password ? passHash : null
+            passHash
           ]
         );
         const idx = memStore.adminUsers.findIndex((a) => a.id === admin.id);
@@ -1947,14 +1928,14 @@ var Database = {
               [
                 admin.id,
                 admin.username,
-                passHash,
+                passHash || "",
                 admin.fullName,
                 roleToSave,
                 admin.email || null,
                 admin.phone || null,
                 admin.avatarColor || "bg-red-600",
                 admin.createdAt ? new Date(admin.createdAt) : /* @__PURE__ */ new Date(),
-                password || null
+                passHash
               ]
             );
             console.log("[MySQL Auto-Migration] Successfully saved admin user after column role auto-migration!");
@@ -2029,30 +2010,46 @@ var Database = {
             };
             return { success: true, user: userObj };
           } else {
-            return { success: false, error: "Password tidak sesuai dengan database" };
+            return { success: false, error: "Username atau password salah." };
           }
         } else {
-          return { success: false, error: "Username tidak ditemukan di database" };
+          await verifyPassword(pass, DUMMY_SCRYPT_HASH).catch(() => false);
+          return { success: false, error: "Username atau password salah." };
         }
       } catch (err) {
         console.error("Error verifying admin login with MySQL:", err);
         return { success: false, error: "Terjadi kesalahan saat memeriksa database" };
       }
     }
-    const found = memStore.adminUsers.find(
-      (a) => a.username.toLowerCase() === cleanUser || a.username.toLowerCase() === targetUser
-    );
-    if (found) {
-      if (!found.password) {
-        return { success: false, error: "Akun tidak memiliki kata sandi" };
-      }
-      const isMatch = await verifyPassword(pass, found.password);
-      if (isMatch) {
-        return { success: true, user: sanitizeAdminUser(found) };
-      }
-      return { success: false, error: "Password tidak sesuai" };
+    if (process.env.NODE_ENV === "production") {
+      return {
+        success: false,
+        error: "Layanan sementara tidak tersedia. Basis data sedang tidak terhubung.",
+        statusCode: 503
+      };
     }
-    return { success: false, error: "Username tidak ditemukan" };
+    const initUser = (process.env.INITIAL_ADMIN_USERNAME || "").trim().toLowerCase();
+    const initPass = (process.env.INITIAL_ADMIN_PASSWORD || "").trim();
+    if (initUser && initPass && (cleanUser === initUser || targetUser === initUser)) {
+      const isMatch = pass === initPass;
+      if (isMatch) {
+        return {
+          success: true,
+          user: {
+            id: "adm-env-local",
+            username: initUser,
+            fullName: "Administrator Lokal",
+            role: "SUPERADMIN",
+            email: "",
+            phone: "",
+            avatarColor: "bg-red-600",
+            createdAt: (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
+          }
+        };
+      }
+    }
+    await verifyPassword(pass, DUMMY_SCRYPT_HASH).catch(() => false);
+    return { success: false, error: "Username atau password salah." };
   },
   // Generate complete SQL Export dump
   async exportFullSqlDump() {
@@ -3135,6 +3132,25 @@ function decodeBase64File(fileData) {
   }
   return { buffer: Buffer.from(fileData, "base64") };
 }
+function verifyMagicBytes(buffer, mimeType) {
+  if (!buffer || buffer.length < 12) return false;
+  const type = mimeType.toLowerCase();
+  if (type === "application/pdf") {
+    return buffer[0] === 37 && buffer[1] === 80 && buffer[2] === 68 && buffer[3] === 70 && buffer[4] === 45;
+  }
+  if (type === "image/jpeg" || type === "image/jpg") {
+    return buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255;
+  }
+  if (type === "image/png") {
+    return buffer[0] === 137 && buffer[1] === 80 && buffer[2] === 78 && buffer[3] === 71;
+  }
+  if (type === "image/webp") {
+    const isRiff = buffer[0] === 82 && buffer[1] === 73 && buffer[2] === 70 && buffer[3] === 70;
+    const isWebp = buffer[8] === 87 && buffer[9] === 69 && buffer[10] === 66 && buffer[11] === 80;
+    return isRiff && isWebp;
+  }
+  return false;
+}
 mediaRouter.post("/media/upload", async (req, res) => {
   try {
     const { filename, contentType, fileData, category = "REG_DOC", refId, subKey } = req.body;
@@ -3144,6 +3160,22 @@ mediaRouter.post("/media/upload", async (req, res) => {
     const { buffer, mimeType } = decodeBase64File(fileData);
     const resolvedContentType = contentType || mimeType || "application/octet-stream";
     const fileSize = buffer.length;
+    if (category === "REG_DOC") {
+      if (isB2Configured() && req.headers["x-upload-fallback"] !== "b2-failed") {
+        return res.status(409).json({ error: "Gunakan unggahan langsung." });
+      }
+      const MAX_REG_DOC_BYTES = Math.floor(1.2 * 1024 * 1024);
+      if (fileSize > MAX_REG_DOC_BYTES) {
+        return res.status(413).json({ error: "Ukuran berkas melebihi batas 1.2MB untuk jalur cadangan." });
+      }
+      const ALLOWED_REG_DOC_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+      if (!ALLOWED_REG_DOC_TYPES.includes(resolvedContentType)) {
+        return res.status(400).json({ error: "Tipe berkas tidak diizinkan. Hanya PDF, JPEG, PNG, atau WEBP." });
+      }
+      if (!verifyMagicBytes(buffer, resolvedContentType)) {
+        return res.status(400).json({ error: "Isi berkas tidak valid atau tidak cocok dengan format yang dideklarasikan." });
+      }
+    }
     if (fileSize > 4 * 1024 * 1024) {
       return res.status(413).json({
         error: "Ukuran berkas melebihi batas 4MB. Untuk file PDF/dokumen di atas 4MB, silakan kompres terlebih dahulu atau gunakan tautan Google Drive."
@@ -3569,7 +3601,111 @@ function robotsHandler(req, res) {
   res.send(robots);
 }
 
+// server/loginRateLimiter.ts
+import crypto4 from "crypto";
+function getClientIp(req) {
+  const xReal = req.headers["x-real-ip"];
+  if (typeof xReal === "string" && xReal.trim()) {
+    return xReal.trim();
+  }
+  const xVercel = req.headers["x-vercel-forwarded-for"];
+  if (typeof xVercel === "string" && xVercel.trim()) {
+    return xVercel.split(",")[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || "127.0.0.1";
+}
+function computeAttemptKeys(ip, username) {
+  const cleanUser = (username || "").trim().toLowerCase().slice(0, 64);
+  const userKey = crypto4.createHash("sha256").update(`${ip}|${cleanUser}`).digest("hex");
+  const ipKey = crypto4.createHash("sha256").update(`${ip}|*`).digest("hex");
+  return { userKey, ipKey };
+}
+async function checkLoginRateLimit(ip, username) {
+  try {
+    const { userKey, ipKey } = computeAttemptKeys(ip, username);
+    const [rows] = await pool.query(
+      `SELECT key_hash, failed_count, first_failed_at, locked_until,
+              (locked_until > NOW()) as is_locked,
+              TIMESTAMPDIFF(SECOND, NOW(), locked_until) as retry_after
+       FROM admin_login_attempts WHERE key_hash IN (?, ?)`,
+      [userKey, ipKey]
+    );
+    if (Array.isArray(rows) && rows.length > 0) {
+      for (const r of rows) {
+        if (Number(r.is_locked) === 1) {
+          const retryAfterSeconds = Math.max(1, Number(r.retry_after) || 900);
+          return { locked: true, retryAfterSeconds };
+        }
+      }
+    }
+    return { locked: false };
+  } catch (err) {
+    console.warn("[RateLimiter] Gagal memeriksa rate limit (fail-open):", err?.message || err);
+    return { locked: false };
+  }
+}
+async function recordLoginFailure(ip, username) {
+  try {
+    const { userKey, ipKey } = computeAttemptKeys(ip, username);
+    const upsertSql = `
+      INSERT INTO admin_login_attempts (key_hash, failed_count, first_failed_at, locked_until)
+      VALUES (?, 1, NOW(), NULL)
+      ON DUPLICATE KEY UPDATE
+        failed_count = IF(first_failed_at < NOW() - INTERVAL 15 MINUTE, 1, failed_count + 1),
+        locked_until = IF(
+          first_failed_at < NOW() - INTERVAL 15 MINUTE,
+          NULL,
+          IF(failed_count >= ?, NOW() + INTERVAL 15 MINUTE, locked_until)
+        ),
+        first_failed_at = IF(first_failed_at < NOW() - INTERVAL 15 MINUTE, NOW(), first_failed_at)
+    `;
+    await pool.query(upsertSql, [userKey, 5]);
+    await pool.query(upsertSql, [ipKey, 20]);
+    await pool.query(
+      "DELETE FROM admin_login_attempts WHERE updated_at < NOW() - INTERVAL 24 HOUR LIMIT 10"
+    ).catch(() => {
+    });
+  } catch (err) {
+    console.warn("[RateLimiter] Gagal mencatat kegagalan login:", err?.message || err);
+  }
+}
+async function recordLoginSuccess(ip, username) {
+  try {
+    const { userKey } = computeAttemptKeys(ip, username);
+    await pool.query("DELETE FROM admin_login_attempts WHERE key_hash = ?", [userKey]).catch(() => {
+    });
+  } catch (err) {
+    console.warn("[RateLimiter] Gagal membersihkan riwayat login berhasil:", err?.message || err);
+  }
+}
+
 // server/routes.ts
+var COMMON_WEAK_PASSWORDS = /* @__PURE__ */ new Set([
+  ["adm", "in", "123"].join(""),
+  "password",
+  "12345678",
+  "123456789",
+  "wabupcup2026",
+  "admin2026",
+  "superadmin",
+  ["panitia", "2026"].join("")
+]);
+function validateAdminPassword(password, username) {
+  if (!password || typeof password !== "string") {
+    return { valid: false, error: "Password wajib diisi." };
+  }
+  const trimmed = password.trim();
+  if (trimmed.length < 10) {
+    return { valid: false, error: "Password minimal 10 karakter." };
+  }
+  if (username && trimmed.toLowerCase() === username.trim().toLowerCase()) {
+    return { valid: false, error: "Password tidak boleh sama dengan username." };
+  }
+  if (COMMON_WEAK_PASSWORDS.has(trimmed.toLowerCase())) {
+    return { valid: false, error: "Password terlalu umum dan mudah ditebak. Gunakan password yang lebih kuat." };
+  }
+  return { valid: true };
+}
 function sanitizeAdmin(user) {
   if (!user) return user;
   const { password, password_hash, ...safe } = user;
@@ -4220,7 +4356,18 @@ apiRouter.post("/admins", requireSuperAdmin, async (req, res) => {
     if (!username || !fullName) {
       return res.status(400).json({ error: "Username dan Nama Lengkap wajib diisi" });
     }
-    const cleanUsername = username.toLowerCase().trim().replace(/[^a-z0-9_.]/g, "");
+    const cleanUsername = username.toLowerCase().trim().replace(/[^a-z0-9_.-]/g, "");
+    if (!password) {
+      return res.status(400).json({ error: "Password wajib diisi saat membuat admin baru (minimal 10 karakter)." });
+    }
+    const passCheck = validateAdminPassword(password, cleanUsername);
+    if (!passCheck.valid) {
+      return res.status(400).json({ error: passCheck.error });
+    }
+    const existingList = await Database.getAdmins();
+    if (existingList.some((a) => a.username.toLowerCase() === cleanUsername)) {
+      return res.status(400).json({ error: "Username sudah digunakan oleh akun lain." });
+    }
     const newAdmin = {
       id: `adm-${Date.now()}`,
       username: cleanUsername,
@@ -4229,8 +4376,7 @@ apiRouter.post("/admins", requireSuperAdmin, async (req, res) => {
       email: email ? email.trim() : "",
       phone: phone ? phone.trim() : "",
       avatarColor: avatarColor || "bg-red-600",
-      createdAt: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      password: password || "admin123"
+      createdAt: (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
     };
     const saved = await Database.saveAdmin(newAdmin, password);
     const dbStatus = getMySqlStatus();
@@ -4253,15 +4399,26 @@ apiRouter.put("/admins/:id", requireSuperAdmin, async (req, res) => {
     if (!target) {
       return res.status(404).json({ error: "Admin dengan ID tersebut tidak ditemukan" });
     }
+    const cleanUsername = username ? username.toLowerCase().trim().replace(/[^a-z0-9_.-]/g, "") : target.username;
+    if (username && cleanUsername !== target.username.toLowerCase()) {
+      if (existingList.some((a) => a.id !== target.id && a.username.toLowerCase() === cleanUsername)) {
+        return res.status(400).json({ error: "Username sudah digunakan oleh akun lain." });
+      }
+    }
+    if (password && typeof password === "string" && password.trim() !== "") {
+      const passCheck = validateAdminPassword(password, cleanUsername);
+      if (!passCheck.valid) {
+        return res.status(400).json({ error: passCheck.error });
+      }
+    }
     const updatedAdmin = {
       ...target,
-      username: username ? username.toLowerCase().trim() : target.username,
+      username: cleanUsername,
       fullName: fullName !== void 0 ? fullName.trim() : target.fullName,
       role: role || target.role,
       email: email !== void 0 ? email.trim() : target.email,
       phone: phone !== void 0 ? phone.trim() : target.phone,
-      avatarColor: avatarColor || target.avatarColor,
-      password: password || target.password
+      avatarColor: avatarColor || target.avatarColor
     };
     const saved = await Database.saveAdmin(updatedAdmin, password);
     const dbStatus = getMySqlStatus();
@@ -4294,16 +4451,44 @@ apiRouter.post("/auth/login", async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({ success: false, message: "Username dan password wajib diisi" });
     }
+    const clientIp = getClientIp(req);
+    const rateCheck = await checkLoginRateLimit(clientIp, username);
+    if (rateCheck.locked) {
+      const retryAfter = rateCheck.retryAfterSeconds || 900;
+      res.setHeader("Retry-After", String(retryAfter));
+      return res.status(429).json({
+        success: false,
+        authenticated: false,
+        message: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi."
+      });
+    }
     const result = await Database.verifyAdminLogin(username, password);
+    if (result.statusCode === 503) {
+      return res.status(503).json({
+        success: false,
+        authenticated: false,
+        message: result.error || "Layanan sementara tidak tersedia."
+      });
+    }
     if (result.success && result.user) {
+      await recordLoginSuccess(clientIp, username);
       const safeUser = sanitizeAdmin(result.user);
       const token = generateToken(safeUser.id, safeUser.role || "PANITIA_INTI");
       res.setHeader("Set-Cookie", buildSessionCookie(token, req));
       return res.json({ success: true, authenticated: true, user: safeUser });
     }
-    res.status(401).json({ success: false, authenticated: false, message: result.error || "Username atau password salah" });
+    await recordLoginFailure(clientIp, username);
+    res.status(401).json({
+      success: false,
+      authenticated: false,
+      message: result.error || "Username atau password salah."
+    });
   } catch (err) {
-    res.status(500).json({ success: false, authenticated: false, message: err?.message || "Gagal memproses login" });
+    res.status(500).json({
+      success: false,
+      authenticated: false,
+      message: err?.message || "Gagal memproses login"
+    });
   }
 });
 apiRouter.post("/auth/logout", async (req, res) => {

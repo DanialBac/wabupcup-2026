@@ -215,8 +215,8 @@ function insertInitialDummyData(ss) {
 
   const sheetAdmins = ss.getSheetByName("Admin_Users");
   const defaultAdmins = [
-    ["ADM-001", "superadmin", "admin123", "Ketua Panitia WabupCup 2026", "SUPERADMIN", "panitia@wabupcup2026.id", "081234567890"],
-    ["ADM-002", "panitia", "panitia2026", "Sekretariat Pendaftaran", "PANITIA", "sekretariat@wabupcup2026.id", "081398765432"]
+    ["ADM-001", "superadmin", "", "Ketua Panitia WabupCup 2026", "SUPERADMIN", "panitia@wabupcup2026.id", "081234567890"],
+    ["ADM-002", "panitia", "", "Sekretariat Pendaftaran", "PANITIA", "sekretariat@wabupcup2026.id", "081398765432"]
   ];
   sheetAdmins.getRange(2, 1, defaultAdmins.length, defaultAdmins[0].length).setValues(defaultAdmins);
 }

@@ -296,4 +296,15 @@ CREATE TABLE `table_standings` (
   INDEX `idx_standing_team` (`team_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ----------------------------------------------------------
+-- 15. Table: admin_login_attempts (Pembatasan Percobaan Login Admin)
+-- ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `admin_login_attempts` (
+  `key_hash` VARCHAR(64) PRIMARY KEY,
+  `failed_count` INT NOT NULL DEFAULT 0,
+  `first_failed_at` DATETIME NOT NULL,
+  `locked_until` DATETIME NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
