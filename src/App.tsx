@@ -276,6 +276,7 @@ const MainLayout: React.FC = () => {
     sponsors: true,
     standaloneKlasemen: true,
     klasemenLanding: true,
+    registrationButton: true,
   };
 
   useEffect(() => {

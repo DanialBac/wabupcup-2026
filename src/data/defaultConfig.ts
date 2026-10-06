@@ -22,6 +22,7 @@ export const DEFAULT_SECTIONS_VISIBILITY: PageSectionsVisibility = {
   standaloneTabJadwal: true,
   standaloneTabKnockout: true,
   standaloneTabTopScore: true,
+  registrationButton: true,
 };
 
 export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {

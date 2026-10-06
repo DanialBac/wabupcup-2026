@@ -110,6 +110,7 @@ import {
   Sun,
   Moon,
   ArrowLeft,
+  UserPlus,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -905,6 +906,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
       standaloneTabJadwal: true,
       standaloneTabKnockout: true,
       standaloneTabTopScore: true,
+      registrationButton: true,
     };
     const isCurrentlyVisible = (currentVis[key] ?? true) !== false;
     const nextVal = !isCurrentlyVisible;
@@ -940,6 +942,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
       standaloneTabJadwal: true,
       standaloneTabKnockout: true,
       standaloneTabTopScore: true,
+      registrationButton: true,
     };
 
     let updated: PageSectionsVisibility;
@@ -3322,13 +3325,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                   </p>
                 </div>
 
-                <button
-                  onClick={handleOpenAddCategory}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold flex items-center justify-center space-x-2 transition shadow-lg shadow-red-950/50 cursor-pointer shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Tambah Kategori Baru</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSectionVisibility('registrationButton')}
+                    className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 border shadow-sm cursor-pointer ${
+                      (config.sectionsVisibility?.registrationButton ?? true) !== false
+                        ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/60'
+                        : 'bg-rose-950/40 text-rose-300 border-rose-500/40 hover:bg-rose-900/60'
+                    }`}
+                    title="Klik untuk mengubah visibilitas tombol daftar tim di website publik"
+                  >
+                    {(config.sectionsVisibility?.registrationButton ?? true) !== false ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Tombol Daftar: DITAMPILKAN</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Tombol Daftar: DISEMBUNYIKAN</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleOpenAddCategory}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold flex items-center justify-center space-x-2 transition shadow-lg shadow-red-950/50 cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Kategori Baru</span>
+                  </button>
+                </div>
               </div>
 
               {/* BANNER DRAG & DROP & PANDUAN URUTAN */}
@@ -4452,6 +4480,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                     )}
                   </div>
 
+                  {/* GLOBAL REGISTRATION BUTTON STATUS & TOGGLE BANNER */}
+                  {(() => {
+                    const isRegBtnActive = (config.sectionsVisibility?.registrationButton ?? true) !== false;
+                    return (
+                      <div className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg ${
+                        isRegBtnActive
+                          ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30'
+                          : 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/30'
+                      }`}>
+                        <div className="flex items-start space-x-3.5">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                            isRegBtnActive
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                          }`}>
+                            <UserPlus className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-bold text-sm sm:text-base text-white">
+                                Visibilitas Tombol Pendaftaran Tim di Halaman Publik
+                              </h4>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                isRegBtnActive
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              }`}>
+                                {isRegBtnActive ? 'DITAMPILKAN' : 'DISEMBUNYIKAN'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                              {isRegBtnActive
+                                ? 'Tombol "Daftar Tim" aktif di Navbar, Hero, Kategori, dan Bagan. Pengunjung dapat mendaftarkan timnya secara online.'
+                                : 'Seluruh tombol "Daftar Tim" saat ini disembunyikan dari publik. Cocok saat seluruh kuota tim telah penuh atau turnamen belum membuka pendaftaran.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-3 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSectionVisibility('registrationButton')}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-lg cursor-pointer ${
+                              isRegBtnActive
+                                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/40'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
+                            }`}
+                          >
+                            {isRegBtnActive ? (
+                              <>
+                                <Lock className="w-4 h-4" />
+                                <span>Sembunyikan Tombol Daftar</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4" />
+                                <span>Tampilkan Tombol Daftar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* SUMMARY STATS ROW */}
                   {(() => {
                     let totalMax = 0;
@@ -4984,6 +5077,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                             color: 'text-purple-400',
                             bgColor: 'bg-purple-500/10',
                             borderColor: 'border-purple-500/30',
+                          },
+                          {
+                            key: 'registrationButton' as keyof PageSectionsVisibility,
+                            title: 'Tombol Pendaftaran Tim (Daftar Sekarang)',
+                            desc: 'Sembunyikan atau tampilkan seluruh tombol "Daftar Tim" di Navbar, Hero, Kategori, dan Bagan saat kuota penuh atau pendaftaran belum dibuka.',
+                            icon: UserPlus,
+                            color: 'text-rose-400',
+                            bgColor: 'bg-rose-500/10',
+                            borderColor: 'border-rose-500/30',
                           },
                         ].map(sec => {
                           const isVis = (config.sectionsVisibility?.[sec.key] ?? true) !== false;

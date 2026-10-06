@@ -14,6 +14,7 @@ export const DEFAULT_SECTIONS_VISIBILITY: PageSectionsVisibility = {
   sponsors: true,
   klasemenLanding: true,
   standaloneKlasemen: true,
+  registrationButton: true,
 };
 
 export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {

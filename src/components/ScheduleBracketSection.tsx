@@ -33,6 +33,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   const isBracketVisible = (visibility?.landingBracket ?? true) !== false;
   const isScheduleVisible = (visibility?.landingSchedule ?? true) !== false;
   const isTeamsVisible = (visibility?.landingKlasemen ?? true) !== false;
+  const isRegButtonVisible = (visibility?.registrationButton ?? true) !== false;
 
   const [selectedCat, setSelectedCat] = useState<TournamentCategory>(() => categories[0]?.id || 'SMA');
   const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
@@ -241,7 +242,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
               <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
                 Jadwal dan bagan pertandingan resmi untuk kategori <strong className="text-white">{selectedCat}</strong> akan ditampilkan secara otomatis setelah panitia melakukan proses undian (Drawing) di sistem CMS.
               </p>
-              {onOpenRegister && (
+              {onOpenRegister && isRegButtonVisible && (
                 <div className="pt-2">
                   <button
                     onClick={() => onOpenRegister(selectedCat)}
@@ -774,7 +775,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                 <span className="text-slate-500 dark:text-slate-400">
                   Total Terdaftar: <strong className="text-slate-900 dark:text-white">{currentCatDetail?.registeredTeamsCount || 0} Tim</strong> ({currentCatDetail?.maxTeams || 16} Maksimal)
                 </span>
-                {onOpenRegister && (
+                {onOpenRegister && isRegButtonVisible && (
                   <button
                     onClick={() => onOpenRegister(selectedCat)}
                     className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider transition flex items-center space-x-1.5 shadow-sm cursor-pointer shrink-0"
@@ -797,7 +798,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                     ? `Tidak ada tim yang cocok dengan pencarian "${teamSearchQuery}".`
                     : `Belum ada tim yang mendaftar pada kategori ${selectedCat}.`}
                 </p>
-                {onOpenRegister && (
+                {onOpenRegister && isRegButtonVisible && (
                   <button
                     onClick={() => onOpenRegister(selectedCat)}
                     className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition"

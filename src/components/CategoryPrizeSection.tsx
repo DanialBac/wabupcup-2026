@@ -24,6 +24,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
   onSelectCategoryToRegister,
 }) => {
   const { categories, config, registrations } = useTournament();
+  const isRegButtonVisible = (config.sectionsVisibility?.registrationButton ?? true) !== false;
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
 
   const toggleExpand = (catId: string) => {
@@ -290,24 +291,26 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
                   </button>
 
                   {/* ACTION REGISTER BUTTON */}
-                  {isFull ? (
-                    <button
-                      id={`btn-register-category-${cat.id}`}
-                      disabled
-                      className="w-full py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-wider cursor-not-allowed flex items-center justify-center space-x-2 border border-slate-300 dark:border-slate-700"
-                    >
-                      <Lock className="w-4 h-4 text-amber-500" />
-                      <span>Kuota Tim {cat.id} Penuh (Ditutup)</span>
-                    </button>
-                  ) : (
-                    <button
-                      id={`btn-register-category-${cat.id}`}
-                      onClick={() => onSelectCategoryToRegister(cat.id)}
-                      className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-red-600/30 transition flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      <span>Daftarkan Tim {cat.id}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                  {isRegButtonVisible && (
+                    isFull ? (
+                      <button
+                        id={`btn-register-category-${cat.id}`}
+                        disabled
+                        className="w-full py-3 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-xs uppercase tracking-wider cursor-not-allowed flex items-center justify-center space-x-2 border border-slate-300 dark:border-slate-700"
+                      >
+                        <Lock className="w-4 h-4 text-amber-500" />
+                        <span>Kuota Tim {cat.id} Penuh (Ditutup)</span>
+                      </button>
+                    ) : (
+                      <button
+                        id={`btn-register-category-${cat.id}`}
+                        onClick={() => onSelectCategoryToRegister(cat.id)}
+                        className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-red-600/30 transition flex items-center justify-center space-x-2 cursor-pointer"
+                      >
+                        <span>Daftarkan Tim {cat.id}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )
                   )}
 
                 </div>

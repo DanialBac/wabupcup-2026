@@ -246,6 +246,8 @@ export interface PageSectionsVisibility {
   standaloneTabJadwal?: boolean;
   standaloneTabKnockout?: boolean;
   standaloneTabTopScore?: boolean;
+  // Tombol Pendaftaran Tim di Landing Page / Navbar / Hero
+  registrationButton?: boolean;
 }
 
 export interface PlayerItem {

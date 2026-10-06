@@ -507,8 +507,36 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </button>
         </div>
 
-        {/* QUOTA FULL ERROR VIEW */}
-        {quotaError ? (
+        {/* REGISTRATION CLOSED/HIDDEN VIEW */}
+        {(config.sectionsVisibility?.registrationButton ?? true) === false ? (
+          <div className="p-8 sm:p-12 space-y-6 animate-fadeIn text-center">
+            <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <Lock className="w-10 h-10" />
+            </div>
+
+            <div>
+              <span className="text-sm font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 block mb-1">
+                INFORMASI PENDAFTARAN
+              </span>
+              <h4 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight">
+                Pendaftaran Belum Dibuka / Sedang Ditutup
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto mt-3 border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl leading-relaxed">
+                Panitia pelaksana saat ini belum membuka formulir pendaftaran tim atau seluruh kuota pendaftaran telah terpenuhi. Pantau informasi resmi atau hubungi narahubung panitia turnamen.
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-center space-x-3">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
+              >
+                Tutup Formulir
+              </button>
+            </div>
+          </div>
+        ) : quotaError ? (
           <div className="p-8 sm:p-12 space-y-6 animate-fadeIn text-center">
             <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 mx-auto flex items-center justify-center shadow-lg shadow-red-500/20">
               <AlertCircle className="w-10 h-10" />

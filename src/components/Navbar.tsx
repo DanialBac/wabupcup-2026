@@ -58,7 +58,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     bracket: true,
     venue: true,
     sponsors: true,
+    registrationButton: true,
   };
+
+  const isRegButtonVisible = (visibility.registrationButton ?? true) !== false;
 
   const allNavLinks = [
     { id: 'beranda', label: 'Beranda', icon: Trophy, href: '#beranda', visible: visibility.hero !== false },
@@ -228,14 +231,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* CTA Daftar Sekarang */}
-            <button
-              id="btn-nav-register"
-              onClick={handleRegisterClick}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-md shadow-red-600/30 border border-red-500/50 hover:shadow-red-600/50 transition transform active:scale-95 flex items-center space-x-1.5 cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Daftar Tim</span>
-            </button>
+            {isRegButtonVisible && (
+              <button
+                id="btn-nav-register"
+                onClick={handleRegisterClick}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-md shadow-red-600/30 border border-red-500/50 hover:shadow-red-600/50 transition transform active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Daftar Tim</span>
+              </button>
+            )}
           </div>
 
           {/* MOBILE MENU TOGGLE */}
@@ -322,16 +327,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>{currentAdmin ? `CMS Admin (${currentAdmin.role})` : 'Login Admin CMS'}</span>
             </button>
 
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                handleRegisterClick();
-              }}
-              className="w-full py-3 rounded-xl bg-red-600 text-white font-bold text-sm shadow-lg shadow-red-600/40 flex items-center justify-center space-x-2"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Daftar Tim Sekarang ⚡</span>
-            </button>
+            {isRegButtonVisible && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleRegisterClick();
+                }}
+                className="w-full py-3 rounded-xl bg-red-600 text-white font-bold text-sm shadow-lg shadow-red-600/40 flex items-center justify-center space-x-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Daftar Tim Sekarang ⚡</span>
+              </button>
+            )}
           </div>
         </div>
       )}

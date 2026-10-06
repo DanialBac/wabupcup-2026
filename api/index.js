@@ -155,7 +155,8 @@ var DEFAULT_SECTIONS_VISIBILITY = {
   venue: true,
   sponsors: true,
   klasemenLanding: true,
-  standaloneKlasemen: true
+  standaloneKlasemen: true,
+  registrationButton: true
 };
 var DEFAULT_TOURNAMENT_CONFIG = {
   name: "WabupCup",
