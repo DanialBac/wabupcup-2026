@@ -225,7 +225,14 @@ export interface TournamentConfig {
   committeeChairmanTitle?: string;
   committeeChairmanSignature?: string;
   tournamentStampImage?: string;
+  // Mode Tombol Pendaftaran & Tombol Samaran (Link Kustom)
+  registrationButtonMode?: RegistrationButtonMode;
+  registrationCustomLink?: string;
+  registrationCustomButtonText?: string;
+  registrationCustomLinkNewTab?: boolean;
 }
+
+export type RegistrationButtonMode = 'INTERNAL_FORM' | 'CUSTOM_LINK' | 'HIDDEN';
 
 export interface PageSectionsVisibility {
   hero: boolean;

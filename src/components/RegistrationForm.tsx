@@ -4,6 +4,7 @@ import { useTournament } from '../context/TournamentContext';
 import { isSuratKeteranganRequired } from '../shared/registrationRules';
 import { compressLogo } from '../utils/imageCompressor';
 import { uploadFileToBlob } from '../utils/blobUpload';
+import { getRegistrationStatus } from '../utils/registrationStatus';
 import {
   RegistrationDocuments,
   TournamentCategory,
@@ -44,6 +45,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   preselectedCategory = 'SMA',
 }) => {
   const { config, categories, registrations, submitNewRegistration, getWhatsAppNotificationUrl, committeeContacts, refreshCategoryQuotas } = useTournament();
+  const regStatus = getRegistrationStatus(config);
 
   // Helper to calculate real-time registered count for a category
   const getCategoryCount = (catId: TournamentCategory) => {
@@ -507,8 +509,45 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </button>
         </div>
 
-        {/* REGISTRATION CLOSED/HIDDEN VIEW */}
-        {(config.sectionsVisibility?.registrationButton ?? true) === false ? (
+        {/* REGISTRATION CUSTOM LINK OR CLOSED/HIDDEN VIEW */}
+        {regStatus.isCustomLink ? (
+          <div className="p-8 sm:p-12 space-y-6 animate-fadeIn text-center">
+            <div className="w-20 h-20 rounded-full bg-cyan-100 dark:bg-cyan-950/80 text-cyan-600 dark:text-cyan-400 mx-auto flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <ExternalLink className="w-10 h-10" />
+            </div>
+
+            <div>
+              <span className="text-sm font-bold uppercase tracking-widest text-cyan-600 dark:text-cyan-400 block mb-1">
+                INFORMASI PENDAFTARAN
+              </span>
+              <h4 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight">
+                Pendaftaran Dialihkan ke Tautan Resmi
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto mt-3 border border-cyan-200 dark:border-cyan-900/50 bg-cyan-50 dark:bg-cyan-900/10 p-4 rounded-xl leading-relaxed">
+                Panitia pelaksana mengarahkan pendaftaran turnamen melalui tautan pendaftaran eksternal resmi. Silakan klik tombol di bawah untuk melanjutkan pendaftaran.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a
+                href={regStatus.customLink}
+                target={regStatus.openInNewTab ? "_blank" : "_self"}
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-cyan-600/30 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <span>{regStatus.customButtonText || 'Buka Formulir Pendaftaran'}</span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
+              >
+                Tutup Formulir
+              </button>
+            </div>
+          </div>
+        ) : !regStatus.isVisible ? (
           <div className="p-8 sm:p-12 space-y-6 animate-fadeIn text-center">
             <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-lg shadow-amber-500/20">
               <Lock className="w-10 h-10" />

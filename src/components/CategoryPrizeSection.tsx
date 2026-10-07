@@ -16,6 +16,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
+import { getRegistrationStatus, handleRegistrationAction } from '../utils/registrationStatus';
+
 interface CategoryPrizeSectionProps {
   onSelectCategoryToRegister: (category: TournamentCategory) => void;
 }
@@ -24,8 +26,15 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
   onSelectCategoryToRegister,
 }) => {
   const { categories, config, registrations } = useTournament();
-  const isRegButtonVisible = (config.sectionsVisibility?.registrationButton ?? true) !== false;
+  const regStatus = getRegistrationStatus(config);
+  const isRegButtonVisible = regStatus.isVisible;
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
+
+  const handleRegisterCategory = (catId: TournamentCategory) => {
+    handleRegistrationAction(config, () => {
+      onSelectCategoryToRegister(catId);
+    });
+  };
 
   const toggleExpand = (catId: string) => {
     setExpandedCat(prev => (prev === catId ? null : catId));
@@ -292,7 +301,7 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
 
                   {/* ACTION REGISTER BUTTON */}
                   {isRegButtonVisible && (
-                    isFull ? (
+                    (!regStatus.isCustomLink && isFull) ? (
                       <button
                         id={`btn-register-category-${cat.id}`}
                         disabled
@@ -304,10 +313,10 @@ export const CategoryPrizeSection: React.FC<CategoryPrizeSectionProps> = ({
                     ) : (
                       <button
                         id={`btn-register-category-${cat.id}`}
-                        onClick={() => onSelectCategoryToRegister(cat.id)}
+                        onClick={() => handleRegisterCategory(cat.id)}
                         className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-red-600/30 transition flex items-center justify-center space-x-2 cursor-pointer"
                       >
-                        <span>Daftarkan Tim {cat.id}</span>
+                        <span>{regStatus.customButtonText || `Daftarkan Tim ${cat.id}`}</span>
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     )

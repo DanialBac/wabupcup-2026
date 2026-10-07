@@ -178,6 +178,10 @@ var DEFAULT_TOURNAMENT_CONFIG = {
   committeeEmails: [],
   committeeChairmanName: "AHMAT IQBAL FIRDAUS",
   committeeChairmanTitle: "Ketua Panitia Pelaksana Wabup Cup 2026",
+  registrationButtonMode: "INTERNAL_FORM",
+  registrationCustomLink: "",
+  registrationCustomButtonText: "",
+  registrationCustomLinkNewTab: true,
   sectionsVisibility: { ...DEFAULT_SECTIONS_VISIBILITY },
   sectionsBackgrounds: {
     hero: {

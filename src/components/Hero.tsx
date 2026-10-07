@@ -19,13 +19,18 @@ interface HeroProps {
   onOpenCheckStatus: () => void;
 }
 
+import { getRegistrationStatus, handleRegistrationAction } from '../utils/registrationStatus';
+
 export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, onOpenCheckStatus }) => {
   const { config, registrations, categories } = useTournament();
-  const isRegButtonVisible = (config.sectionsVisibility?.registrationButton ?? true) !== false;
+  const regStatus = getRegistrationStatus(config);
+  const isRegButtonVisible = regStatus.isVisible;
 
   const handleRegisterClick = () => {
-    if (onOpenRegister) onOpenRegister();
-    else if (onOpenRegistration) onOpenRegistration();
+    handleRegistrationAction(config, () => {
+      if (onOpenRegister) onOpenRegister();
+      else if (onOpenRegistration) onOpenRegistration();
+    });
   };
 
   // Countdown timer calculation to kickoff date
@@ -131,7 +136,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
                 onClick={handleRegisterClick}
                 className="w-full sm:w-auto px-8 py-4 rounded-xl text-base font-bold text-white bg-gradient-to-r from-red-600 via-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-xl shadow-red-600/35 border border-red-400/40 transform active:scale-95 transition flex items-center justify-center space-x-2 cursor-pointer"
               >
-                <span>Daftar Tim Sekarang</span>
+                <span>{regStatus.customButtonText || 'Daftar Tim Sekarang'}</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
             )}

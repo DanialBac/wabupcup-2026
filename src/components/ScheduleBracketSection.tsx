@@ -21,6 +21,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+import { getRegistrationStatus, handleRegistrationAction } from '../utils/registrationStatus';
+
 interface ScheduleBracketSectionProps {
   onOpenRegister?: (category: TournamentCategory) => void;
 }
@@ -33,7 +35,14 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   const isBracketVisible = (visibility?.landingBracket ?? true) !== false;
   const isScheduleVisible = (visibility?.landingSchedule ?? true) !== false;
   const isTeamsVisible = (visibility?.landingKlasemen ?? true) !== false;
-  const isRegButtonVisible = (visibility?.registrationButton ?? true) !== false;
+  const regStatus = getRegistrationStatus(config);
+  const isRegButtonVisible = regStatus.isVisible;
+
+  const handleRegisterCategory = (category: TournamentCategory) => {
+    handleRegistrationAction(config, () => {
+      if (onOpenRegister) onOpenRegister(category);
+    });
+  };
 
   const [selectedCat, setSelectedCat] = useState<TournamentCategory>(() => categories[0]?.id || 'SMA');
   const [viewMode, setViewMode] = useState<'BRACKET' | 'TABLE' | 'TEAMS'>('BRACKET');
@@ -245,10 +254,10 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
               {onOpenRegister && isRegButtonVisible && (
                 <div className="pt-2">
                   <button
-                    onClick={() => onOpenRegister(selectedCat)}
+                    onClick={() => handleRegisterCategory(selectedCat)}
                     className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-950/50 transition cursor-pointer"
                   >
-                    Daftarkan Tim {selectedCat} Sekarang
+                    {regStatus.customButtonText || `Daftarkan Tim ${selectedCat} Sekarang`}
                   </button>
                 </div>
               )}
@@ -777,10 +786,10 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                 </span>
                 {onOpenRegister && isRegButtonVisible && (
                   <button
-                    onClick={() => onOpenRegister(selectedCat)}
+                    onClick={() => handleRegisterCategory(selectedCat)}
                     className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider transition flex items-center space-x-1.5 shadow-sm cursor-pointer shrink-0"
                   >
-                    <span>+ Daftarkan Tim {selectedCat}</span>
+                    <span>{regStatus.customButtonText ? regStatus.customButtonText : `+ Daftarkan Tim ${selectedCat}`}</span>
                   </button>
                 )}
               </div>
@@ -800,10 +809,10 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                 </p>
                 {onOpenRegister && isRegButtonVisible && (
                   <button
-                    onClick={() => onOpenRegister(selectedCat)}
+                    onClick={() => handleRegisterCategory(selectedCat)}
                     className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition"
                   >
-                    Jadilah Tim Pertama yang Mendaftar
+                    {regStatus.customButtonText || 'Jadilah Tim Pertama yang Mendaftar'}
                   </button>
                 )}
               </div>

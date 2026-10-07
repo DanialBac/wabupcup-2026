@@ -16,6 +16,8 @@ import {
   Award
 } from 'lucide-react';
 
+import { getRegistrationStatus, handleRegistrationAction } from '../utils/registrationStatus';
+
 interface NavbarProps {
   onOpenRegister?: () => void;
   onOpenRegistration?: () => void;
@@ -46,9 +48,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const regStatus = getRegistrationStatus(config);
+
   const handleRegisterClick = () => {
-    if (onOpenRegister) onOpenRegister();
-    else if (onOpenRegistration) onOpenRegistration();
+    handleRegistrationAction(config, () => {
+      if (onOpenRegister) onOpenRegister();
+      else if (onOpenRegistration) onOpenRegistration();
+    });
   };
 
   const visibility = config.sectionsVisibility || {
@@ -61,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     registrationButton: true,
   };
 
-  const isRegButtonVisible = (visibility.registrationButton ?? true) !== false;
+  const isRegButtonVisible = regStatus.isVisible;
 
   const allNavLinks = [
     { id: 'beranda', label: 'Beranda', icon: Trophy, href: '#beranda', visible: visibility.hero !== false },
@@ -238,7 +244,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-md shadow-red-600/30 border border-red-500/50 hover:shadow-red-600/50 transition transform active:scale-95 flex items-center space-x-1.5 cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>Daftar Tim</span>
+                <span>{regStatus.customButtonText || 'Daftar Tim'}</span>
               </button>
             )}
           </div>
@@ -336,7 +342,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full py-3 rounded-xl bg-red-600 text-white font-bold text-sm shadow-lg shadow-red-600/40 flex items-center justify-center space-x-2"
               >
                 <FileText className="w-4 h-4" />
-                <span>Daftar Tim Sekarang ⚡</span>
+                <span>{regStatus.customButtonText ? `${regStatus.customButtonText} ⚡` : 'Daftar Tim Sekarang ⚡'}</span>
               </button>
             )}
           </div>

@@ -19,7 +19,9 @@ import {
   SponsorTier,
   TournamentCategory,
   UploadedDoc,
+  RegistrationButtonMode,
 } from '../../types';
+import { formatExternalLink } from '../../utils/registrationStatus';
 import { WabupCupLogo } from '../WabupCupLogo';
 import { PdfViewerModal } from './PdfViewerModal';
 import { InvoiceModal } from '../InvoiceModal';
@@ -503,6 +505,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
   });
   const [generalSaveSuccess, setGeneralSaveSuccess] = useState(false);
 
+  // 6. Registration Button Mode & Custom Link Form State
+  const [regButtonMode, setRegButtonMode] = useState<RegistrationButtonMode>(
+    config.registrationButtonMode ||
+      ((config.sectionsVisibility?.registrationButton ?? true) === false ? 'HIDDEN' : 'INTERNAL_FORM')
+  );
+  const [regCustomLink, setRegCustomLink] = useState(config.registrationCustomLink || '');
+  const [regCustomBtnText, setRegCustomBtnText] = useState(config.registrationCustomButtonText || '');
+  const [regCustomNewTab, setRegCustomNewTab] = useState(config.registrationCustomLinkNewTab !== false);
+  const [regButtonSaveSuccess, setRegButtonSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (config) {
+      const inferredMode: RegistrationButtonMode =
+        config.registrationButtonMode ||
+        ((config.sectionsVisibility?.registrationButton ?? true) === false ? 'HIDDEN' : 'INTERNAL_FORM');
+      setRegButtonMode(inferredMode);
+      setRegCustomLink(config.registrationCustomLink || '');
+      setRegCustomBtnText(config.registrationCustomButtonText || '');
+      setRegCustomNewTab(config.registrationCustomLinkNewTab !== false);
+    }
+  }, [
+    config.registrationButtonMode,
+    config.registrationCustomLink,
+    config.registrationCustomButtonText,
+    config.registrationCustomLinkNewTab,
+    config.sectionsVisibility?.registrationButton,
+  ]);
+
+  const handleSaveRegistrationButtonSettings = (
+    modeToSave: RegistrationButtonMode = regButtonMode,
+    linkToSave: string = regCustomLink,
+    btnTextToSave: string = regCustomBtnText,
+    newTabToSave: boolean = regCustomNewTab
+  ) => {
+    const currentVis = config.sectionsVisibility || {
+      hero: true,
+      liveScore: true,
+      categories: true,
+      bracket: true,
+      venue: true,
+      sponsors: true,
+      klasemenLanding: true,
+      standaloneKlasemen: true,
+      landingKlasemen: true,
+      landingSchedule: true,
+      landingBracket: true,
+      landingTopScorer: true,
+      standaloneTabKlasemen: true,
+      standaloneTabJadwal: true,
+      standaloneTabKnockout: true,
+      standaloneTabTopScore: true,
+      registrationButton: true,
+    };
+    const isVisible = modeToSave !== 'HIDDEN';
+    const formattedLink = linkToSave.trim() ? formatExternalLink(linkToSave.trim()) : '';
+    updateConfig({
+      registrationButtonMode: modeToSave,
+      registrationCustomLink: formattedLink,
+      registrationCustomButtonText: btnTextToSave.trim(),
+      registrationCustomLinkNewTab: newTabToSave,
+      sectionsVisibility: {
+        ...currentVis,
+        registrationButton: isVisible,
+      },
+    });
+    setRegButtonSaveSuccess(true);
+    setTimeout(() => setRegButtonSaveSuccess(false), 2500);
+  };
+
+  const handleQuickSetRegistrationMode = (newMode: RegistrationButtonMode) => {
+    setRegButtonMode(newMode);
+    handleSaveRegistrationButtonSettings(newMode, regCustomLink, regCustomBtnText, regCustomNewTab);
+  };
+
   // Quota Handlers
   const handleForceSyncQuotas = async () => {
     try {
@@ -917,6 +993,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
     if (key === 'landingKlasemen' || key === 'klasemenLanding') {
       updated.landingKlasemen = nextVal;
       updated.klasemenLanding = nextVal;
+    }
+    if (key === 'registrationButton') {
+      const nextMode: RegistrationButtonMode = nextVal
+        ? (config.registrationCustomLink?.trim() ? 'CUSTOM_LINK' : 'INTERNAL_FORM')
+        : 'HIDDEN';
+      setRegButtonMode(nextMode);
+      updateConfig({
+        sectionsVisibility: updated,
+        registrationButtonMode: nextMode,
+      });
+      setVisibilitySaveSuccess(true);
+      setTimeout(() => setVisibilitySaveSuccess(false), 2500);
+      return;
     }
     updateConfig({ sectionsVisibility: updated });
     setVisibilitySaveSuccess(true);
@@ -3326,28 +3415,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleSectionVisibility('registrationButton')}
-                    className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 border shadow-sm cursor-pointer ${
-                      (config.sectionsVisibility?.registrationButton ?? true) !== false
-                        ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/60'
-                        : 'bg-rose-950/40 text-rose-300 border-rose-500/40 hover:bg-rose-900/60'
-                    }`}
-                    title="Klik untuk mengubah visibilitas tombol daftar tim di website publik"
-                  >
-                    {(config.sectionsVisibility?.registrationButton ?? true) !== false ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Tombol Daftar: DITAMPILKAN</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-3.5 h-3.5 text-rose-400" />
-                        <span>Tombol Daftar: DISEMBUNYIKAN</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center space-x-1 p-1 rounded-xl bg-slate-950 border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSetRegistrationMode('INTERNAL_FORM')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                        regButtonMode === 'INTERNAL_FORM'
+                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                      }`}
+                      title="Mode Formulir Asli Sistem (Modal Bawaan)"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Form Asli</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!regCustomLink) {
+                          setSettingsSubTab('VISIBILITY');
+                          setActiveTab('SETTINGS');
+                        } else {
+                          handleQuickSetRegistrationMode('CUSTOM_LINK');
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                        regButtonMode === 'CUSTOM_LINK'
+                          ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                      }`}
+                      title={regCustomLink ? `Mode Tombol Samaran (Link: ${regCustomLink})` : 'Atur Link Tombol Samaran di Tab Pengaturan'}
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Tombol Samaran</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSetRegistrationMode('HIDDEN')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                        regButtonMode === 'HIDDEN'
+                          ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                      }`}
+                      title="Sembunyikan Seluruh Tombol Daftar dari Publik"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Sembunyi</span>
+                    </button>
+                  </div>
 
                   <button
                     onClick={handleOpenAddCategory}
@@ -4480,67 +4595,152 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                     )}
                   </div>
 
-                  {/* GLOBAL REGISTRATION BUTTON STATUS & TOGGLE BANNER */}
+                  {/* GLOBAL REGISTRATION BUTTON STATUS & 3-MODE CONTROL BANNER */}
                   {(() => {
-                    const isRegBtnActive = (config.sectionsVisibility?.registrationButton ?? true) !== false;
+                    const mode = regButtonMode;
+                    const isCustom = mode === 'CUSTOM_LINK';
+                    const isHidden = mode === 'HIDDEN';
+                    const isInternal = mode === 'INTERNAL_FORM';
+
                     return (
-                      <div className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg ${
-                        isRegBtnActive
+                      <div className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col gap-4 shadow-lg ${
+                        isInternal
                           ? 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border-emerald-500/30'
+                          : isCustom
+                          ? 'bg-gradient-to-r from-cyan-950/40 via-slate-900 to-slate-900 border-cyan-500/30'
                           : 'bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border-rose-500/30'
                       }`}>
-                        <div className="flex items-start space-x-3.5">
-                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-                            isRegBtnActive
-                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                              : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
-                          }`}>
-                            <UserPlus className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <h4 className="font-bold text-sm sm:text-base text-white">
-                                Visibilitas Tombol Pendaftaran Tim di Halaman Publik
-                              </h4>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                                isRegBtnActive
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                              }`}>
-                                {isRegBtnActive ? 'DITAMPILKAN' : 'DISEMBUNYIKAN'}
-                              </span>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="flex items-start space-x-3.5">
+                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                              isInternal
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : isCustom
+                                ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                            }`}>
+                              {isInternal ? <UserPlus className="w-5 h-5" /> : isCustom ? <Globe className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
                             </div>
-                            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                              {isRegBtnActive
-                                ? 'Tombol "Daftar Tim" aktif di Navbar, Hero, Kategori, dan Bagan. Pengunjung dapat mendaftarkan timnya secara online.'
-                                : 'Seluruh tombol "Daftar Tim" saat ini disembunyikan dari publik. Cocok saat seluruh kuota tim telah penuh atau turnamen belum membuka pendaftaran.'}
-                            </p>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="font-bold text-sm sm:text-base text-white">
+                                  Mode Pendaftaran & Tombol Daftar Tim di Halaman Publik
+                                </h4>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                  isInternal
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : isCustom
+                                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                }`}>
+                                  {isInternal ? 'FORMULIR ASLI SISTEM' : isCustom ? 'TOMBOL SAMARAN (LINK KUSTOM)' : 'DISEMBUNYIKAN TOTAL'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                                {isInternal
+                                  ? 'Tombol membuka formulir pendaftaran modal sistem asli turnamen (dengan validasi kuota otomatis dan upload berkas).'
+                                  : isCustom
+                                  ? `Tombol tetap aktif di Navbar, Hero, Kategori, & Bagan namun mengarahkan pengunjung ke tautan khusus: ${regCustomLink || '(Belum ada link, isi di bawah)'}.`
+                                  : 'Seluruh tombol "Daftar Tim" disembunyikan dari publik. Calon peserta tidak dapat mendaftar dari halaman depan.'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* 3 MODE SELECTOR BUTTONS */}
+                          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-950/80 border border-slate-800 shrink-0 self-start md:self-center">
+                            <button
+                              type="button"
+                              onClick={() => handleQuickSetRegistrationMode('INTERNAL_FORM')}
+                              className={`px-3 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                isInternal
+                                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                              }`}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Form Asli</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickSetRegistrationMode('CUSTOM_LINK')}
+                              className={`px-3 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                isCustom
+                                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/40'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                              }`}
+                            >
+                              <Globe className="w-3.5 h-3.5" />
+                              <span>Tombol Samaran</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickSetRegistrationMode('HIDDEN')}
+                              className={`px-3 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                                isHidden
+                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                              }`}
+                            >
+                              <Lock className="w-3.5 h-3.5" />
+                              <span>Sembunyi</span>
+                            </button>
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-3 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSectionVisibility('registrationButton')}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center space-x-2 shadow-lg cursor-pointer ${
-                              isRegBtnActive
-                                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/40'
-                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
-                            }`}
-                          >
-                            {isRegBtnActive ? (
-                              <>
-                                <Lock className="w-4 h-4" />
-                                <span>Sembunyikan Tombol Daftar</span>
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-4 h-4" />
-                                <span>Tampilkan Tombol Daftar</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        {/* INLINE LINK INPUT IF CUSTOM_LINK */}
+                        {isCustom && (
+                          <div className="pt-3 border-t border-slate-800/80 flex flex-col md:flex-row items-stretch md:items-end gap-3 bg-slate-950/60 p-3.5 rounded-xl border border-cyan-500/20">
+                            <div className="flex-1 space-y-1">
+                              <label className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider flex items-center space-x-1.5">
+                                <LinkIcon className="w-3 h-3" />
+                                <span>URL Link Tautan Tombol Samaran:</span>
+                              </label>
+                              <input
+                                type="url"
+                                value={regCustomLink}
+                                onChange={e => setRegCustomLink(e.target.value)}
+                                placeholder="https://forms.gle/... atau https://wa.me/628123456789..."
+                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-mono"
+                              />
+                            </div>
+
+                            <div className="w-full md:w-64 space-y-1">
+                              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                Teks Label Tombol (Opsional):
+                              </label>
+                              <input
+                                type="text"
+                                value={regCustomBtnText}
+                                onChange={e => setRegCustomBtnText(e.target.value)}
+                                placeholder="Daftar via Google Form..."
+                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                              />
+                            </div>
+
+                            <div className="flex items-center space-x-2 shrink-0">
+                              {regCustomLink && (
+                                <a
+                                  href={formatExternalLink(regCustomLink)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold transition flex items-center space-x-1 cursor-pointer"
+                                  title="Tes buka tautan di tab baru"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  <span>Uji Link</span>
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleSaveRegistrationButtonSettings('CUSTOM_LINK', regCustomLink, regCustomBtnText, regCustomNewTab)}
+                                className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-md shadow-cyan-950/40 cursor-pointer"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                <span>Simpan Link</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -5128,8 +5328,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                               </div>
 
                               <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
-                                <span className={`text-[11px] font-bold ${isVis ? 'text-emerald-400' : 'text-slate-500'}`}>
-                                  {isVis ? 'Aktif di Landing' : 'Disembunyikan'}
+                                <span className={`text-[11px] font-bold ${
+                                  sec.key === 'registrationButton'
+                                    ? regButtonMode === 'INTERNAL_FORM' ? 'text-emerald-400' : regButtonMode === 'CUSTOM_LINK' ? 'text-cyan-400' : 'text-slate-500'
+                                    : isVis ? 'text-emerald-400' : 'text-slate-500'
+                                }`}>
+                                  {sec.key === 'registrationButton'
+                                    ? regButtonMode === 'INTERNAL_FORM' ? 'Form Asli Sistem' : regButtonMode === 'CUSTOM_LINK' ? 'Tombol Samaran (Link)' : 'Disembunyikan'
+                                    : isVis ? 'Aktif di Landing' : 'Disembunyikan'}
                                 </span>
 
                                 <button
@@ -5143,6 +5349,238 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+
+                    {/* SUB-SECTION 1C: PENGATURAN MODE TOMBOL PENDAFTARAN & TOMBOL SAMARAN (LINK KUSTOM) */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-cyan-500/30 shadow-xl space-y-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                            <Globe className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="text-sm font-bold text-white uppercase">
+                                Pengaturan Tombol Pendaftaran & Tombol Samaran (Link Kustom)
+                              </h4>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                regButtonMode === 'INTERNAL_FORM'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                  : regButtonMode === 'CUSTOM_LINK'
+                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              }`}>
+                                {regButtonMode === 'INTERNAL_FORM' ? 'FORM ASLI' : regButtonMode === 'CUSTOM_LINK' ? 'TOMBOL SAMARAN' : 'DISEMBUNYIKAN'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Pilih mode kerja tombol pendaftaran di seluruh frontend, atau buat tombol samaran yang mengarahkan pendaftar ke Google Form / tautan panitia.
+                            </p>
+                          </div>
+                        </div>
+
+                        {regButtonSaveSuccess && (
+                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center space-x-1.5 animate-fadeIn shrink-0 shadow-lg shadow-emerald-950/40">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Pengaturan Disimpan!</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 3 MODE CARDS */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        {/* MODE 1: INTERNAL FORM */}
+                        <div
+                          onClick={() => setRegButtonMode('INTERNAL_FORM')}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                            regButtonMode === 'INTERNAL_FORM'
+                              ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-950/50'
+                              : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-2.5">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                regButtonMode === 'INTERNAL_FORM' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-bold text-white">Formulir Asli Sistem</h5>
+                                <span className="text-[10px] text-emerald-400 font-semibold">Mode Bawaan</span>
+                              </div>
+                            </div>
+                            <input
+                              type="radio"
+                              name="regModeVisibility"
+                              checked={regButtonMode === 'INTERNAL_FORM'}
+                              onChange={() => setRegButtonMode('INTERNAL_FORM')}
+                              className="text-emerald-500 focus:ring-emerald-500 mt-1 cursor-pointer"
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-snug">
+                            Tombol membuka formulir pendaftaran modal bawaan turnamen (dengan upload dokumen, logo tim, dan validasi kuota otomatis).
+                          </p>
+                        </div>
+
+                        {/* MODE 2: CUSTOM LINK (TOMBOL SAMARAN) */}
+                        <div
+                          onClick={() => setRegButtonMode('CUSTOM_LINK')}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                            regButtonMode === 'CUSTOM_LINK'
+                              ? 'bg-cyan-950/40 border-cyan-500/60 shadow-lg shadow-cyan-950/50'
+                              : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-2.5">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                regButtonMode === 'CUSTOM_LINK' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                <Globe className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-bold text-white">Tombol Samaran</h5>
+                                <span className="text-[10px] text-cyan-400 font-semibold">Tautan Kustom Eksternal</span>
+                              </div>
+                            </div>
+                            <input
+                              type="radio"
+                              name="regModeVisibility"
+                              checked={regButtonMode === 'CUSTOM_LINK'}
+                              onChange={() => setRegButtonMode('CUSTOM_LINK')}
+                              className="text-cyan-500 focus:ring-cyan-500 mt-1 cursor-pointer"
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-snug">
+                            Tombol pendaftaran tetap muncul di frontend, namun saat diklik akan mengarahkan ke link kustom (Google Form, WA panitia, Waiting List).
+                          </p>
+                        </div>
+
+                        {/* MODE 3: HIDDEN */}
+                        <div
+                          onClick={() => setRegButtonMode('HIDDEN')}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
+                            regButtonMode === 'HIDDEN'
+                              ? 'bg-rose-950/40 border-rose-500/60 shadow-lg shadow-rose-950/50'
+                              : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-2.5">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                regButtonMode === 'HIDDEN' ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                <Lock className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-bold text-white">Sembunyikan Total</h5>
+                                <span className="text-[10px] text-rose-400 font-semibold">Tutup Akses Publik</span>
+                              </div>
+                            </div>
+                            <input
+                              type="radio"
+                              name="regModeVisibility"
+                              checked={regButtonMode === 'HIDDEN'}
+                              onChange={() => setRegButtonMode('HIDDEN')}
+                              className="text-rose-500 focus:ring-rose-500 mt-1 cursor-pointer"
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-snug">
+                            Seluruh tombol pendaftaran tim disembunyikan di Navbar, Hero, Kategori, dan Bagan. Cocok saat pendaftaran benar-benar ditutup.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* FORM INPUTS FOR CUSTOM LINK (TOMBOL SAMARAN) */}
+                      <div className={`p-4 rounded-xl border transition-all space-y-4 ${
+                        regButtonMode === 'CUSTOM_LINK'
+                          ? 'bg-slate-950/90 border-cyan-500/30'
+                          : 'bg-slate-950/40 border-slate-800/60 opacity-80'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-xs font-bold text-cyan-300 uppercase flex items-center space-x-1.5">
+                            <LinkIcon className="w-3.5 h-3.5" />
+                            <span>Konfigurasi Tautan & Label Tombol Samaran:</span>
+                          </h5>
+                          {regButtonMode !== 'CUSTOM_LINK' && (
+                            <span className="text-[10px] text-slate-500 italic">
+                              (Hanya aktif saat memilih mode "Tombol Samaran")
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-300 flex items-center space-x-1">
+                              <span>URL Tautan Kustom:</span>
+                              <span className="text-rose-400">*</span>
+                            </label>
+                            <input
+                              type="url"
+                              value={regCustomLink}
+                              onChange={e => setRegCustomLink(e.target.value)}
+                              placeholder="https://forms.gle/... atau https://wa.me/628123456789..."
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-mono"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                              Mendukung URL web (https://), Google Forms, link WhatsApp (wa.me), atau dokumen formulir pendaftaran luar.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-300 flex items-center space-x-1">
+                              <span>Teks Label Tombol Kustom (Opsional):</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={regCustomBtnText}
+                              onChange={e => setRegCustomBtnText(e.target.value)}
+                              placeholder="Contoh: Daftar via Google Form, Waiting List Tim, dsb."
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                              Biarkan kosong jika ingin menggunakan label bawaan tombol ("Daftar Tim", "Daftarkan Tim Sekarang").
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-800">
+                          <label className="flex items-center space-x-2 cursor-pointer text-xs text-slate-300 select-none">
+                            <input
+                              type="checkbox"
+                              checked={regCustomNewTab}
+                              onChange={e => setRegCustomNewTab(e.target.checked)}
+                              className="w-4 h-4 rounded border-slate-700 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                            />
+                            <span>Buka tautan kustom di tab browser baru (<code>target="_blank"</code>)</span>
+                          </label>
+
+                          <div className="flex items-center space-x-2">
+                            {regCustomLink && (
+                              <a
+                                href={formatExternalLink(regCustomLink)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+                                title="Uji coba membuka tautan di tab baru"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Uji Link</span>
+                              </a>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleSaveRegistrationButtonSettings(regButtonMode, regCustomLink, regCustomBtnText, regCustomNewTab)}
+                              className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-lg shadow-cyan-950/50 cursor-pointer"
+                            >
+                              <Save className="w-4 h-4" />
+                              <span>Simpan Pengaturan Pendaftaran</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
