@@ -11,8 +11,31 @@ import {
   ShieldCheck,
   Building2,
   CheckCircle2,
-  ArrowUpRight
+  ArrowUpRight,
+  Instagram,
+  Globe
 } from 'lucide-react';
+
+/**
+ * Normalisasi URL sponsor (Website atau Instagram):
+ * - Jika berupa handle IG (misal '@persib' atau 'persib'): diubah ke https://instagram.com/persib
+ * - Jika berupa domain tanpa protokol (misal 'instagram.com/persib' atau 'sponsor.com'): ditambahkan https://
+ */
+export const formatSponsorUrl = (rawUrl?: string): string => {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('@')) {
+    return `https://instagram.com/${trimmed.slice(1)}`;
+  }
+  if (trimmed.startsWith('instagram.com/')) {
+    return `https://${trimmed}`;
+  }
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+};
 
 // SVG Path untuk Pointy-Topped Hexagon dengan sudut membulat (fillet radius = 8)
 // ViewBox: 0 0 100 115.47 (Rasio lebar:tinggi presisi 1 : 1.1547)
@@ -31,7 +54,9 @@ const HexagonSponsorCard: React.FC<HexagonSponsorCardProps> = ({
   onImageError,
 }) => {
   const hasValidImage = sponsor.logoUrl && !imageError;
-  const hasLink = Boolean(sponsor.websiteUrl);
+  const finalUrl = formatSponsorUrl(sponsor.websiteUrl);
+  const hasLink = Boolean(finalUrl);
+  const isInstagram = finalUrl.toLowerCase().includes('instagram.com');
 
   const tierBorderColors: Record<SponsorTier, string> = {
     PLATINUM: '#ef4444',
@@ -99,13 +124,30 @@ const HexagonSponsorCard: React.FC<HexagonSponsorCardProps> = ({
       </div>
 
       {/* FLOATING HOVER TOOLTIP */}
-      <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 transform scale-95 group-hover:scale-100 whitespace-nowrap shadow-xl">
-        <div className="bg-slate-900/95 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-700/80 backdrop-blur-md flex items-center space-x-1.5">
-          <span>{sponsor.name}</span>
-          <span className={`text-[9px] px-1.5 py-0.2 rounded ${tierBadgeGradients[sponsor.tier]}`}>
-            {sponsor.tier}
-          </span>
-          {hasLink && <ExternalLink className="w-3 h-3 text-blue-400" />}
+      <div className="absolute -top-14 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 transform scale-95 group-hover:scale-100 whitespace-nowrap shadow-xl">
+        <div className="bg-slate-900/95 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-700/80 backdrop-blur-md flex flex-col items-center space-y-0.5">
+          <div className="flex items-center space-x-1.5">
+            <span>{sponsor.name}</span>
+            <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${tierBadgeGradients[sponsor.tier]}`}>
+              {sponsor.tier}
+            </span>
+          </div>
+          {hasLink && (
+            <div className="text-[10px] font-normal text-slate-300 flex items-center space-x-1 pt-0.5 border-t border-slate-800/80 w-full justify-center">
+              {isInstagram ? (
+                <>
+                  <Instagram className="w-3 h-3 text-pink-400" />
+                  <span className="text-pink-300">Buka Instagram</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3 h-3 text-blue-400" />
+                  <span className="text-blue-300">Kunjungi Website</span>
+                </>
+              )}
+              <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+            </div>
+          )}
         </div>
         <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1 border-r border-b border-slate-700/80" />
       </div>
@@ -115,10 +157,10 @@ const HexagonSponsorCard: React.FC<HexagonSponsorCardProps> = ({
   if (hasLink) {
     return (
       <a
-        href={sponsor.websiteUrl}
+        href={finalUrl}
         target="_blank"
         rel="noopener noreferrer"
-        title={`Kunjungi ${sponsor.name}`}
+        title={`Buka ${isInstagram ? 'Instagram' : 'Website'} ${sponsor.name}`}
         className="block no-underline"
       >
         {cardContent}

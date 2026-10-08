@@ -1936,6 +1936,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
     const finalLogoText = sponsorForm.logoText.trim() || sponsorForm.name.slice(0, 4).toUpperCase();
     const finalLogoUrl = sponsorLogoPreview.trim() || sponsorForm.logoUrl.trim() || undefined;
 
+    const rawWebUrl = sponsorForm.websiteUrl.trim();
+    let finalWebsiteUrl: string | undefined = undefined;
+    if (rawWebUrl) {
+      if (rawWebUrl.startsWith('@')) {
+        finalWebsiteUrl = `https://instagram.com/${rawWebUrl.slice(1)}`;
+      } else if (rawWebUrl.startsWith('instagram.com/')) {
+        finalWebsiteUrl = `https://${rawWebUrl}`;
+      } else if (!/^https?:\/\//i.test(rawWebUrl)) {
+        finalWebsiteUrl = `https://${rawWebUrl}`;
+      } else {
+        finalWebsiteUrl = rawWebUrl;
+      }
+    }
+
     if (editingSponsor) {
       updateSponsor({
         ...editingSponsor,
@@ -1943,7 +1957,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
         tier: sponsorForm.tier,
         logoText: finalLogoText,
         logoUrl: finalLogoUrl,
-        websiteUrl: sponsorForm.websiteUrl.trim() || undefined,
+        websiteUrl: finalWebsiteUrl,
         description: sponsorForm.description.trim() || undefined,
       });
     } else {
@@ -1952,7 +1966,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
         tier: sponsorForm.tier,
         logoText: finalLogoText,
         logoUrl: finalLogoUrl,
-        websiteUrl: sponsorForm.websiteUrl.trim() || undefined,
+        websiteUrl: finalWebsiteUrl,
         description: sponsorForm.description.trim() || undefined,
       });
     }
@@ -6473,15 +6487,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                   />
                 </div>
 
-                {/* WEBSITE URL */}
+                {/* WEBSITE / INSTAGRAM URL */}
                 <div className="space-y-1.5 sm:col-span-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                      Tautan Website / Landing Page Sponsor
+                      Tautan Website / Instagram Sponsor
                     </label>
                     {sponsorForm.websiteUrl && (
                       <a
-                        href={sponsorForm.websiteUrl}
+                        href={
+                          sponsorForm.websiteUrl.startsWith('@')
+                            ? `https://instagram.com/${sponsorForm.websiteUrl.slice(1)}`
+                            : sponsorForm.websiteUrl.startsWith('http')
+                            ? sponsorForm.websiteUrl
+                            : `https://${sponsorForm.websiteUrl}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center space-x-1"
@@ -6496,13 +6516,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                       <Globe className="w-4 h-4" />
                     </div>
                     <input
-                      type="url"
+                      type="text"
                       value={sponsorForm.websiteUrl}
                       onChange={e => setSponsorForm({ ...sponsorForm, websiteUrl: e.target.value })}
-                      placeholder="https://sponsor-website.co.id"
+                      placeholder="Contoh: https://instagram.com/brand atau https://brand.com atau @brand"
                       className="w-full bg-slate-950 border border-slate-700 focus:border-red-500 rounded-xl pl-10 pr-4 py-2.5 text-xs text-blue-400 placeholder-slate-500 focus:outline-none"
                     />
                   </div>
+                  <p className="text-[11px] text-slate-500 italic">
+                    Bisa berupa URL website resmi atau tautan akun Instagram sponsor. Saat logo di klik oleh pengunjung, halaman akan langsung diarahkan ke tautan ini.
+                  </p>
                 </div>
 
                 {/* DESKRIPSI / SLOGAN */}
