@@ -206,8 +206,8 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
             </div>
 
             {/* MOBILE ONLY VISUAL PARALLAX (SHOWS BEFORE COUNTDOWN) */}
-            <div className="lg:hidden my-8 flex justify-center">
-              <HeroParallaxVisual wabupLogoUrl={config.wabupLogoUrl} />
+            <div className="lg:hidden my-6 flex justify-center">
+              <HeroParallaxVisual wabupLogoUrl={config.wabupLogoUrl} className="max-w-[280px] sm:max-w-[340px]" />
             </div>
 
             {/* COUNTDOWN TIMER BOX WITH SLIDE/FLIP ANIMATION */}
@@ -240,56 +240,56 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
         </div>
 
         {/* 3 STATS CARDS WITH 3D TILT, SCALE-105 & NEON GLOW */}
-        <div className="mt-14 grid grid-cols-2 md:flex md:flex-wrap md:justify-center lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+        <div className="mt-12 sm:mt-14 grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 max-w-5xl mx-auto">
 
           {/* CARD 1: TOTAL HADIAH */}
-          <HeroTiltCard glowColor="red" className="w-full md:w-[calc(33.333%-1rem)] md:min-w-[240px] lg:w-auto">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 w-full h-full backdrop-blur-sm">
-              <div className="w-12 h-12 rounded-xl bg-red-950/80 border border-red-700/50 flex items-center justify-center text-red-400 shrink-0">
-                <Trophy className="w-6 h-6" />
+          <HeroTiltCard glowColor="red" className="w-full">
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-3.5 sm:space-x-4 w-full h-full backdrop-blur-sm">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-red-950/80 border border-red-700/50 flex items-center justify-center text-red-400 shrink-0">
+                <Trophy className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div>
-                <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
+              <div className="min-w-0 flex-1">
+                <span className="block text-xl sm:text-2xl lg:text-3xl font-heading font-bold text-white leading-tight">
                   {config.totalPrizePool >= 1000000
                     ? `Rp ${(config.totalPrizePool / 1000000).toLocaleString('id-ID')} JT`
                     : `Rp ${config.totalPrizePool.toLocaleString('id-ID')}`}
                 </span>
-                <p className="text-xs text-slate-400 font-medium mt-1">Total Hadiah Tunai</p>
+                <p className="text-xs text-slate-400 font-medium mt-0.5 truncate">Total Hadiah Tunai</p>
               </div>
             </div>
           </HeroTiltCard>
 
           {/* CARD 2: KATEGORI */}
-          <HeroTiltCard glowColor="blue" className="w-full md:w-[calc(33.333%-1rem)] md:min-w-[240px] lg:w-auto">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 w-full h-full backdrop-blur-sm">
-              <div className="w-12 h-12 rounded-xl bg-blue-950/80 border border-blue-700/50 flex items-center justify-center text-blue-400 shrink-0">
-                <Sparkles className="w-6 h-6" />
+          <HeroTiltCard glowColor="blue" className="w-full">
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-3.5 sm:space-x-4 w-full h-full backdrop-blur-sm">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-blue-950/80 border border-blue-700/50 flex items-center justify-center text-blue-400 shrink-0">
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div className="min-w-0">
-                <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none">
+              <div className="min-w-0 flex-1">
+                <span className="block text-xl sm:text-2xl lg:text-3xl font-heading font-bold text-white leading-tight truncate">
                   {categories.length > 0 ? `${categories.length} KATEGORI` : 'KATEGORI'}
                 </span>
                 <p
-                  className="text-xs text-slate-400 font-medium mt-1 truncate"
-                  title={categories.map((c) => c.id).join(', ')}
+                  className="text-xs text-slate-400 font-medium mt-0.5 truncate"
+                  title={categories.map((c) => c.name || c.id).join(', ')}
                 >
-                  {categories.length > 0 ? categories.map((c) => c.id).join(', ') : 'Sinkronisasi Database...'}
+                  {categories.length > 0 ? categories.map((c) => c.name || c.id).join(', ') : 'Sinkronisasi Database...'}
                 </p>
               </div>
             </div>
           </HeroTiltCard>
 
           {/* CARD 3: VENUE */}
-          <HeroTiltCard glowColor="amber" className="col-span-2 md:w-[calc(33.333%-1rem)] md:min-w-[240px] lg:w-auto">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-4 w-full h-full backdrop-blur-sm">
-              <div className="w-12 h-12 rounded-xl bg-amber-950/80 border border-amber-700/50 flex items-center justify-center text-amber-400 shrink-0">
-                <MapPin className="w-6 h-6" />
+          <HeroTiltCard glowColor="amber" className="w-full">
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 flex items-center space-x-3.5 sm:space-x-4 w-full h-full backdrop-blur-sm">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-amber-950/80 border border-amber-700/50 flex items-center justify-center text-amber-400 shrink-0">
+                <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div className="min-w-0">
-                <span className="block text-2xl sm:text-3xl font-heading font-bold text-white leading-none truncate">
+              <div className="min-w-0 flex-1">
+                <span className="block text-xl sm:text-2xl lg:text-3xl font-heading font-bold text-white leading-tight truncate">
                   VENUE
                 </span>
-                <p className="text-xs text-slate-400 font-medium mt-1 truncate" title={config.venueName}>
+                <p className="text-xs text-slate-400 font-medium mt-0.5 truncate" title={config.venueName}>
                   {config.venueName}
                 </p>
               </div>
