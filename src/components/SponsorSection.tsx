@@ -379,11 +379,11 @@ export const SponsorSection: React.FC = () => {
                 </svg>
 
                 {/* CENTER CONTENT: LOGO WABUP CUP DARI PENGATURAN INFORMASI DAN LOGO */}
-                <div className="relative z-10 flex flex-col items-center justify-center p-6 text-center select-none">
+                <div className="relative z-10 flex flex-col items-center justify-center p-4 text-center select-none">
                   <img
                     src={wabupLogo}
                     alt={config.name || 'Logo Turnamen WabupCup 2026'}
-                    className="max-w-[100px] max-h-[82px] w-auto h-auto object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-110"
+                    className="max-w-[126px] max-h-[102px] w-auto h-auto object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-110"
                   />
                   
                   <div className="mt-2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-950/80 to-amber-950/80 border border-purple-500/40 text-[9px] font-mono font-bold tracking-wider text-amber-300 shadow-sm backdrop-blur-md">
@@ -430,7 +430,7 @@ export const SponsorSection: React.FC = () => {
                       onClick={e => {
                         if (!targetUrl) e.preventDefault();
                       }}
-                      className="relative block w-full h-full no-underline"
+                      className="relative block w-full h-full no-underline group"
                     >
                       {/* SPARK / GLOW SAAT HOVER */}
                       <AnimatePresence>
@@ -465,18 +465,23 @@ export const SponsorSection: React.FC = () => {
                         />
                       </motion.svg>
 
-                      {/* CONTENT REAL LOGO DARI DATABASE */}
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-3 select-none pointer-events-none z-10">
+                      {/* CONTENT REAL LOGO DARI DATABASE (TAMPIL PENUH / FULL DALAM HEXAGON) */}
+                      <div
+                        className="absolute inset-0 flex items-center justify-center p-1.5 select-none pointer-events-none z-10"
+                        style={{
+                          clipPath: 'polygon(50% 1.5%, 98.5% 25.5%, 98.5% 74.5%, 50% 98.5%, 1.5% 74.5%, 1.5% 25.5%)',
+                        }}
+                      >
                         {hasValidImage ? (
                           <img
                             src={p.logoUrl}
                             alt={`Logo ${p.name}`}
                             onError={() => handleImageError(p.id)}
-                            className="max-w-[76%] max-h-[58%] object-contain filter drop-shadow-sm transition-transform duration-300"
+                            className="w-full h-full max-w-[92%] max-h-[86%] object-contain filter drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
                           />
                         ) : (
                           <div className="flex flex-col items-center justify-center text-center px-1">
-                            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 to-rose-700 text-white font-black text-xs flex items-center justify-center shadow-sm mb-1">
+                            <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 to-rose-700 text-white font-black text-xs flex items-center justify-center shadow-sm mb-1">
                               {(p.logoText || p.name).slice(0, 2).toUpperCase()}
                             </span>
                             <span className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-1 max-w-[80px]">
@@ -599,11 +604,11 @@ export const SponsorSection: React.FC = () => {
                   </defs>
                   <path d={HEXAGON_PATH} fill="url(#centerMobileFillReal)" stroke="url(#centerMobileBorderReal)" strokeWidth="3" />
                 </svg>
-                <div className="relative z-10 flex flex-col items-center justify-center p-4">
+                <div className="relative z-10 flex flex-col items-center justify-center p-3">
                   <img
                     src={wabupLogo}
                     alt={config.name || 'WabupCup 2026'}
-                    className="max-w-[76px] max-h-[64px] object-contain filter drop-shadow-md"
+                    className="max-w-[95px] max-h-[80px] object-contain filter drop-shadow-md"
                   />
                   <span className="mt-1 text-[8px] font-mono font-bold text-amber-300 uppercase tracking-widest bg-purple-950/80 px-2 py-0.5 rounded-full border border-purple-500/40">
                     OFFICIAL
@@ -628,7 +633,7 @@ export const SponsorSection: React.FC = () => {
                           if (!targetUrl) e.preventDefault();
                         }}
                         whileTap={{ scale: 0.95 }}
-                        className="relative w-[96px] h-[110px] flex items-center justify-center"
+                        className="relative w-[96px] h-[110px] flex items-center justify-center group"
                       >
                         <svg viewBox="0 0 100 115.47" className="absolute inset-0 w-full h-full filter drop-shadow-sm">
                           <path
@@ -638,16 +643,21 @@ export const SponsorSection: React.FC = () => {
                             strokeWidth="1.8"
                           />
                         </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center p-3 z-10">
+                        <div
+                          className="absolute inset-0 flex flex-col items-center justify-center p-1.5 z-10 select-none"
+                          style={{
+                            clipPath: 'polygon(50% 1.5%, 98.5% 25.5%, 98.5% 74.5%, 50% 98.5%, 1.5% 74.5%, 1.5% 25.5%)',
+                          }}
+                        >
                           {hasValidImage ? (
                             <img
                               src={sp.logoUrl}
                               alt={sp.name}
                               onError={() => handleImageError(sp.id)}
-                              className="max-w-[76%] max-h-[58%] object-contain"
+                              className="w-full h-full max-w-[92%] max-h-[86%] object-contain filter drop-shadow-sm"
                             />
                           ) : (
-                            <span className="font-heading font-black text-xs uppercase text-slate-900 text-center line-clamp-1">
+                            <span className="font-heading font-black text-xs uppercase text-slate-900 text-center line-clamp-1 px-1">
                               {sp.logoText || sp.name}
                             </span>
                           )}
