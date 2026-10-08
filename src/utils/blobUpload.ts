@@ -38,7 +38,18 @@ async function tryUploadToB2(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename, contentType, fileSize: blob.size, category }),
     });
-    if (!presRes.ok) return null; // 503 = B2 belum dikonfigurasi, lainnya = pakai jalur lama
+    if (!presRes.ok) {
+      if (presRes.status === 403) {
+        const errJson = await presRes.json().catch(() => ({}));
+        if (errJson.code === 'REGISTRATION_CLOSED') {
+          const closedErr: any = new Error(errJson.error || 'Pendaftaran publik sedang ditutup atau dialihkan.');
+          closedErr.code = 'REGISTRATION_CLOSED';
+          closedErr.status = 403;
+          throw closedErr;
+        }
+      }
+      return null; // 503 = B2 belum dikonfigurasi, lainnya = pakai jalur lama
+    }
 
     const pres = await presRes.json();
     const putRes = await fetch(pres.uploadUrl, {
@@ -60,7 +71,10 @@ async function tryUploadToB2(
       type: pres.contentType || contentType,
       fileData: pres.url,
     };
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'REGISTRATION_CLOSED' || err?.status === 403) {
+      throw err;
+    }
     console.warn('[B2 Upload] gagal, memakai jalur cadangan:', err);
     return null;
   }
@@ -158,7 +172,12 @@ export async function uploadToTiDbStorage(
 
   if (!res.ok) {
     const errorJson = await res.json().catch(() => ({}));
-    throw new Error(errorJson.error || `Gagal menyimpan berkas ke TiDB Cloud (${res.status})`);
+    const err: any = new Error(errorJson.error || `Gagal menyimpan berkas ke TiDB Cloud (${res.status})`);
+    if (res.status === 403 && (errorJson.code === 'REGISTRATION_CLOSED' || errorJson.error?.includes('tutup') || errorJson.error?.includes('dialihkan'))) {
+      err.code = 'REGISTRATION_CLOSED';
+      err.status = 403;
+    }
+    throw err;
   }
 
   const data = await res.json();
@@ -188,6 +207,9 @@ export async function uploadFileToBlob(
   try {
     return await uploadToTiDbStorage(file, folder, onProgress, refId, subKey);
   } catch (err: any) {
+    if (err?.code === 'REGISTRATION_CLOSED' || err?.status === 403) {
+      throw err;
+    }
     console.warn('[TiDB Cloud Storage Upload] Server upload encountered an issue, using client-side fallback:', err?.message || err);
 
     // Fallback: Client-side compression

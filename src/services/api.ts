@@ -216,7 +216,10 @@ export const ApiService = {
     
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || errData.message || 'Gagal menyimpan pendaftaran');
+      const error: any = new Error(errData.error || errData.message || 'Gagal menyimpan pendaftaran');
+      error.status = res.status;
+      error.code = errData.code;
+      throw error;
     }
     
     return res.json();

@@ -17,8 +17,15 @@ import {
   parseCookies,
   verifyToken,
   buildSessionCookie,
-  buildClearSessionCookie
+  buildClearSessionCookie,
+  getAdminFromRequest
 } from './auth';
+import {
+  checkPublicRegistrationOpen,
+  REGISTRATION_CLOSED_RESPONSE,
+  validateRegistrationConfig,
+  clearRegistrationGateCache
+} from './registrationGate';
 import {
   getClientIp,
   checkLoginRateLimit,
@@ -248,7 +255,13 @@ apiRouter.get('/config', async (req: Request, res: Response) => {
 
 apiRouter.put('/config', requireAdmin, async (req: Request, res: Response) => {
   try {
+    const validation = validateRegistrationConfig(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
+
     const updated = await Database.updateConfig(req.body);
+    clearRegistrationGateCache();
     res.json(updated);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
@@ -424,6 +437,15 @@ apiRouter.get('/registrations/:id/doc/:docKey', requireAdmin, async (req: Reques
 
 apiRouter.post('/registrations', async (req: Request, res: Response) => {
   try {
+    // 1. Gate check: penutupan atau pengalihan pendaftaran publik ditegakkan di server
+    const isAdmin = Boolean(getAdminFromRequest(req));
+    if (!isAdmin) {
+      const isOpen = await checkPublicRegistrationOpen();
+      if (!isOpen) {
+        return res.status(403).json(REGISTRATION_CLOSED_RESPONSE);
+      }
+    }
+
     const data = req.body;
     if (!data || !data.teamName || !data.category || !data.coachName || !data.coachPhone) {
       return res.status(400).json({

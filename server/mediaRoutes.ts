@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { Database, AppMediaItem } from './db';
 import { requireAdmin, getAdminFromRequest } from './auth';
 import { isB2Configured, presignPut, presignGet, getB2ObjectStream } from './b2';
+import { checkPublicRegistrationOpen, REGISTRATION_CLOSED_RESPONSE } from './registrationGate';
 
 export const mediaRouter = Router();
 
@@ -55,6 +56,17 @@ export function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
 mediaRouter.post('/media/upload', async (req: Request, res: Response) => {
   try {
     const { filename, contentType, fileData, category = 'REG_DOC', refId, subKey } = req.body;
+
+    // Gate check untuk kategori pendaftaran (REG_DOC dan TEAM_LOGO)
+    if (category === 'REG_DOC' || category === 'TEAM_LOGO') {
+      const isAdmin = Boolean(getAdminFromRequest(req));
+      if (!isAdmin) {
+        const isOpen = await checkPublicRegistrationOpen();
+        if (!isOpen) {
+          return res.status(403).json(REGISTRATION_CLOSED_RESPONSE);
+        }
+      }
+    }
 
     if (!filename || !fileData) {
       return res.status(400).json({ error: 'Filename and fileData are required' });
@@ -152,11 +164,23 @@ const SAFE_INLINE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'i
 
 mediaRouter.post('/media/presign', async (req: Request, res: Response) => {
   try {
+    const { filename, contentType, fileSize, category = 'REG_DOC' } = req.body || {};
+
+    // Gate check untuk kategori pendaftaran (REG_DOC dan TEAM_LOGO)
+    if (category === 'REG_DOC' || category === 'TEAM_LOGO') {
+      const isAdmin = Boolean(getAdminFromRequest(req));
+      if (!isAdmin) {
+        const isOpen = await checkPublicRegistrationOpen();
+        if (!isOpen) {
+          return res.status(403).json(REGISTRATION_CLOSED_RESPONSE);
+        }
+      }
+    }
+
     if (!isB2Configured()) {
       return res.status(503).json({ error: 'Backblaze B2 belum dikonfigurasi', configured: false });
     }
 
-    const { filename, contentType, fileSize, category = 'REG_DOC' } = req.body || {};
     const type = String(contentType || '').toLowerCase();
     const size = Number(fileSize);
 

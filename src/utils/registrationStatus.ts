@@ -87,11 +87,11 @@ export function handleRegistrationAction(
   const status = getRegistrationStatus(config);
   if (status.isCustomLink && status.customLink) {
     if (typeof window !== 'undefined') {
-      window.open(
-        status.customLink,
-        status.openInNewTab ? '_blank' : '_self',
-        'noopener,noreferrer'
-      );
+      if (status.openInNewTab) {
+        window.open(status.customLink, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.assign(status.customLink);
+      }
     }
     return;
   }

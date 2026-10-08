@@ -3126,6 +3126,121 @@ var requireSuperAdmin = (req, res, next) => {
   });
 };
 
+// server/registrationGate.ts
+function isPublicRegistrationOpen(config) {
+  if (!config) {
+    return true;
+  }
+  const rawMode = config.registrationButtonMode;
+  const isHiddenByVis = config.sectionsVisibility?.registrationButton === false;
+  let mode = "INTERNAL_FORM";
+  if (rawMode === "HIDDEN" || rawMode === void 0 && isHiddenByVis) {
+    mode = "HIDDEN";
+  } else if (rawMode === "CUSTOM_LINK") {
+    mode = "CUSTOM_LINK";
+  } else if (rawMode === "INTERNAL_FORM") {
+    mode = "INTERNAL_FORM";
+  } else {
+    if (config.registrationCustomLink && config.registrationCustomLink.trim() !== "") {
+      mode = "CUSTOM_LINK";
+    } else {
+      mode = "INTERNAL_FORM";
+    }
+  }
+  return mode === "INTERNAL_FORM";
+}
+var cachedEntry = null;
+var CACHE_TTL_MS = 1e4;
+function clearRegistrationGateCache() {
+  cachedEntry = null;
+}
+async function getRegistrationConfigWithCache() {
+  const now = Date.now();
+  if (cachedEntry && now - cachedEntry.timestamp < CACHE_TTL_MS) {
+    return cachedEntry.config;
+  }
+  try {
+    const config = await Database.getConfig();
+    cachedEntry = {
+      config,
+      timestamp: now
+    };
+    return config;
+  } catch (err) {
+    console.warn("[RegistrationGate] Gagal membaca konfigurasi turnamen dari basis data, menerapkan fail-open (pendaftaran dianggap terbuka):", err);
+    return null;
+  }
+}
+async function checkPublicRegistrationOpen() {
+  try {
+    const config = await getRegistrationConfigWithCache();
+    return isPublicRegistrationOpen(config);
+  } catch (err) {
+    console.warn("[RegistrationGate] Galat dalam checkPublicRegistrationOpen, menerapkan fail-open:", err);
+    return true;
+  }
+}
+var REGISTRATION_CLOSED_RESPONSE = {
+  success: false,
+  code: "REGISTRATION_CLOSED",
+  error: "Pendaftaran sedang ditutup atau dialihkan ke tautan resmi."
+};
+function validateRegistrationConfig(body) {
+  if (!body || typeof body !== "object") {
+    return { valid: true };
+  }
+  if (body.registrationCustomLink !== void 0 && body.registrationCustomLink !== null) {
+    if (typeof body.registrationCustomLink !== "string") {
+      return { valid: false, error: "registrationCustomLink harus berupa teks (string)." };
+    }
+    const trimmed = body.registrationCustomLink.trim();
+    if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+      return { valid: false, error: "registrationCustomLink tidak boleh mengandung karakter kontrol." };
+    }
+    if (trimmed.length > 2048) {
+      return { valid: false, error: "registrationCustomLink melebihi batas maksimal 2048 karakter." };
+    }
+    const schemeMatch = trimmed.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+    if (schemeMatch) {
+      const scheme = schemeMatch[1].toLowerCase();
+      const ALLOWED_SCHEMES = ["http", "https", "mailto", "tel"];
+      if (!ALLOWED_SCHEMES.includes(scheme)) {
+        return {
+          valid: false,
+          error: `Skema URL '${scheme}:' ditolak. Hanya protokol http, https, mailto, dan tel yang diterima.`
+        };
+      }
+    }
+  }
+  if (body.registrationCustomButtonText !== void 0 && body.registrationCustomButtonText !== null) {
+    if (typeof body.registrationCustomButtonText !== "string") {
+      return { valid: false, error: "registrationCustomButtonText harus berupa teks (string)." };
+    }
+    const trimmed = body.registrationCustomButtonText.trim();
+    if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+      return { valid: false, error: "registrationCustomButtonText tidak boleh mengandung karakter kontrol." };
+    }
+    if (trimmed.length > 60) {
+      return { valid: false, error: "registrationCustomButtonText melebihi batas maksimal 60 karakter." };
+    }
+  }
+  if (body.registrationButtonMode !== void 0 && body.registrationButtonMode !== null) {
+    const ALLOWED_MODES = ["INTERNAL_FORM", "CUSTOM_LINK", "HIDDEN"];
+    if (!ALLOWED_MODES.includes(body.registrationButtonMode)) {
+      return {
+        valid: false,
+        error: `registrationButtonMode '${body.registrationButtonMode}' tidak valid. Pilihan yang sah: INTERNAL_FORM, CUSTOM_LINK, atau HIDDEN.`
+      };
+    }
+  }
+  if (body.registrationCustomLinkNewTab !== void 0 && body.registrationCustomLinkNewTab !== null) {
+    if (typeof body.registrationCustomLinkNewTab !== "boolean") {
+      return { valid: false, error: "registrationCustomLinkNewTab harus berupa boolean (true atau false)." };
+    }
+  }
+  return { valid: true };
+}
+
 // server/mediaRoutes.ts
 var mediaRouter = Router3();
 function decodeBase64File(fileData) {
@@ -3159,6 +3274,15 @@ function verifyMagicBytes(buffer, mimeType) {
 mediaRouter.post("/media/upload", async (req, res) => {
   try {
     const { filename, contentType, fileData, category = "REG_DOC", refId, subKey } = req.body;
+    if (category === "REG_DOC" || category === "TEAM_LOGO") {
+      const isAdmin = Boolean(getAdminFromRequest(req));
+      if (!isAdmin) {
+        const isOpen = await checkPublicRegistrationOpen();
+        if (!isOpen) {
+          return res.status(403).json(REGISTRATION_CLOSED_RESPONSE);
+        }
+      }
+    }
     if (!filename || !fileData) {
       return res.status(400).json({ error: "Filename and fileData are required" });
     }
@@ -3224,10 +3348,19 @@ var B2_MAX_BYTES = 3 * 1024 * 1024;
 var SAFE_INLINE_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"];
 mediaRouter.post("/media/presign", async (req, res) => {
   try {
+    const { filename, contentType, fileSize, category = "REG_DOC" } = req.body || {};
+    if (category === "REG_DOC" || category === "TEAM_LOGO") {
+      const isAdmin = Boolean(getAdminFromRequest(req));
+      if (!isAdmin) {
+        const isOpen = await checkPublicRegistrationOpen();
+        if (!isOpen) {
+          return res.status(403).json(REGISTRATION_CLOSED_RESPONSE);
+        }
+      }
+    }
     if (!isB2Configured()) {
       return res.status(503).json({ error: "Backblaze B2 belum dikonfigurasi", configured: false });
     }
-    const { filename, contentType, fileSize, category = "REG_DOC" } = req.body || {};
     const type = String(contentType || "").toLowerCase();
     const size = Number(fileSize);
     if (category !== "REG_DOC") {
@@ -3879,7 +4012,12 @@ apiRouter.get("/config", async (req, res) => {
 });
 apiRouter.put("/config", requireAdmin, async (req, res) => {
   try {
+    const validation = validateRegistrationConfig(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
+    }
     const updated = await Database.updateConfig(req.body);
+    clearRegistrationGateCache();
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err?.message });
@@ -4027,6 +4165,13 @@ apiRouter.get("/registrations/:id/doc/:docKey", requireAdmin, async (req, res) =
 });
 apiRouter.post("/registrations", async (req, res) => {
   try {
+    const isAdmin = Boolean(getAdminFromRequest(req));
+    if (!isAdmin) {
+      const isOpen = await checkPublicRegistrationOpen();
+      if (!isOpen) {
+        return res.status(403).json(REGISTRATION_CLOSED_RESPONSE);
+      }
+    }
     const data = req.body;
     if (!data || !data.teamName || !data.category || !data.coachName || !data.coachPhone) {
       return res.status(400).json({

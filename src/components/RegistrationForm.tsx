@@ -45,7 +45,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   onClose,
   preselectedCategory = 'SMA',
 }) => {
-  const { config, categories, registrations, submitNewRegistration, getWhatsAppNotificationUrl, committeeContacts, refreshCategoryQuotas } = useTournament();
+  const { config, categories, registrations, submitNewRegistration, getWhatsAppNotificationUrl, committeeContacts, refreshCategoryQuotas, refreshDataFromServer } = useTournament();
   const regStatus = getRegistrationStatus(config);
 
   // Helper to calculate real-time registered count for a category
@@ -108,6 +108,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [isClosedForced, setIsClosedForced] = useState(false);
   const [activeStep, setActiveStep] = useState<1 | 2>(1);
   const lastFormQuotaFetchRef = useRef<number>(0);
 
@@ -131,6 +132,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     setSubmittedItem(null);
     setCopiedCode(false);
     setQuotaError(null);
+    setIsClosedForced(false);
   };
 
   const handleClose = () => {
@@ -268,6 +270,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         }));
       })
       .catch((err) => {
+        if (err?.code === 'REGISTRATION_CLOSED' || err?.status === 403) {
+          setIsClosedForced(true);
+          refreshDataFromServer().catch(() => {});
+          return;
+        }
         console.error('Upload to blob failed, falling back to local reader:', err);
         const reader = new FileReader();
         reader.onload = () => {
@@ -312,7 +319,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           },
         }));
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err?.code === 'REGISTRATION_CLOSED' || err?.status === 403) {
+          setIsClosedForced(true);
+          refreshDataFromServer().catch(() => {});
+          return;
+        }
         // Fallback to local canvas compression if direct upload is unavailable
         compressLogo(file, 400, 0.85)
           .then((compressedBase64) => {
@@ -478,6 +490,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       setSubmittedItem(newRegistration);
     } catch (err: any) {
       console.error('Registration submission error:', err);
+      if (err?.code === 'REGISTRATION_CLOSED' || err?.status === 403) {
+        setIsClosedForced(true);
+        refreshDataFromServer().catch(() => {});
+        return;
+      }
       const errMsg = err?.message || '';
       if (errMsg.toLowerCase().includes('kuota') || errMsg.toLowerCase().includes('penuh') || errMsg.toLowerCase().includes('ditolak')) {
         setQuotaError(errMsg);
@@ -573,7 +590,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </button>
             </div>
           </div>
-        ) : !regStatus.isVisible ? (
+        ) : (!regStatus.isVisible || isClosedForced) ? (
           <div className="p-8 sm:p-12 space-y-6 animate-fadeIn text-center">
             <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-lg shadow-amber-500/20">
               <Lock className="w-10 h-10" />
