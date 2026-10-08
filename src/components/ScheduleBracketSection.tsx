@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { useTournament } from '../context/TournamentContext';
 import { MatchItem, TournamentCategory } from '../types';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
@@ -137,18 +138,25 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
             </p>
           </div>
 
-          {/* VIEW SWITCHER TABS */}
+          {/* VIEW SWITCHER TABS WITH LAYOUTID PILL */}
           <div className="flex items-center space-x-2 overflow-x-auto">
-            <div className="p-1 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex shadow-sm">
+            <div className="p-1 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex shadow-sm relative">
               {isBracketVisible && (
                 <button
                   onClick={() => setViewMode('BRACKET')}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`relative px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer z-10 ${
                     viewMode === 'BRACKET'
-                      ? 'bg-red-600 text-white shadow-md'
+                      ? 'text-white'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
+                  {viewMode === 'BRACKET' && (
+                    <motion.div
+                      layoutId="activeScheduleViewPill"
+                      className="absolute inset-0 bg-red-600 rounded-lg shadow-md -z-10"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
+                  )}
                   <Layers className="w-3.5 h-3.5" />
                   <span>Bagan Visual</span>
                 </button>
@@ -157,12 +165,19 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
               {isScheduleVisible && (
                 <button
                   onClick={() => setViewMode('TABLE')}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`relative px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer z-10 ${
                     viewMode === 'TABLE'
-                      ? 'bg-red-600 text-white shadow-md'
+                      ? 'text-white'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
+                  {viewMode === 'TABLE' && (
+                    <motion.div
+                      layoutId="activeScheduleViewPill"
+                      className="absolute inset-0 bg-red-600 rounded-lg shadow-md -z-10"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
+                  )}
                   <Calendar className="w-3.5 h-3.5" />
                   <span>Tabel Jadwal ({catMatches.length})</span>
                 </button>
@@ -171,12 +186,19 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
               {isTeamsVisible && (
                 <button
                   onClick={() => setViewMode('TEAMS')}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`relative px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 whitespace-nowrap cursor-pointer z-10 ${
                     viewMode === 'TEAMS'
-                      ? 'bg-red-600 text-white shadow-md'
+                      ? 'text-white'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
+                  {viewMode === 'TEAMS' && (
+                    <motion.div
+                      layoutId="activeScheduleViewPill"
+                      className="absolute inset-0 bg-red-600 rounded-lg shadow-md -z-10"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
+                  )}
                   <Users className="w-3.5 h-3.5" />
                   <span>Daftar Tim Peserta ({catRegistrations.length})</span>
                 </button>
@@ -185,7 +207,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
           </div>
         </div>
 
-        {/* CATEGORY TABS */}
+        {/* CATEGORY TABS WITH LAYOUTID PILL */}
         {categories.length === 0 ? (
           <div className="flex items-center space-x-3 overflow-x-auto pb-4 mb-8 animate-pulse">
             <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-xl" />
@@ -201,12 +223,19 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                 <button
                   key={catKey}
                   onClick={() => setSelectedCat(catKey)}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition shrink-0 flex items-center space-x-2 cursor-pointer ${
+                  className={`relative px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase transition shrink-0 flex items-center space-x-2 cursor-pointer z-10 ${
                     isSel
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                      ? 'text-white'
                       : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
                   }`}
                 >
+                  {isSel && (
+                    <motion.div
+                      layoutId="activeCategoryPill"
+                      className="absolute inset-0 bg-red-600 rounded-xl shadow-lg shadow-red-600/30 -z-10"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
+                  )}
                   <span>⚽ {cat.name || catKey}</span>
                 </button>
               );
@@ -713,9 +742,12 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                       </tr>
                     ) : (
                       catMatches.map((m, idx) => (
-                        <tr
+                        <motion.tr
                           key={m.id}
-                          className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition"
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.25, delay: Math.min(idx * 0.04, 0.4) }}
+                          className="hover:bg-red-50/60 dark:hover:bg-red-950/25 hover:shadow-xs transition-colors duration-200"
                         >
                           <td className="py-3 px-4 font-mono font-bold text-slate-500">
                             #{idx + 1}
@@ -739,7 +771,8 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
                             {m.status === 'LIVE' && (
-                              <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 font-bold border border-red-300 dark:border-red-800 animate-pulse">
+                              <span className="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 font-bold border border-red-300 dark:border-red-800 animate-pulse inline-flex items-center shadow-xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping inline-block mr-1.5"></span>
                                 LIVE {m.teamA.score ?? 0} - {m.teamB.score ?? 0} ({m.liveMinute})
                               </span>
                             )}
@@ -754,7 +787,7 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                               </span>
                             )}
                           </td>
-                        </tr>
+                        </motion.tr>
                       ))
                     )}
                   </tbody>

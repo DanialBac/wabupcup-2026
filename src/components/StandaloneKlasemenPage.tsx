@@ -1767,8 +1767,8 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                                 return (
                                   <tr
                                     key={t.teamName}
-                                    className={`transition whitespace-nowrap ${
-                                      theme === 'light' ? 'hover:bg-slate-50/80' : 'hover:bg-white/5'
+                                    className={`transition-all duration-200 whitespace-nowrap ${
+                                      theme === 'light' ? 'hover:bg-red-50/60 hover:shadow-xs' : 'hover:bg-red-950/25 hover:shadow-xs'
                                     } ${
                                       idx === 0
                                         ? theme === 'light'

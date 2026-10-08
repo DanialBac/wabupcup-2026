@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTournament } from '../context/TournamentContext';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
@@ -10,7 +11,9 @@ import {
   Download,
   Shield,
   Heart,
-  ChevronRight
+  ChevronRight,
+  Instagram,
+  ArrowUp
 } from 'lucide-react';
 
 interface FooterProps {
@@ -27,6 +30,28 @@ export const Footer: React.FC<FooterProps> = ({
   onNavigateKlasemen,
 }) => {
   const { config, categories } = useTournament();
+
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (scrollHeight > 0) {
+        const scrollPercentage = (window.scrollY / scrollHeight) * 100;
+        setShowScrollTop(scrollPercentage > 50);
+      } else {
+        setShowScrollTop(window.scrollY > 400);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const bgConfig = config.sectionsBackgrounds?.footer;
   const isCustomImage = bgConfig?.mode === 'IMAGE';
@@ -304,6 +329,36 @@ export const Footer: React.FC<FooterProps> = ({
               <Shield className="w-4 h-4" />
               <span>Login CMS Admin</span>
             </button>
+
+            {/* OFFICIAL EVENT ORGANIZER SOCIAL */}
+            <div className="pt-2">
+              <span className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                Official Event Partner:
+              </span>
+              <motion.a
+                href="https://instagram.com/infinity.organizer_"
+                target="_blank"
+                rel="noopener noreferrer"
+                animate={{
+                  y: [0, -3.5, 0],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                whileHover={{
+                  scale: 1.08,
+                  rotate: 6,
+                }}
+                className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-200/70 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400 hover:border-pink-500/40 transition-colors shadow-xs group cursor-pointer"
+              >
+                <span className="p-1 rounded-lg bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white shadow-xs">
+                  <Instagram className="w-3.5 h-3.5" />
+                </span>
+                <span className="font-semibold text-xs tracking-tight">@infinity.organizer_</span>
+              </motion.a>
+            </div>
           </div>
 
         </div>
@@ -311,13 +366,51 @@ export const Footer: React.FC<FooterProps> = ({
         {/* BOTTOM COPYRIGHT */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
           <p>© 2026 Panitia Pelaksana Turnamen WabupCup. All rights reserved.</p>
-          <div className="flex items-center space-x-4">
-            <span className="inline-flex items-center space-x-1">
-              <span>Didukung Penuh Infinity Organizer</span>
-            </span>
+          <div className="flex items-center space-x-2">
+            <span>Didukung Penuh</span>
+            <motion.a
+              href="https://instagram.com/infinity.organizer_"
+              target="_blank"
+              rel="noopener noreferrer"
+              animate={{
+                y: [0, -3, 0],
+              }}
+              transition={{
+                duration: 3.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              whileHover={{
+                scale: 1.1,
+                rotate: 6,
+              }}
+              className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-200/80 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-pink-500 dark:hover:text-pink-400 transition cursor-pointer"
+            >
+              <Instagram className="w-3.5 h-3.5 text-pink-500" />
+              <span className="font-semibold">@infinity.organizer_</span>
+            </motion.a>
           </div>
         </div>
       </div>
+
+      {/* FLOATING SCROLL TO TOP BUTTON (> 50% SCROLL) */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            key="scroll-to-top"
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.8 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            onClick={scrollToTop}
+            title="Kembali ke Paling Atas"
+            aria-label="Kembali ke Atas"
+            className="fixed bottom-6 right-6 z-40 p-3.5 rounded-full bg-gradient-to-r from-red-600 to-red-700 text-white shadow-xl shadow-red-950/40 hover:from-red-500 hover:to-red-600 hover:shadow-red-600/30 hover:scale-110 active:scale-95 transition cursor-pointer border border-red-500/30 backdrop-blur-xs"
+          >
+            <ArrowUp className="w-5 h-5" />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </footer>
   );
 };

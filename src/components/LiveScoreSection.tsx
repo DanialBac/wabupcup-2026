@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { useTournament } from '../context/TournamentContext';
 import { MatchItem, TournamentCategory } from '../types';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
@@ -67,18 +68,25 @@ export const LiveScoreSection: React.FC = () => {
             </p>
           </div>
 
-          {/* STATUS TABS */}
-          <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-800 self-start md:self-auto overflow-x-auto max-w-full">
+          {/* STATUS TABS WITH LAYOUTID PILL */}
+          <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-800 self-start md:self-auto overflow-x-auto max-w-full relative">
             {(['ALL', 'LIVE', 'UPCOMING'] as const).map(st => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                className={`relative px-3.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer z-10 ${
                   statusFilter === st
-                    ? 'bg-red-600 text-white shadow-md'
+                    ? 'text-white'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
+                {statusFilter === st && (
+                  <motion.div
+                    layoutId="activeLiveScoreStatusTab"
+                    className="absolute inset-0 bg-red-600 rounded-lg shadow-md -z-10"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
                 {st === 'ALL' && 'Semua Aktif'}
                 {st === 'LIVE' && `🔴 Sedang Tanding (${liveMatches.length})`}
                 {st === 'UPCOMING' && 'Akan Datang'}
@@ -268,10 +276,10 @@ export const LiveScoreSection: React.FC = () => {
                 <div
                   key={match.id}
                   id={`match-card-${match.id}`}
-                  className={`relative rounded-2xl transition border ${
+                  className={`group relative rounded-2xl transition-all duration-300 border hover:-translate-y-1.5 hover:shadow-xl ${
                     isLive
                       ? 'bg-gradient-to-b from-slate-950 to-red-950/40 border-red-500 shadow-lg shadow-red-950/40 text-white'
-                      : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-sm text-slate-900 dark:text-white'
+                      : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-red-500/50 dark:hover:border-red-500/40 shadow-sm text-slate-900 dark:text-white'
                   } p-5 flex flex-col justify-between`}
                 >
                   {/* CARD TOP INFO */}
@@ -287,9 +295,12 @@ export const LiveScoreSection: React.FC = () => {
 
                     <div>
                       {isLive ? (
-                        <span className="inline-flex items-center space-x-1 text-red-500 dark:text-red-400 font-extrabold text-[11px] animate-pulse">
-                          <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                          <span>LIVE {match.liveMinute || "35'"}</span>
+                        <span className="inline-flex items-center space-x-1.5 text-red-500 dark:text-red-400 font-extrabold text-[11px]">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 shadow-[0_0_8px_#ef4444]"></span>
+                          </span>
+                          <span className="tracking-wider">LIVE {match.liveMinute || "35'"}</span>
                         </span>
                       ) : (
                         <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium flex items-center space-x-1">
@@ -332,7 +343,7 @@ export const LiveScoreSection: React.FC = () => {
                       </div>
                       <div className="text-right">
                         {isLive && (
-                          <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover:scale-110 inline-block transition-transform duration-200">
                             {match.teamA.score ?? 0}
                           </span>
                         )}
@@ -368,7 +379,7 @@ export const LiveScoreSection: React.FC = () => {
                       </div>
                       <div className="text-right">
                         {isLive && (
-                          <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          <span className="text-xl font-heading font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover:scale-110 inline-block transition-transform duration-200">
                             {match.teamB.score ?? 0}
                           </span>
                         )}

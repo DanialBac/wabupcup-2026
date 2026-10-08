@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'motion/react';
 import { useTournament } from '../context/TournamentContext';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
@@ -12,7 +13,8 @@ import {
   Sparkles,
   Coffee,
   CheckCircle2,
-  Toilet
+  Toilet,
+  ArrowRight
 } from 'lucide-react';
 
 export const VenueLocationSection: React.FC = () => {
@@ -80,8 +82,14 @@ export const VenueLocationSection: React.FC = () => {
           </p>
         </div>
 
-        {/* 2-COLUMN LAYOUT: MAP EMBED & DETAILS */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* 2-COLUMN LAYOUT: MAP EMBED & DETAILS (SCROLL REVEAL) */}
+        <motion.div
+          initial={{ opacity: 0, y: 35, scale: 0.98 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, margin: '-60px' }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+        >
           
           {/* MAP EMBED (7 COLS) */}
           <div
@@ -100,8 +108,13 @@ export const VenueLocationSection: React.FC = () => {
               ></iframe>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-slate-300">
-                <div className="w-14 h-14 rounded-2xl bg-red-600/10 border border-red-500/20 text-red-500 flex items-center justify-center mb-3 shadow-lg shadow-red-950/40">
-                  <MapPin className="w-7 h-7" />
+                {/* RADAR RIPPLE EFFECT UNTUK PIN LOKASI */}
+                <div className="relative flex items-center justify-center mb-4">
+                  <span className="absolute w-16 h-16 rounded-full bg-red-600/30 animate-ping pointer-events-none" />
+                  <span className="absolute w-12 h-12 rounded-full bg-red-500/40 animate-pulse pointer-events-none" />
+                  <div className="relative z-10 w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-red-700 text-white flex items-center justify-center shadow-[0_0_25px_rgba(239,68,68,0.7)] border border-red-400/40">
+                    <MapPin className="w-7 h-7" />
+                  </div>
                 </div>
                 <h4 className="font-bold text-white text-base mb-1">{config.venueName}</h4>
                 <p className="text-xs text-slate-400 max-w-sm mb-4">
@@ -110,7 +123,7 @@ export const VenueLocationSection: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShouldLoadMap(true)}
-                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-2 shadow-lg shadow-red-900/30"
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-2 shadow-lg shadow-red-900/30 cursor-pointer"
                 >
                   <Navigation className="w-4 h-4" />
                   <span>Tampilkan Peta Interaktif</span>
@@ -134,10 +147,13 @@ export const VenueLocationSection: React.FC = () => {
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-1.5 shrink-0"
+                className="relative group overflow-hidden px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-2 shrink-0 shadow-lg shadow-red-950/40"
               >
+                {/* SHIMMER EFFECT LIGHT SWEEP */}
+                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out pointer-events-none" />
                 <Navigation className="w-3.5 h-3.5" />
                 <span>Buka Petunjuk Arah</span>
+                <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform duration-200" />
               </a>
             </div>
           </div>
@@ -204,7 +220,7 @@ export const VenueLocationSection: React.FC = () => {
 
           </div>
 
-        </div>
+        </motion.div>
 
       </div>
     </section>

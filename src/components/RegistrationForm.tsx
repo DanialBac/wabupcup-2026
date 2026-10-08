@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { useTournament } from '../context/TournamentContext';
 import { isSuratKeteranganRequired } from '../shared/registrationRules';
@@ -107,6 +108,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [submittedItem, setSubmittedItem] = useState<any | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [activeStep, setActiveStep] = useState<1 | 2>(1);
   const lastFormQuotaFetchRef = useRef<number>(0);
 
   // Stable registration ID generated for this form session so all uploaded files are linked directly to ref_id in TiDB Cloud
@@ -116,6 +118,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   // Fully reset form state for fresh registration of subsequent teams
   const resetForm = () => {
     formRegIdRef.current = generateNewFormId();
+    setActiveStep(1);
     setTeamName('');
     setCoachName('');
     setCoachPhone('');
@@ -347,6 +350,26 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       });
   };
 
+  const handleNextStep = () => {
+    if (!teamName.trim()) {
+      alert('Mohon isi nama tim terlebih dahulu.');
+      return;
+    }
+    if (!teamLogo) {
+      alert('Mohon unggah Logo Tim / Klub resmi terlebih dahulu! (Wajib)');
+      return;
+    }
+    if (!coachName.trim()) {
+      alert('Mohon isi nama pelatih / pembina / official terlebih dahulu.');
+      return;
+    }
+    if (!coachPhone.trim()) {
+      alert('Mohon isi nomor WhatsApp aktif pelatih / official.');
+      return;
+    }
+    setActiveStep(2);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -481,8 +504,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       id="registration-modal-overlay"
       className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
     >
-      <div
+      <motion.div
         id="registration-modal-container"
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 300 }}
         className="relative w-full max-w-3xl rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden my-6 text-slate-900 dark:text-white"
       >
         
@@ -819,15 +845,70 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           </div>
         ) : (
           
-          /* MAIN FORM */
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 max-h-[80vh] overflow-y-auto">
-            
-            {/* SECTION 1: KATEGORI & INFORMASI TIM */}
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2 text-sm font-bold uppercase tracking-wider text-red-600 dark:text-red-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <Building className="w-4 h-4" />
-                <span>1. Data Kategori & Identitas Tim</span>
+          /* MAIN FORM WITH MULTI-STEP NAVIGATION */
+          <form onSubmit={handleSubmit} className="flex flex-col max-h-[82vh] overflow-hidden">
+            {/* STEP TABS INDICATOR */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-900/70 px-6 py-2.5 shrink-0">
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveStep(1)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    activeStep === 1
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>1. Identitas & Kontak Tim</span>
+                </button>
+                <span className="text-slate-300 dark:text-slate-700">→</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!teamName.trim()) {
+                      alert('Mohon isi nama tim terlebih dahulu sebelum beralih ke upload berkas.');
+                      return;
+                    }
+                    setActiveStep(2);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer ${
+                    activeStep === 2
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>2. Upload Berkas PDF</span>
+                  {Object.keys(docs).length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                      {Object.keys(docs).length} Diunggah
+                    </span>
+                  )}
+                </button>
               </div>
+              <span className="text-[11px] font-medium text-slate-500 hidden sm:inline">
+                Langkah {activeStep} dari 2
+              </span>
+            </div>
+
+            <div className="p-6 sm:p-8 space-y-6 overflow-y-auto flex-1">
+              <AnimatePresence mode="wait">
+                {activeStep === 1 ? (
+                  <motion.div
+                    key="step-1"
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -16 }}
+                    transition={{ duration: 0.25 }}
+                    className="space-y-6"
+                  >
+                    {/* SECTION 1: KATEGORI & INFORMASI TIM */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2 text-sm font-bold uppercase tracking-wider text-red-600 dark:text-red-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <Building className="w-4 h-4" />
+                        <span>1. Data Kategori & Identitas Tim</span>
+                      </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1026,6 +1107,35 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
             </div>
 
+            {/* FOOTER STEP 1 */}
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition flex items-center space-x-2 cursor-pointer shadow-md shadow-red-600/20"
+              >
+                <span>Lanjut ke Upload Berkas (Langkah 2)</span>
+                <span>→</span>
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="step-2"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6"
+          >
             {/* SECTION 3: UPLOAD PERSYARATAN DOKUMEN PDF */}
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
@@ -1246,37 +1356,51 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               </div>
             </div>
 
-            {/* SUBMIT BUTTON */}
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end space-x-3">
+            {/* SUBMIT BUTTON & STEP 2 FOOTER */}
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <button
                 type="button"
-                onClick={handleClose}
-                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition cursor-pointer"
+                onClick={() => setActiveStep(1)}
+                className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition flex items-center space-x-1.5 cursor-pointer"
               >
-                Batal
+                <span>←</span>
+                <span>Kembali ke Data Tim</span>
               </button>
 
-              <button
-                type="submit"
-                id="btn-submit-registration-form"
-                disabled={isSubmitting}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-600/30 transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <span>Menyimpan & Mendaftarkan Tim...</span>
-                ) : (
-                  <>
-                    <FileCheck className="w-4 h-4" />
-                    <span>Kirim Berkas Pendaftaran</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="submit"
+                  id="btn-submit-registration-form"
+                  disabled={isSubmitting}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-600/30 transition flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <span>Menyimpan & Mendaftarkan Tim...</span>
+                  ) : (
+                    <>
+                      <FileCheck className="w-4 h-4" />
+                      <span>Kirim Berkas Pendaftaran</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-
-          </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  </form>
         )}
 
-      </div>
+      </motion.div>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { useTournament } from '../context/TournamentContext';
 import { RegistrationItem } from '../types';
 import {
@@ -25,6 +26,7 @@ interface CheckStatusModalProps {
 export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onClose }) => {
   const { registrations, config, committeeContacts } = useTournament();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [searchedResult, setSearchedResult] = useState<RegistrationItem | null | 'NOT_FOUND'>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
@@ -44,14 +46,18 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
     const query = searchQuery.trim().toLowerCase();
     if (!query) return;
 
-    const found = registrations.find(
-      r =>
-        r.regCode.toLowerCase() === query ||
-        r.teamName.toLowerCase().includes(query) ||
-        r.coachPhone.includes(query)
-    );
+    setIsSearching(true);
+    setTimeout(() => {
+      const found = registrations.find(
+        r =>
+          r.regCode.toLowerCase() === query ||
+          r.teamName.toLowerCase().includes(query) ||
+          r.coachPhone.includes(query)
+      );
 
-    setSearchedResult(found || 'NOT_FOUND');
+      setSearchedResult(found || 'NOT_FOUND');
+      setIsSearching(false);
+    }, 350);
   };
 
   return (
@@ -59,8 +65,11 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
       id="check-status-modal-overlay"
       className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
     >
-      <div
+      <motion.div
         id="check-status-modal-container"
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="relative w-full max-w-xl rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden my-6 text-slate-900 dark:text-white"
       >
         {/* HEADER */}
@@ -73,7 +82,7 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition"
+            className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -94,13 +103,24 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
                 placeholder="WBC-SD-001 atau 0812..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500 focus:outline-none"
+                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 focus:shadow-[0_0_20px_rgba(239,68,68,0.25)]"
               />
               <button
                 type="submit"
-                className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs uppercase tracking-wider transition shadow-md"
+                disabled={isSearching}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs uppercase tracking-wider transition shadow-md shadow-red-950/30 flex items-center justify-center space-x-2 shrink-0 cursor-pointer disabled:opacity-75"
               >
-                Cari
+                {isSearching ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Mencari...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Cari</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -148,6 +168,107 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
                       <span>PERLU PERBAIKAN</span>
                     </span>
                   )}
+                </div>
+              </div>
+
+              {/* TIMELINE / STATUS STEPPER (Berkas Diterima -> Verifikasi -> Lolos) */}
+              <div className="py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="flex items-center justify-between text-[11px] font-bold">
+                  <span className="text-slate-500 dark:text-slate-400">Progres Verifikasi Dokumen:</span>
+                  <span className={
+                    searchedResult.status === 'APPROVED' ? 'text-emerald-500 font-extrabold' :
+                    searchedResult.status === 'PENDING_PAYMENT' ? 'text-amber-500 font-extrabold' : 'text-rose-500 font-extrabold'
+                  }>
+                    {searchedResult.status === 'APPROVED' ? '100% Selesai (Lolos)' :
+                     searchedResult.status === 'PENDING_PAYMENT' ? 'Tahap 2 dari 3 (Verifikasi)' : 'Perlu Perbaikan'}
+                  </span>
+                </div>
+
+                {/* ANIMATED PROGRESS BAR FILLING */}
+                <div className="relative h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: searchedResult.status === 'APPROVED' ? '100%' :
+                             searchedResult.status === 'PENDING_PAYMENT' ? '66%' : '66%'
+                    }}
+                    transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+                    className={`h-full rounded-full ${
+                      searchedResult.status === 'APPROVED' ? 'bg-emerald-500 shadow-[0_0_12px_#10b981]' :
+                      searchedResult.status === 'PENDING_PAYMENT' ? 'bg-amber-500 shadow-[0_0_12px_#f59e0b]' :
+                      'bg-rose-500 shadow-[0_0_12px_#f43f5e]'
+                    }`}
+                  />
+                </div>
+
+                {/* 3 STEPS ICONS & LABELS */}
+                <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                  {/* Step 1: Berkas Diterima */}
+                  <div className="flex flex-col items-center">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -45 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 20, delay: 0.1 }}
+                      className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs mb-1"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </motion.div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">1. Berkas Masuk</span>
+                    <span className="text-[9px] text-slate-400">Tersimpan</span>
+                  </div>
+
+                  {/* Step 2: Verifikasi Panitia */}
+                  <div className="flex flex-col items-center">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -45 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 20, delay: 0.25 }}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center shadow-xs mb-1 ${
+                        searchedResult.status === 'APPROVED'
+                          ? 'bg-emerald-500 text-white'
+                          : searchedResult.status === 'PENDING_PAYMENT'
+                          ? 'bg-amber-500 text-white animate-pulse'
+                          : 'bg-rose-500 text-white'
+                      }`}
+                    >
+                      {searchedResult.status === 'APPROVED' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : searchedResult.status === 'PENDING_PAYMENT' ? (
+                        <Clock className="w-3.5 h-3.5" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5" />
+                      )}
+                    </motion.div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">2. Validasi Panitia</span>
+                    <span className="text-[9px] text-slate-400">
+                      {searchedResult.status === 'APPROVED' ? 'Terverifikasi' :
+                       searchedResult.status === 'PENDING_PAYMENT' ? 'Sedang Ditinjau' : 'Catatan Revisi'}
+                    </span>
+                  </div>
+
+                  {/* Step 3: Lolos / Disetujui */}
+                  <div className="flex flex-col items-center">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -45 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 20, delay: 0.4 }}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center shadow-xs mb-1 ${
+                        searchedResult.status === 'APPROVED'
+                          ? 'bg-emerald-500 text-white shadow-[0_0_10px_#10b981]'
+                          : 'bg-slate-300 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {searchedResult.status === 'APPROVED' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <Shield className="w-3.5 h-3.5" />
+                      )}
+                    </motion.div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">3. Resmi Lolos</span>
+                    <span className="text-[9px] text-slate-400">
+                      {searchedResult.status === 'APPROVED' ? 'Siap Tanding' : 'Menunggu'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -249,7 +370,7 @@ export const CheckStatusModal: React.FC<CheckStatusModalProps> = ({ isOpen, onCl
           )}
 
         </div>
-      </div>
+      </motion.div>
 
       {/* INVOICE MODAL POPUP */}
       {typeof searchedResult === 'object' && searchedResult !== null && (
