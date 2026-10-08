@@ -3273,7 +3273,20 @@ function verifyMagicBytes(buffer, mimeType) {
 }
 mediaRouter.post("/media/upload", async (req, res) => {
   try {
-    const { filename, contentType, fileData, category = "REG_DOC", refId, subKey } = req.body;
+    const { filename, contentType, fileData, category, refId, subKey } = req.body;
+    const ALLOWED_CATEGORIES = ["REG_DOC", "TEAM_LOGO", "SPONSOR_LOGO", "CMS_WALLPAPER", "CMS_DOC"];
+    if (!category || typeof category !== "string" || !ALLOWED_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, error: "Kategori media tidak dikenali." });
+    }
+    if (category === "SPONSOR_LOGO" || category === "CMS_WALLPAPER" || category === "CMS_DOC") {
+      const admin = getAdminFromRequest(req);
+      if (!admin) {
+        return res.status(401).json({
+          success: false,
+          error: "Sesi tidak valid atau telah berakhir. Harap login kembali."
+        });
+      }
+    }
     if (category === "REG_DOC" || category === "TEAM_LOGO") {
       const isAdmin = Boolean(getAdminFromRequest(req));
       if (!isAdmin) {
@@ -3303,6 +3316,19 @@ mediaRouter.post("/media/upload", async (req, res) => {
       }
       if (!verifyMagicBytes(buffer, resolvedContentType)) {
         return res.status(400).json({ error: "Isi berkas tidak valid atau tidak cocok dengan format yang dideklarasikan." });
+      }
+    }
+    if (category === "TEAM_LOGO") {
+      const MAX_TEAM_LOGO_BYTES = Math.floor(1.2 * 1024 * 1024);
+      if (fileSize > MAX_TEAM_LOGO_BYTES) {
+        return res.status(413).json({ success: false, error: "Ukuran logo tim melebihi batas 1.2MB." });
+      }
+      const ALLOWED_TEAM_LOGO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+      if (!ALLOWED_TEAM_LOGO_TYPES.includes(resolvedContentType)) {
+        return res.status(400).json({ success: false, error: "Tipe berkas tidak diizinkan. Hanya JPEG, PNG, atau WEBP." });
+      }
+      if (!verifyMagicBytes(buffer, resolvedContentType)) {
+        return res.status(400).json({ success: false, error: "Isi berkas tidak valid atau tidak cocok dengan format yang dideklarasikan." });
       }
     }
     if (fileSize > 4 * 1024 * 1024) {
@@ -4461,14 +4487,52 @@ apiRouter.delete("/matches/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
+function validateSponsorUrl(rawUrl) {
+  if (rawUrl === void 0 || rawUrl === null) {
+    return { valid: true, normalized: null };
+  }
+  if (typeof rawUrl !== "string") {
+    return { valid: false, normalized: null, error: "websiteUrl harus berupa teks." };
+  }
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return { valid: true, normalized: null };
+  }
+  if (trimmed.length > 2048) {
+    return { valid: false, normalized: null, error: "Panjang websiteUrl tidak boleh melebihi 2048 karakter." };
+  }
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+    return { valid: false, normalized: null, error: "websiteUrl mengandung karakter kontrol yang tidak valid." };
+  }
+  const schemeMatch = trimmed.match(/^([a-zA-Z][a-zA-Z0-9+.-]*)\s*:/i);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase();
+    if (scheme !== "http" && scheme !== "https") {
+      return { valid: false, normalized: null, error: "Hanya protokol http:// atau https:// yang diizinkan untuk tautan sponsor." };
+    }
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return { valid: false, normalized: null, error: "Protokol URL tidak valid." };
+      }
+    } catch {
+      return { valid: false, normalized: null, error: "Format URL http/https tidak valid." };
+    }
+  }
+  return { valid: true, normalized: trimmed };
+}
 apiRouter.get("/sponsors", cachePublic, async (req, res) => {
   const list = await Database.getSponsors();
   res.json(list);
 });
 apiRouter.post("/sponsors", requireAdmin, async (req, res) => {
   try {
+    const urlValidation = validateSponsorUrl(req.body.websiteUrl);
+    if (!urlValidation.valid) {
+      return res.status(400).json({ success: false, error: urlValidation.error });
+    }
     const id = req.body.id || `sp-${Date.now()}`;
-    const saved = await Database.saveSponsor({ ...req.body, id });
+    const saved = await Database.saveSponsor({ ...req.body, id, websiteUrl: urlValidation.normalized });
     await linkSponsorMedia(id, saved.logoUrl);
     res.status(201).json(saved);
   } catch (err) {
@@ -4477,7 +4541,11 @@ apiRouter.post("/sponsors", requireAdmin, async (req, res) => {
 });
 apiRouter.put("/sponsors/:id", requireAdmin, async (req, res) => {
   try {
-    const saved = await Database.saveSponsor(req.body);
+    const urlValidation = validateSponsorUrl(req.body.websiteUrl);
+    if (!urlValidation.valid) {
+      return res.status(400).json({ success: false, error: urlValidation.error });
+    }
+    const saved = await Database.saveSponsor({ ...req.body, id: req.params.id, websiteUrl: urlValidation.normalized });
     await linkSponsorMedia(req.params.id, saved.logoUrl);
     res.json(saved);
   } catch (err) {

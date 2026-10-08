@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
 
 interface HeroTiltCardProps {
   children: React.ReactNode;
@@ -7,8 +8,8 @@ interface HeroTiltCardProps {
 }
 
 /**
- * Kartu interaktif dengan efek 3D Tilt halus, scale-up 105%, dan neon glow border saat hover.
- * Menggunakan requestAnimationFrame dan CSS translate3d/rotate3d untuk performa 60+ FPS tanpa jank.
+ * Kartu interaktif dengan efek 3D Tilt halus, scale-up 104%, dan neon glow border saat hover.
+ * Otomatis beralih ke hover statis bersih saat prefers-reduced-motion aktif.
  */
 export const HeroTiltCard: React.FC<HeroTiltCardProps> = ({
   children,
@@ -16,6 +17,7 @@ export const HeroTiltCard: React.FC<HeroTiltCardProps> = ({
   glowColor = 'red',
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [transformStyle, setTransformStyle] = useState<string>('');
   const [isHovered, setIsHovered] = useState<boolean>(false);
 
@@ -38,7 +40,7 @@ export const HeroTiltCard: React.FC<HeroTiltCardProps> = ({
   }[glowColor];
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
+    if (prefersReducedMotion || !cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -47,7 +49,7 @@ export const HeroTiltCard: React.FC<HeroTiltCardProps> = ({
     const xNorm = (x / rect.width) * 2 - 1;
     const yNorm = (y / rect.height) * 2 - 1;
 
-    // Maksimal tilt 8 derajat
+    // Maksimal tilt 7 derajat
     const rotateX = -yNorm * 7;
     const rotateY = xNorm * 7;
 
@@ -63,7 +65,9 @@ export const HeroTiltCard: React.FC<HeroTiltCardProps> = ({
 
   const handleMouseLeave = () => {
     setIsHovered(false);
-    setTransformStyle('perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)');
+    if (!prefersReducedMotion) {
+      setTransformStyle('perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)');
+    }
   };
 
   return (
@@ -73,12 +77,14 @@ export const HeroTiltCard: React.FC<HeroTiltCardProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       style={{
-        transform: transformStyle,
+        transform: prefersReducedMotion ? undefined : transformStyle,
         boxShadow: isHovered ? glowStyles.shadow : 'none',
-        transition: isHovered
+        transition: prefersReducedMotion
+          ? 'box-shadow 0.2s ease-out'
+          : isHovered
           ? 'transform 0.08s ease-out, box-shadow 0.25s ease-out'
           : 'transform 0.4s ease-out, box-shadow 0.4s ease-out',
-        willChange: 'transform, box-shadow',
+        willChange: prefersReducedMotion ? 'auto' : (isHovered ? 'transform, box-shadow' : 'auto'),
       }}
       className={`relative rounded-2xl overflow-hidden cursor-pointer ${glowStyles.border} ${className}`}
     >

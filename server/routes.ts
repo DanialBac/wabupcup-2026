@@ -762,6 +762,53 @@ apiRouter.delete('/matches/:id', requireAdmin, async (req: Request, res: Respons
 });
 
 // 9. Sponsors
+/**
+ * Validasi dan normalisasi websiteUrl sponsor:
+ * - String kosong/null/undefined diizinkan (dinormalisasi menjadi null).
+ * - Panjang maksimal 2048 karakter.
+ * - Bebas dari karakter kontrol [\x00-\x1F\x7F].
+ * - Jika memiliki skema (misal 'http:', 'https:', 'javascript:', 'data:', dll), HANYA 'http' dan 'https' yang diizinkan.
+ * - Skema berbahaya ditolak dengan error 400.
+ * - Format tanpa skema seperti '@instagram' atau domain 'sponsor.com' diizinkan.
+ */
+export function validateSponsorUrl(rawUrl: unknown): { valid: boolean; normalized: string | null; error?: string } {
+  if (rawUrl === undefined || rawUrl === null) {
+    return { valid: true, normalized: null };
+  }
+  if (typeof rawUrl !== 'string') {
+    return { valid: false, normalized: null, error: 'websiteUrl harus berupa teks.' };
+  }
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return { valid: true, normalized: null };
+  }
+  if (trimmed.length > 2048) {
+    return { valid: false, normalized: null, error: 'Panjang websiteUrl tidak boleh melebihi 2048 karakter.' };
+  }
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+    return { valid: false, normalized: null, error: 'websiteUrl mengandung karakter kontrol yang tidak valid.' };
+  }
+
+  // Cek apakah memiliki skema (misal 'http:', 'https:', 'javascript:', 'data:', 'vbscript:', dll)
+  const schemeMatch = trimmed.match(/^([a-zA-Z][a-zA-Z0-9+.-]*)\s*:/i);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase();
+    if (scheme !== 'http' && scheme !== 'https') {
+      return { valid: false, normalized: null, error: 'Hanya protokol http:// atau https:// yang diizinkan untuk tautan sponsor.' };
+    }
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { valid: false, normalized: null, error: 'Protokol URL tidak valid.' };
+      }
+    } catch {
+      return { valid: false, normalized: null, error: 'Format URL http/https tidak valid.' };
+    }
+  }
+
+  return { valid: true, normalized: trimmed };
+}
+
 apiRouter.get('/sponsors', cachePublic, async (req: Request, res: Response) => {
   const list = await Database.getSponsors();
   res.json(list);
@@ -769,8 +816,12 @@ apiRouter.get('/sponsors', cachePublic, async (req: Request, res: Response) => {
 
 apiRouter.post('/sponsors', requireAdmin, async (req: Request, res: Response) => {
   try {
+    const urlValidation = validateSponsorUrl(req.body.websiteUrl);
+    if (!urlValidation.valid) {
+      return res.status(400).json({ success: false, error: urlValidation.error });
+    }
     const id = req.body.id || `sp-${Date.now()}`;
-    const saved = await Database.saveSponsor({ ...req.body, id });
+    const saved = await Database.saveSponsor({ ...req.body, id, websiteUrl: urlValidation.normalized });
     await linkSponsorMedia(id, saved.logoUrl);
     res.status(201).json(saved);
   } catch (err: any) {
@@ -780,7 +831,11 @@ apiRouter.post('/sponsors', requireAdmin, async (req: Request, res: Response) =>
 
 apiRouter.put('/sponsors/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
-    const saved = await Database.saveSponsor(req.body);
+    const urlValidation = validateSponsorUrl(req.body.websiteUrl);
+    if (!urlValidation.valid) {
+      return res.status(400).json({ success: false, error: urlValidation.error });
+    }
+    const saved = await Database.saveSponsor({ ...req.body, id: req.params.id, websiteUrl: urlValidation.normalized });
     await linkSponsorMedia(req.params.id, saved.logoUrl);
     res.json(saved);
   } catch (err: any) {

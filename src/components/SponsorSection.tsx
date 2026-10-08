@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTournament } from '../context/TournamentContext';
 import { SponsorItem, SponsorTier } from '../types';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { useAnimationPause } from '../hooks/useAnimationPause';
 import {
   Users,
   ExternalLink,
@@ -77,6 +79,10 @@ const RIGHT_SLOTS: SlotPos[] = [
 ];
 
 export const SponsorSection: React.FC = () => {
+  const sectionRef = useRef<HTMLElement>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { isPaused } = useAnimationPause({ elementRef: sectionRef });
+
   const { sponsors, config, committeeContacts, isInitialLoading } = useTournament();
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
@@ -165,6 +171,7 @@ export const SponsorSection: React.FC = () => {
 
   return (
     <section
+      ref={sectionRef}
       id="sponsor"
       className={`scroll-mt-24 py-20 relative overflow-hidden transition-colors duration-300 border-b border-slate-200 dark:border-slate-800/80 ${
         isCustomColor || isCustomImage ? '' : 'bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white'
@@ -256,7 +263,8 @@ export const SponsorSection: React.FC = () => {
                     strokeWidth="1.8"
                     strokeDasharray="4 6"
                     markerEnd="url(#orbitArrowRightReal)"
-                    className="animate-[pulse_3s_ease-in-out_infinite]"
+                    className={prefersReducedMotion ? '' : 'animate-[pulse_3s_ease-in-out_infinite]'}
+                    style={{ animationPlayState: isPaused ? 'paused' : 'running' }}
                   />
                   <path
                     d="M 650 340 C 590 375, 510 375, 450 340"
@@ -265,7 +273,8 @@ export const SponsorSection: React.FC = () => {
                     strokeWidth="1.8"
                     strokeDasharray="4 6"
                     markerEnd="url(#orbitArrowLeftReal)"
-                    className="animate-[pulse_3s_ease-in-out_infinite]"
+                    className={prefersReducedMotion ? '' : 'animate-[pulse_3s_ease-in-out_infinite]'}
+                    style={{ animationPlayState: isPaused ? 'paused' : 'running' }}
                   />
                 </g>
 
@@ -286,32 +295,36 @@ export const SponsorSection: React.FC = () => {
                       />
 
                       {/* 2. Flowing pulse dashes */}
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke={isActive ? '#f97316' : '#8b5cf6'}
-                        strokeWidth={isActive ? 3.5 : 1.8}
-                        strokeDasharray={isActive ? '12 24' : '6 36'}
-                        strokeLinecap="round"
-                        className="opacity-80"
-                      >
-                        <animate
-                          attributeName="stroke-dashoffset"
-                          from="100"
-                          to="0"
-                          dur={isActive ? '1.2s' : '3.2s'}
-                          repeatCount="indefinite"
-                        />
-                      </path>
+                      {!prefersReducedMotion && !isPaused && (
+                        <path
+                          d={pathD}
+                          fill="none"
+                          stroke={isActive ? '#f97316' : '#8b5cf6'}
+                          strokeWidth={isActive ? 3.5 : 1.8}
+                          strokeDasharray={isActive ? '12 24' : '6 36'}
+                          strokeLinecap="round"
+                          className="opacity-80"
+                        >
+                          <animate
+                            attributeName="stroke-dashoffset"
+                            from="100"
+                            to="0"
+                            dur={isActive ? '1.2s' : '3.2s'}
+                            repeatCount="indefinite"
+                          />
+                        </path>
+                      )}
 
                       {/* 3. Glowing Light Dot Particle */}
-                      <circle r={isActive ? 4 : 2.5} fill={isActive ? '#38bdf8' : '#f97316'}>
-                        <animateMotion
-                          path={pathD}
-                          dur={isActive ? '1.2s' : '3.2s'}
-                          repeatCount="indefinite"
-                        />
-                      </circle>
+                      {!prefersReducedMotion && !isPaused && (
+                        <circle r={isActive ? 4 : 2.5} fill={isActive ? '#38bdf8' : '#f97316'}>
+                          <animateMotion
+                            path={pathD}
+                            dur={isActive ? '1.2s' : '3.2s'}
+                            repeatCount="indefinite"
+                          />
+                        </circle>
+                      )}
                     </g>
                   );
                 })}
@@ -336,7 +349,12 @@ export const SponsorSection: React.FC = () => {
                 style={{ width: 190, height: 220 }}
               >
                 {/* AMBIENT NEON GLOW */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-2xl animate-pulse pointer-events-none" />
+                <div
+                  className={`absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-2xl pointer-events-none ${
+                    prefersReducedMotion ? '' : 'animate-pulse'
+                  }`}
+                  style={{ animationPlayState: isPaused ? 'paused' : 'running' }}
+                />
 
                 {/* SVG CENTER HEXAGON FRAME */}
                 <svg
@@ -411,15 +429,21 @@ export const SponsorSection: React.FC = () => {
                       width: 104,
                       height: 120,
                     }}
-                    animate={{
-                      y: [-3, 3, -3],
-                    }}
-                    transition={{
-                      duration: p.floatDuration,
-                      repeat: Infinity,
-                      ease: 'easeInOut',
-                      delay: p.floatDelay,
-                    }}
+                    animate={
+                      prefersReducedMotion || isPaused
+                        ? { y: 0 }
+                        : { y: [-3, 3, -3] }
+                    }
+                    transition={
+                      prefersReducedMotion || isPaused
+                        ? { duration: 0 }
+                        : {
+                            duration: p.floatDuration,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                            delay: p.floatDelay,
+                          }
+                    }
                     onMouseEnter={() => setActivePartnerId(p.id)}
                     onMouseLeave={() => setActivePartnerId(null)}
                   >
@@ -544,15 +568,21 @@ export const SponsorSection: React.FC = () => {
                     width: 104,
                     height: 120,
                   }}
-                  animate={{
-                    y: [-3, 3, -3],
-                  }}
-                  transition={{
-                    duration: 4.2,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                    delay: 0.3,
-                  }}
+                  animate={
+                    prefersReducedMotion || isPaused
+                      ? { y: 0 }
+                      : { y: [-3, 3, -3] }
+                  }
+                  transition={
+                    prefersReducedMotion || isPaused
+                      ? { duration: 0 }
+                      : {
+                          duration: 4.2,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: 0.3,
+                        }
+                  }
                 >
                   <a
                     href={`https://wa.me/${cleanWaNumber}?text=${encodeURIComponent(
@@ -589,7 +619,12 @@ export const SponsorSection: React.FC = () => {
             <div className="lg:hidden flex flex-col items-center">
               {/* CENTER WABUP CUP LOGO */}
               <div className="relative w-40 h-44 flex items-center justify-center mb-8">
-                <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-xl pointer-events-none animate-pulse" />
+                <div
+                  className={`absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-xl pointer-events-none ${
+                    prefersReducedMotion ? '' : 'animate-pulse'
+                  }`}
+                  style={{ animationPlayState: isPaused ? 'paused' : 'running' }}
+                />
                 <svg viewBox="0 0 100 115.47" className="absolute inset-0 w-full h-full filter drop-shadow-xl">
                   <defs>
                     <linearGradient id="centerMobileFillReal" x1="0%" y1="0%" x2="100%" y2="100%">

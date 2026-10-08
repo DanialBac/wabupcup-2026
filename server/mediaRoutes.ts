@@ -55,7 +55,23 @@ export function verifyMagicBytes(buffer: Buffer, mimeType: string): boolean {
  */
 mediaRouter.post('/media/upload', async (req: Request, res: Response) => {
   try {
-    const { filename, contentType, fileData, category = 'REG_DOC', refId, subKey } = req.body;
+    const { filename, contentType, fileData, category, refId, subKey } = req.body;
+
+    const ALLOWED_CATEGORIES = ['REG_DOC', 'TEAM_LOGO', 'SPONSOR_LOGO', 'CMS_WALLPAPER', 'CMS_DOC'] as const;
+    if (!category || typeof category !== 'string' || !ALLOWED_CATEGORIES.includes(category as any)) {
+      return res.status(400).json({ success: false, error: 'Kategori media tidak dikenali.' });
+    }
+
+    // Kategori khusus konten admin WAJIB login admin
+    if (category === 'SPONSOR_LOGO' || category === 'CMS_WALLPAPER' || category === 'CMS_DOC') {
+      const admin = getAdminFromRequest(req);
+      if (!admin) {
+        return res.status(401).json({
+          success: false,
+          error: 'Sesi tidak valid atau telah berakhir. Harap login kembali.'
+        });
+      }
+    }
 
     // Gate check untuk kategori pendaftaran (REG_DOC dan TEAM_LOGO)
     if (category === 'REG_DOC' || category === 'TEAM_LOGO') {
@@ -98,6 +114,23 @@ mediaRouter.post('/media/upload', async (req: Request, res: Response) => {
 
       if (!verifyMagicBytes(buffer, resolvedContentType)) {
         return res.status(400).json({ error: 'Isi berkas tidak valid atau tidak cocok dengan format yang dideklarasikan.' });
+      }
+    }
+
+    // Pembatasan khusus untuk category TEAM_LOGO (publik)
+    if (category === 'TEAM_LOGO') {
+      const MAX_TEAM_LOGO_BYTES = Math.floor(1.2 * 1024 * 1024);
+      if (fileSize > MAX_TEAM_LOGO_BYTES) {
+        return res.status(413).json({ success: false, error: 'Ukuran logo tim melebihi batas 1.2MB.' });
+      }
+
+      const ALLOWED_TEAM_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!ALLOWED_TEAM_LOGO_TYPES.includes(resolvedContentType)) {
+        return res.status(400).json({ success: false, error: 'Tipe berkas tidak diizinkan. Hanya JPEG, PNG, atau WEBP.' });
+      }
+
+      if (!verifyMagicBytes(buffer, resolvedContentType)) {
+        return res.status(400).json({ success: false, error: 'Isi berkas tidak valid atau tidak cocok dengan format yang dideklarasikan.' });
       }
     }
 

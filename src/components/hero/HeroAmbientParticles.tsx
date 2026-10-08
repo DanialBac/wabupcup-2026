@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
+import { useAnimationPause } from '../../hooks/useAnimationPause';
 
 interface Particle {
   id: number;
@@ -14,9 +16,16 @@ interface Particle {
 /**
  * Ambient floating sparks & glowing dust particles (oranye & kuning keemasan)
  * Menggunakan GPU-accelerated CSS keyframe transform3d murni tanpa overhead JavaScript loop.
+ * Otomatis dihentikan jika pengguna memilih prefers-reduced-motion,
+ * atau dijeda saat tab browser tersembunyi / section berada di luar layar.
  */
 export const HeroAmbientParticles: React.FC<{ className?: string }> = ({ className = '' }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { isPaused } = useAnimationPause({ elementRef: containerRef });
+
   const particles: Particle[] = useMemo(() => {
+    if (prefersReducedMotion) return [];
     const colors = [
       'rgba(249, 115, 22, 0.75)', // oranye terang
       'rgba(251, 191, 36, 0.85)', // kuning emas
@@ -43,10 +52,15 @@ export const HeroAmbientParticles: React.FC<{ className?: string }> = ({ classNa
         driftX: Math.round((seed3 - 0.5) * 50), // -25px sampai +25px
       };
     });
-  }, []);
+  }, [prefersReducedMotion]);
+
+  if (prefersReducedMotion) {
+    return null;
+  }
 
   return (
     <div
+      ref={containerRef}
       className={`absolute inset-0 pointer-events-none overflow-hidden z-[2] select-none ${className}`}
       aria-hidden="true"
     >
@@ -87,7 +101,8 @@ export const HeroAmbientParticles: React.FC<{ className?: string }> = ({ classNa
               boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
               '--drift-x': `${p.driftX}px`,
               animation: `floatSpark ${p.duration}s ease-in-out ${p.delay}s infinite`,
-              willChange: 'transform, opacity',
+              animationPlayState: isPaused ? 'paused' : 'running',
+              willChange: isPaused ? 'auto' : 'transform, opacity',
             } as React.CSSProperties
           }
         />

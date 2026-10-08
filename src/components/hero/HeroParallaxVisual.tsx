@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
+import { usePrefersReducedMotion } from '../../hooks/usePrefersReducedMotion';
+import { useAnimationPause } from '../../hooks/useAnimationPause';
 
 interface HeroParallaxVisualProps {
   wabupLogoUrl?: string;
@@ -22,6 +24,8 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
   className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const { isPaused } = useAnimationPause({ elementRef: containerRef });
 
   // Motion values untuk kursor mouse (-1 sampai 1)
   const mouseX = useMotionValue(0);
@@ -52,6 +56,12 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
 
   // Listener pointer global di hero / window agar parallax tetap hidup saat kursor bergerak
   useEffect(() => {
+    if (prefersReducedMotion || isPaused) {
+      mouseX.set(0);
+      mouseY.set(0);
+      return;
+    }
+
     const handleMouseMove = (e: MouseEvent) => {
       // Normalisasi posisi kursor terhadap window (-1 to 1)
       const x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -62,7 +72,7 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [mouseX, mouseY]);
+  }, [mouseX, mouseY, prefersReducedMotion, isPaused]);
 
   return (
     <div
@@ -105,7 +115,7 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
       {/* LAYER 0: SOFT RADIAL GLOW ORANYE/MERAH (INFINITE BREATHE) */}
       {/* ======================================================== */}
       <motion.div
-        style={{ x: glowX, y: glowY }}
+        style={prefersReducedMotion ? undefined : { x: glowX, y: glowY }}
         className="absolute inset-0 flex items-center justify-center pointer-events-none z-0"
       >
         {/* Inti Cahaya Oranye/Merah Bervolume */}
@@ -114,15 +124,19 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
           style={{
             background:
               'radial-gradient(circle, rgba(239, 68, 68, 0.45) 0%, rgba(249, 115, 22, 0.38) 35%, rgba(220, 38, 38, 0.18) 65%, transparent 80%)',
-            animation: 'heroInfiniteBreathe 5s ease-in-out infinite',
-            willChange: 'transform, opacity, filter',
+            animation: prefersReducedMotion ? 'none' : 'heroInfiniteBreathe 5s ease-in-out infinite',
+            animationPlayState: isPaused ? 'paused' : 'running',
+            willChange: prefersReducedMotion || isPaused ? 'auto' : 'transform, opacity, filter',
           }}
         />
 
         {/* Orbit Ring Neon Tipis di Sekeliling Glow */}
         <div
           className="absolute w-[340px] h-[340px] sm:w-[400px] sm:h-[400px] rounded-full border border-dashed border-red-500/20 dark:border-red-500/30 pointer-events-none opacity-60"
-          style={{ animation: 'floatOrbitSlow 40s linear infinite' }}
+          style={{
+            animation: prefersReducedMotion ? 'none' : 'floatOrbitSlow 40s linear infinite',
+            animationPlayState: isPaused ? 'paused' : 'running',
+          }}
         />
         <div
           className="absolute w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] rounded-full border border-orange-500/15 pointer-events-none"
@@ -133,7 +147,7 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
       {/* LAYER 1: BACKDROP PERISAI HOLOGRAFIK TURNAMEN            */}
       {/* ======================================================== */}
       <motion.div
-        style={{ x: figureTranslateX, y: figureTranslateY }}
+        style={prefersReducedMotion ? undefined : { x: figureTranslateX, y: figureTranslateY }}
         className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]"
       >
         <div className="relative w-[300px] h-[300px] sm:w-[350px] sm:h-[350px] rounded-full bg-gradient-to-tr from-red-950/40 via-slate-900/40 to-orange-950/30 backdrop-blur-md border border-red-500/25 p-4 shadow-2xl shadow-red-950/50 flex items-center justify-center overflow-hidden">
@@ -156,7 +170,7 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
       {/* LAYER 2: FOTO FIGUR / ATLET TOKOH FUTSAL (PARALLAX 12-15px)*/}
       {/* ======================================================== */}
       <motion.div
-        style={{
+        style={prefersReducedMotion ? undefined : {
           x: figureTranslateX,
           y: figureTranslateY,
           rotateZ: figureRotateZ,
@@ -197,7 +211,7 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
       {/* LAYER 3: BOLA FUTSAL 3D MELAYANG (DEPTH LAYER TERPISAH)  */}
       {/* ======================================================== */}
       <motion.div
-        style={{
+        style={prefersReducedMotion ? undefined : {
           x: ballTranslateX,
           y: ballTranslateY,
           rotateZ: ballRotateZ,
@@ -206,7 +220,10 @@ export const HeroParallaxVisual: React.FC<HeroParallaxVisualProps> = ({
       >
         <div
           className="relative group"
-          style={{ animation: 'subtleFloating 4s ease-in-out infinite' }}
+          style={{
+            animation: prefersReducedMotion ? 'none' : 'subtleFloating 4s ease-in-out infinite',
+            animationPlayState: isPaused ? 'paused' : 'running',
+          }}
         >
           {ballUrl ? (
             <img
