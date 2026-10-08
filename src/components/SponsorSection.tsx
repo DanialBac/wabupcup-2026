@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useTournament } from '../context/TournamentContext';
-import { SponsorTier } from '../types';
+import { SponsorItem, SponsorTier } from '../types';
 import { SectionBackground, getSectionTextClass } from './SectionBackground';
 import {
   Users,
   ExternalLink,
   Handshake,
-  Globe,
   Sparkles,
   Award,
   ShieldCheck,
@@ -14,6 +13,192 @@ import {
   CheckCircle2,
   ArrowUpRight
 } from 'lucide-react';
+
+// SVG Path untuk Pointy-Topped Hexagon dengan sudut membulat (fillet radius = 8)
+// ViewBox: 0 0 100 115.47 (Rasio lebar:tinggi presisi 1 : 1.1547)
+const HEXAGON_PATH =
+  'M 43.07 5.00 Q 50.00 1.00 56.93 5.00 L 92.07 25.30 Q 99.00 29.30 99.00 37.30 L 99.00 78.10 Q 99.00 86.10 92.07 90.10 L 56.93 110.40 Q 50.00 114.40 43.07 110.40 L 7.93 90.10 Q 1.00 86.10 1.00 78.10 L 1.00 37.30 Q 1.00 29.30 7.93 25.30 Z';
+
+interface HexagonSponsorCardProps {
+  sponsor: SponsorItem;
+  imageError?: boolean;
+  onImageError?: () => void;
+}
+
+const HexagonSponsorCard: React.FC<HexagonSponsorCardProps> = ({
+  sponsor,
+  imageError,
+  onImageError,
+}) => {
+  const hasValidImage = sponsor.logoUrl && !imageError;
+  const hasLink = Boolean(sponsor.websiteUrl);
+
+  const tierBorderColors: Record<SponsorTier, string> = {
+    PLATINUM: '#ef4444',
+    GOLD: '#f59e0b',
+    SILVER: '#94a3b8',
+    OFFICIAL_PARTNER: '#3b82f6',
+  };
+
+  const tierBadgeGradients: Record<SponsorTier, string> = {
+    PLATINUM: 'bg-red-600 text-white',
+    GOLD: 'bg-amber-500 text-slate-950 font-black',
+    SILVER: 'bg-slate-700 text-white',
+    OFFICIAL_PARTNER: 'bg-blue-600 text-white',
+  };
+
+  const cardContent = (
+    <div
+      className={`relative group w-[90px] h-[104px] sm:w-[104px] sm:h-[120px] lg:w-[114px] lg:h-[132px] flex items-center justify-center transition-all duration-300 transform-gpu hover:scale-110 hover:-translate-y-1 hover:z-40 ${
+        hasLink ? 'cursor-pointer' : 'cursor-default'
+      }`}
+    >
+      {/* SVG BACKGROUND SHAPE (White Hexagon with soft shadow) */}
+      <svg
+        viewBox="0 0 100 115.47"
+        className="absolute inset-0 w-full h-full filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.08)] group-hover:drop-shadow-[0_12px_20px_rgba(0,0,0,0.18)] transition-all duration-300"
+      >
+        <path
+          d={HEXAGON_PATH}
+          className="fill-white transition-colors duration-300"
+          stroke="rgba(226, 232, 240, 0.95)"
+          strokeWidth="1.6"
+        />
+        {/* Highlight border on hover with Tier color */}
+        <path
+          d={HEXAGON_PATH}
+          fill="none"
+          stroke={tierBorderColors[sponsor.tier] || '#ef4444'}
+          strokeWidth="2.5"
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        />
+      </svg>
+
+      {/* CONTENT LAYER (Centered inside hexagon) */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-3.5 sm:p-4 z-10 select-none pointer-events-none">
+        {hasValidImage ? (
+          <img
+            src={sponsor.logoUrl}
+            alt={`Logo ${sponsor.name}`}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={onImageError}
+            className="max-w-[76%] max-h-[58%] w-auto h-auto object-contain object-center filter drop-shadow-sm transition-transform duration-300 group-hover:scale-108"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-center px-1">
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 to-rose-700 text-white font-black text-xs flex items-center justify-center shadow-sm mb-1">
+              {(sponsor.logoText || sponsor.name).slice(0, 2).toUpperCase()}
+            </span>
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight line-clamp-1 max-w-[72px]">
+              {sponsor.logoText || sponsor.name}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* FLOATING HOVER TOOLTIP */}
+      <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 transform scale-95 group-hover:scale-100 whitespace-nowrap shadow-xl">
+        <div className="bg-slate-900/95 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-slate-700/80 backdrop-blur-md flex items-center space-x-1.5">
+          <span>{sponsor.name}</span>
+          <span className={`text-[9px] px-1.5 py-0.2 rounded ${tierBadgeGradients[sponsor.tier]}`}>
+            {sponsor.tier}
+          </span>
+          {hasLink && <ExternalLink className="w-3 h-3 text-blue-400" />}
+        </div>
+        <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1 border-r border-b border-slate-700/80" />
+      </div>
+    </div>
+  );
+
+  if (hasLink) {
+    return (
+      <a
+        href={sponsor.websiteUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Kunjungi ${sponsor.name}`}
+        className="block no-underline"
+      >
+        {cardContent}
+      </a>
+    );
+  }
+
+  return cardContent;
+};
+
+interface HexagonCenterPieceProps {
+  logoUrl?: string;
+  tournamentName?: string;
+  tagline?: string;
+}
+
+const HexagonCenterPiece: React.FC<HexagonCenterPieceProps> = ({
+  logoUrl,
+  tournamentName = 'WabupCup 2026',
+}) => {
+  const finalLogo = logoUrl || '/wabup-cup-logo.svg';
+
+  return (
+    <div className="relative group w-[160px] h-[184px] sm:w-[190px] sm:h-[220px] lg:w-[220px] lg:h-[254px] flex items-center justify-center shrink-0 z-20">
+      {/* AMBIENT GLOW EFFECT (Warm Amber / Red / Violet Aura) */}
+      <div className="absolute inset-2 bg-gradient-to-tr from-red-600/35 via-amber-500/30 to-purple-600/35 blur-2xl rounded-full pointer-events-none group-hover:blur-3xl transition-all duration-500" />
+      <div className="absolute -bottom-4 w-3/4 h-8 bg-amber-500/25 blur-xl rounded-full pointer-events-none" />
+
+      {/* SVG CENTER HEXAGON SHAPE (Dark Gradient with Glowing Accent Border) */}
+      <svg
+        viewBox="0 0 100 115.47"
+        className="absolute inset-0 w-full h-full filter drop-shadow-[0_15px_30px_rgba(0,0,0,0.35)] transition-transform duration-500 group-hover:scale-102"
+      >
+        <defs>
+          <linearGradient id="centerHexFill" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#0b0f19" />
+            <stop offset="50%" stopColor="#151226" />
+            <stop offset="100%" stopColor="#090a10" />
+          </linearGradient>
+
+          <linearGradient id="centerHexBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.8" />
+            <stop offset="40%" stopColor="#ef4444" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.8" />
+          </linearGradient>
+        </defs>
+
+        <path
+          d={HEXAGON_PATH}
+          fill="url(#centerHexFill)"
+          stroke="url(#centerHexBorder)"
+          strokeWidth="2.8"
+        />
+
+        {/* Inner subtle rim light */}
+        <path
+          d={HEXAGON_PATH}
+          fill="none"
+          stroke="rgba(255, 255, 255, 0.15)"
+          strokeWidth="1"
+          transform="scale(0.96) translate(2, 2.3)"
+        />
+      </svg>
+
+      {/* CENTER CONTENT: LOGO WABUP CUP DARI PENGATURAN INFORMASI DAN LOGO */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 sm:p-7 z-10 select-none pointer-events-none">
+        <img
+          src={finalLogo}
+          alt={`Logo ${tournamentName}`}
+          className="max-w-[78%] max-h-[64%] w-auto h-auto object-contain object-center filter drop-shadow-2xl transition-transform duration-500 group-hover:scale-110"
+        />
+        
+        {/* SUBTLE BRAND BADGE */}
+        <div className="mt-2 px-2.5 py-0.5 rounded-full bg-red-600/30 border border-red-500/40 text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider text-amber-300 shadow-sm backdrop-blur-sm">
+          OFFICIAL TURNAMEN
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const SponsorSection: React.FC = () => {
   const { sponsors, config, committeeContacts, isInitialLoading } = useTournament();
@@ -29,61 +214,36 @@ export const SponsorSection: React.FC = () => {
     ? `62${waNumber.replace(/\D/g, '').slice(1)}`
     : waNumber.replace(/\D/g, '');
 
-  const tierConfig: Record<
-    SponsorTier,
-    {
-      title: string;
-      subtitle: string;
-      icon: React.ElementType;
-      badgeGradient: string;
-      cardBorder: string;
-      glowGradient: string;
-      accentColor: string;
-    }
-  > = {
-    PLATINUM: {
-      title: 'Platinum Title Sponsors',
-      subtitle: 'Mitra Utama & Sponsor Utama Penyelenggaraan WabupCup 2026',
-      icon: Sparkles,
-      badgeGradient: 'from-red-600 via-rose-600 to-amber-600 text-white shadow-lg shadow-red-500/20 border-red-400/40',
-      cardBorder: 'border-red-500/40 hover:border-red-500 dark:border-red-500/50 dark:hover:border-red-400',
-      glowGradient: 'from-red-600/10 via-rose-600/5 to-transparent',
-      accentColor: 'text-red-500',
-    },
-    GOLD: {
-      title: 'Gold Official Partners',
-      subtitle: 'Sponsor Resmi Kategori & Fasilitas Pertandingan',
-      icon: Award,
-      badgeGradient: 'from-amber-500 via-yellow-500 to-amber-600 text-slate-950 font-black shadow-md shadow-amber-500/20 border-amber-300/60',
-      cardBorder: 'border-amber-400/40 hover:border-amber-400 dark:border-amber-400/40 dark:hover:border-amber-300',
-      glowGradient: 'from-amber-500/10 via-yellow-500/5 to-transparent',
-      accentColor: 'text-amber-500',
-    },
-    SILVER: {
-      title: 'Silver Co-Sponsors',
-      subtitle: 'Mitra Pendukung Operasional & Perlengkapan',
-      icon: ShieldCheck,
-      badgeGradient: 'from-slate-700 via-slate-600 to-slate-800 text-white shadow-sm border-slate-500/40',
-      cardBorder: 'border-slate-300 hover:border-slate-400 dark:border-slate-800 dark:hover:border-slate-700',
-      glowGradient: 'from-slate-500/5 to-transparent',
-      accentColor: 'text-slate-400',
-    },
-    OFFICIAL_PARTNER: {
-      title: 'Official Media & Health Partners',
-      subtitle: 'Mitra Publikasi Siaran, Medis & Hospitality',
-      icon: Building2,
-      badgeGradient: 'from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-md shadow-blue-500/20 border-blue-400/40',
-      cardBorder: 'border-blue-400/40 hover:border-blue-500 dark:border-blue-500/40 dark:hover:border-blue-400',
-      glowGradient: 'from-blue-600/10 via-indigo-600/5 to-transparent',
-      accentColor: 'text-blue-500',
-    },
-  };
-
-  const orderedTiers: SponsorTier[] = ['PLATINUM', 'GOLD', 'SILVER', 'OFFICIAL_PARTNER'];
-
   const bgConfig = config.sectionsBackgrounds?.sponsors;
   const isCustomImage = bgConfig?.mode === 'IMAGE';
   const isCustomColor = bgConfig?.mode === 'COLOR';
+
+  // Logo turnamen sesuai pengaturan informasi dan logo (admin CMS)
+  const wabupLogo = config.wabupLogoUrl || '/wabup-cup-logo.svg';
+
+  // Membagi sponsor menjadi 2 sisi (kiri dan kanan)
+  const halfCount = Math.ceil(sponsors.length / 2);
+  const leftSponsors = sponsors.slice(0, halfCount);
+  const rightSponsors = sponsors.slice(halfCount);
+
+  // Helper untuk membagi array sponsor menjadi 3 baris honeycomb
+  const splitIntoRows = (items: SponsorItem[]) => {
+    const row1: SponsorItem[] = [];
+    const row2: SponsorItem[] = [];
+    const row3: SponsorItem[] = [];
+
+    items.forEach((item, index) => {
+      const mod = index % 3;
+      if (mod === 0) row1.push(item);
+      else if (mod === 1) row2.push(item);
+      else row3.push(item);
+    });
+
+    return { row1, row2, row3 };
+  };
+
+  const leftRows = splitIntoRows(leftSponsors);
+  const rightRows = splitIntoRows(rightSponsors);
 
   return (
     <section
@@ -96,15 +256,15 @@ export const SponsorSection: React.FC = () => {
       {/* CUSTOM SECTION BACKGROUND */}
       <SectionBackground config={bgConfig} />
 
-      {/* BACKGROUND AMBIENT GLOW (Only in default mode) */}
+      {/* BACKGROUND AMBIENT GLOW */}
       {(!bgConfig || bgConfig.mode === 'DEFAULT') && (
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-gradient-to-r from-red-600/10 via-blue-600/10 to-amber-600/10 blur-3xl pointer-events-none rounded-full" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[450px] bg-gradient-to-r from-red-600/10 via-amber-500/10 to-blue-600/10 blur-3xl pointer-events-none rounded-full" />
       )}
 
       <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${getSectionTextClass(bgConfig)}`}>
         
-        {/* HEADER */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        {/* SECTION HEADER */}
+        <div className="text-center max-w-3xl mx-auto mb-14">
           <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-red-500/10 dark:bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-wider mb-3">
             <Users className="w-3.5 h-3.5" />
             <span>Kemitraan & Kolaborasi Resmi</span>
@@ -119,9 +279,9 @@ export const SponsorSection: React.FC = () => {
           </p>
         </div>
 
-        {/* TIERS DISPLAY */}
+        {/* SPONSOR SHOWCASE CONTAINER */}
         {isInitialLoading && sponsors.length === 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-6 text-center py-12">
             <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -129,167 +289,147 @@ export const SponsorSection: React.FC = () => {
               </span>
               <span>Menyinkronkan daftar mitra & sponsor resmi dari database...</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-                <div
-                  key={i}
-                  className="h-28 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4"
-                >
-                  <div className="w-24 h-8 bg-slate-200 dark:bg-slate-800 rounded"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : sponsors.length === 0 ? (
-          <div className="py-12 px-6 rounded-3xl bg-white dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 text-center max-w-xl mx-auto space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto text-2xl">
-              <Handshake className="w-7 h-7" />
-            </div>
-            <h3 className="text-lg font-heading font-bold uppercase tracking-wide text-slate-800 dark:text-white">
-              Slot Kemitraan & Sponsor Terbuka
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Daftar mitra sponsor resmi akan dipublikasikan secara langsung melalui sistem database turnamen. Hubungi panitia untuk pengajuan proposal sponsorship.
-            </p>
           </div>
         ) : (
-          <div className="space-y-16">
-          {orderedTiers.map(tierKey => {
-            const tierInfo = tierConfig[tierKey];
-            const tierSponsors = sponsors.filter(s => s.tier === tierKey);
-            if (tierSponsors.length === 0) return null;
-            const TierIcon = tierInfo.icon;
-
-            return (
-              <div key={tierKey} className="space-y-6">
-                
-                {/* TIER HEADER BADGE & DIVIDER */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center space-x-3">
-                    <span
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center space-x-2 border bg-gradient-to-r ${tierInfo.badgeGradient}`}
-                    >
-                      <TierIcon className="w-3.5 h-3.5" />
-                      <span>{tierInfo.title}</span>
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 hidden md:inline">
-                      {tierInfo.subtitle}
-                    </span>
-                  </div>
-
-                  <span className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500">
-                    {tierSponsors.length} MITRA TERDAFTAR
-                  </span>
+          <div className="relative py-6 sm:py-10">
+            
+            {/* DESKTOP & TABLET VIEW: DUAL HONEYCOMB CLUSTERS + CENTER LOGO (LAYOUT SEPERTI GAMBAR) */}
+            <div className="hidden md:flex items-center justify-center gap-2 lg:gap-4 select-none">
+              
+              {/* LEFT HONEYCOMB CLUSTER */}
+              <div className="flex flex-col items-end">
+                {/* ROW 1 (TOP) */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {leftRows.row1.map(sp => (
+                    <HexagonSponsorCard
+                      key={sp.id}
+                      sponsor={sp}
+                      imageError={imageErrors[sp.id]}
+                      onImageError={() => handleImageError(sp.id)}
+                    />
+                  ))}
+                  {leftRows.row1.length === 0 && (
+                    <div className="w-[104px] h-[120px]" />
+                  )}
                 </div>
 
-                {/* SPONSOR CARDS GRID */}
-                <div
-                  className={`grid gap-5 ${
-                    tierKey === 'PLATINUM'
-                      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                      : tierKey === 'GOLD'
-                      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-                      : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-                  }`}
-                >
-                  {tierSponsors.map(sponsor => {
-                    const hasValidImage = sponsor.logoUrl && !imageErrors[sponsor.id];
-                    const hasLink = Boolean(sponsor.websiteUrl);
+                {/* ROW 2 (MIDDLE, STAGGERED OFFSET KE KIRI) */}
+                <div className="flex items-center gap-2 sm:gap-3 -mt-5 sm:-mt-6 -mr-10 sm:-mr-12">
+                  {leftRows.row2.map(sp => (
+                    <HexagonSponsorCard
+                      key={sp.id}
+                      sponsor={sp}
+                      imageError={imageErrors[sp.id]}
+                      onImageError={() => handleImageError(sp.id)}
+                    />
+                  ))}
+                </div>
 
-                    return (
-                      <div
-                        key={sponsor.id}
-                        className={`group relative p-5 rounded-2xl bg-white dark:bg-slate-900/90 border transition-all duration-300 flex flex-col justify-between hover:-translate-y-1 shadow-sm hover:shadow-xl dark:shadow-slate-950/50 ${tierInfo.cardBorder}`}
-                      >
-                        {/* AMBIENT CARD GLOW ON HOVER */}
-                        <div
-                          className={`absolute inset-0 rounded-2xl bg-gradient-to-b ${tierInfo.glowGradient} opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}
-                        />
-
-                        <div className="relative z-10">
-                          {/* LOGO DISPLAY FRAME */}
-                          <div
-                            className={`w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 mb-4 overflow-hidden group-hover:border-slate-400 dark:group-hover:border-slate-700 transition ${
-                              tierKey === 'PLATINUM' ? 'h-32' : tierKey === 'GOLD' ? 'h-28' : 'h-24'
-                            }`}
-                          >
-                            {hasValidImage ? (
-                              <img
-                                src={sponsor.logoUrl}
-                                alt={`Logo ${sponsor.name}`}
-                                width="160"
-                                height="80"
-                                loading="lazy"
-                                decoding="async"
-                                referrerPolicy="no-referrer"
-                                onError={() => handleImageError(sponsor.id)}
-                                className="max-w-full max-h-full w-auto h-auto object-contain object-center filter drop-shadow transition-transform duration-300 group-hover:scale-108"
-                              />
-                            ) : (
-                              <div className="flex flex-col items-center justify-center space-y-1.5 p-2">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-blue-700 flex items-center justify-center font-bold text-sm text-white shadow">
-                                  {(sponsor.logoText || sponsor.name).slice(0, 2).toUpperCase()}
-                                </div>
-                                <span className="font-heading font-bold text-xs tracking-wider uppercase text-slate-800 dark:text-slate-200 text-center truncate max-w-[140px]">
-                                  {sponsor.logoText || sponsor.name}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* SPONSOR NAME & DETAILS */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-snug group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors truncate">
-                                {sponsor.name}
-                              </h4>
-                              {tierKey === 'PLATINUM' && (
-                                <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800">
-                                  Platinum
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                              {sponsor.description || 'Mitra Resmi Penyelenggaraan Turnamen'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* BOTTOM ACTION LINK */}
-                        <div className="relative z-10 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                          {hasLink ? (
-                            <a
-                              href={sponsor.websiteUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center space-x-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-red-600 dark:hover:text-red-400 transition group/link"
-                              title={`Kunjungi ${sponsor.websiteUrl}`}
-                            >
-                              <Globe className="w-3.5 h-3.5 shrink-0" />
-                              <span className="truncate max-w-[130px] sm:max-w-[150px]">
-                                {sponsor.websiteUrl?.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
-                              </span>
-                              <ArrowUpRight className="w-3 h-3 shrink-0 group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
-                            </a>
-                          ) : (
-                            <span className="text-[11px] text-slate-400 dark:text-slate-500 italic flex items-center space-x-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                              <span>Mitra Terverifikasi</span>
-                            </span>
-                          )}
-
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                            {sponsor.tier}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                {/* ROW 3 (BOTTOM, ALIGNED WITH ROW 1) */}
+                <div className="flex items-center gap-2 sm:gap-3 -mt-5 sm:-mt-6">
+                  {leftRows.row3.map(sp => (
+                    <HexagonSponsorCard
+                      key={sp.id}
+                      sponsor={sp}
+                      imageError={imageErrors[sp.id]}
+                      onImageError={() => handleImageError(sp.id)}
+                    />
+                  ))}
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* CENTER LARGE HEXAGON (LOGO WABUP CUP DARI PENGATURAN INFORMASI DAN LOGO) */}
+              <div className="px-2 lg:px-4 shrink-0">
+                <HexagonCenterPiece
+                  logoUrl={wabupLogo}
+                  tournamentName={config.name || 'WabupCup 2026'}
+                  tagline={config.tagline}
+                />
+              </div>
+
+              {/* RIGHT HONEYCOMB CLUSTER */}
+              <div className="flex flex-col items-start">
+                {/* ROW 1 (TOP) */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {rightRows.row1.map(sp => (
+                    <HexagonSponsorCard
+                      key={sp.id}
+                      sponsor={sp}
+                      imageError={imageErrors[sp.id]}
+                      onImageError={() => handleImageError(sp.id)}
+                    />
+                  ))}
+                  {rightRows.row1.length === 0 && (
+                    <div className="w-[104px] h-[120px]" />
+                  )}
+                </div>
+
+                {/* ROW 2 (MIDDLE, STAGGERED OFFSET KE KANAN) */}
+                <div className="flex items-center gap-2 sm:gap-3 -mt-5 sm:-mt-6 -ml-10 sm:-ml-12">
+                  {rightRows.row2.map(sp => (
+                    <HexagonSponsorCard
+                      key={sp.id}
+                      sponsor={sp}
+                      imageError={imageErrors[sp.id]}
+                      onImageError={() => handleImageError(sp.id)}
+                    />
+                  ))}
+                </div>
+
+                {/* ROW 3 (BOTTOM, ALIGNED WITH ROW 1) */}
+                <div className="flex items-center gap-2 sm:gap-3 -mt-5 sm:-mt-6">
+                  {rightRows.row3.map(sp => (
+                    <HexagonSponsorCard
+                      key={sp.id}
+                      sponsor={sp}
+                      imageError={imageErrors[sp.id]}
+                      onImageError={() => handleImageError(sp.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* MOBILE VIEW (< md): CENTER LOGO ON TOP, HONEYCOMB SPONSORS WRAPPED BELOW */}
+            <div className="flex md:hidden flex-col items-center">
+              {/* TOP CENTER LOGO */}
+              <div className="mb-6">
+                <HexagonCenterPiece
+                  logoUrl={wabupLogo}
+                  tournamentName={config.name || 'WabupCup 2026'}
+                  tagline={config.tagline}
+                />
+              </div>
+
+              {/* HONEYCOMB GRID FOR MOBILE */}
+              {sponsors.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 max-w-sm px-2">
+                  {sponsors.map(sp => (
+                    <div key={sp.id} className="m-0.5">
+                      <HexagonSponsorCard
+                        sponsor={sp}
+                        imageError={imageErrors[sp.id]}
+                        onImageError={() => handleImageError(sp.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                  Slot kemitraan sponsor turnamen masih terbuka.
+                </p>
+              )}
+            </div>
+
+            {/* STATUS JIKA BELUM ADA SPONSOR */}
+            {sponsors.length === 0 && (
+              <div className="mt-8 text-center max-w-md mx-auto p-4 rounded-2xl bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  Daftar mitra sponsor resmi akan tampil di panel heksagon ini secara real-time. Hubungi panitia untuk bergabung sebagai sponsor resmi.
+                </p>
+              </div>
+            )}
+          </div>
         )}
 
         {/* MODERN BECOME A SPONSOR CALLOUT BANNER */}
@@ -309,7 +449,7 @@ export const SponsorSection: React.FC = () => {
             </h3>
             
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Tingkatkan visibilitas brand Anda di hadapan puluhan ribu suporter  & futsal secara langsung di stadion serta jutaan impresi media sosial dan liputan siaran resmi.
+              Tingkatkan visibilitas brand Anda di hadapan puluhan ribu suporter & futsal secara langsung di stadion serta jutaan impresi media sosial dan liputan siaran resmi turnamen.
             </p>
           </div>
 
