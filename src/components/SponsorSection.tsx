@@ -10,7 +10,9 @@ import {
   Sparkles,
   Instagram,
   Globe,
-  Zap
+  Zap,
+  PlusCircle,
+  Award
 } from 'lucide-react';
 
 /**
@@ -40,17 +42,7 @@ export const formatSponsorUrl = (rawUrl?: string): string => {
 const HEXAGON_PATH =
   'M 43.07 5.00 Q 50.00 1.00 56.93 5.00 L 92.07 25.30 Q 99.00 29.30 99.00 37.30 L 99.00 78.10 Q 99.00 86.10 92.07 90.10 L 56.93 110.40 Q 50.00 114.40 43.07 110.40 L 7.93 90.10 Q 1.00 86.10 1.00 78.10 L 1.00 37.30 Q 1.00 29.30 7.93 25.30 Z';
 
-// Daftar 18 Partner Showcase sesuai contoh desain referensi (fallback jika data database kurang dari 18)
-interface PartnerNode {
-  id: string;
-  name: string;
-  tier: SponsorTier;
-  logoUrl?: string;
-  logoText: string;
-  websiteUrl?: string;
-  description?: string;
-  color?: string;
-  // Posisi di kanvas desktop (viewBox 1100 x 480)
+interface SlotPos {
   x: number;
   y: number;
   side: 'left' | 'right';
@@ -58,43 +50,40 @@ interface PartnerNode {
   floatDelay: number;
 }
 
-const DEFAULT_PARTNERS_LAYOUT: Omit<PartnerNode, 'id'>[] = [
-  // --- SISI KIRI (9 Nodes: Kolom Luar, Tengah, Dekat Pusat) ---
-  // Baris 1 (Top)
-  { name: 'ChatGPT', tier: 'PLATINUM', logoText: 'ChatGPT', color: '#10a37f', x: 210, y: 100, side: 'left', floatDuration: 4.2, floatDelay: 0.1, websiteUrl: 'https://openai.com' },
-  { name: 'RZ', tier: 'GOLD', logoText: 'RZ', color: '#0284c7', x: 320, y: 100, side: 'left', floatDuration: 3.8, floatDelay: 0.6, websiteUrl: 'https://rz-ostschweiz.ch' },
-  { name: 'swissICT', tier: 'SILVER', logoText: 'swissICT', color: '#dc2626', x: 430, y: 100, side: 'left', floatDuration: 4.5, floatDelay: 0.3, websiteUrl: 'https://swissict.ch' },
+// Koordinat slot heksagon di sekitar pusat kanvas (viewBox: 1100 x 480)
+// Diurutkan dari yang terdekat dengan pusat ke arah luar
+const LEFT_SLOTS: SlotPos[] = [
+  { x: 375, y: 220, side: 'left', floatDuration: 4.1, floatDelay: 0.2 }, // Mid dekat pusat
+  { x: 400, y: 110, side: 'left', floatDuration: 3.8, floatDelay: 0.5 }, // Top dekat pusat
+  { x: 400, y: 330, side: 'left', floatDuration: 4.3, floatDelay: 0.1 }, // Bottom dekat pusat
+  { x: 265, y: 220, side: 'left', floatDuration: 4.4, floatDelay: 0.4 }, // Mid tengah
+  { x: 290, y: 110, side: 'left', floatDuration: 4.0, floatDelay: 0.6 }, // Top tengah
+  { x: 290, y: 330, side: 'left', floatDuration: 3.9, floatDelay: 0.3 }, // Bottom tengah
+  { x: 155, y: 220, side: 'left', floatDuration: 4.2, floatDelay: 0.7 }, // Mid luar
+  { x: 180, y: 110, side: 'left', floatDuration: 4.5, floatDelay: 0.2 }, // Top luar
+  { x: 180, y: 330, side: 'left', floatDuration: 3.7, floatDelay: 0.8 }, // Bottom luar
+];
 
-  // Baris 2 (Mid, Staggered ke kiri)
-  { name: 'Intel', tier: 'PLATINUM', logoText: 'intel', color: '#0068b5', x: 155, y: 210, side: 'left', floatDuration: 3.9, floatDelay: 0.5, websiteUrl: 'https://intel.com' },
-  { name: 'INGRAM', tier: 'GOLD', logoText: 'INGRAM', color: '#004c97', x: 265, y: 210, side: 'left', floatDuration: 4.4, floatDelay: 0.2, websiteUrl: 'https://ingrammicro.com' },
-  { name: 'sipcall', tier: 'OFFICIAL_PARTNER', logoText: 'sipcall', color: '#1e293b', x: 375, y: 210, side: 'left', floatDuration: 4.1, floatDelay: 0.7, websiteUrl: 'https://sipcall.ch' },
-
-  // Baris 3 (Bottom)
-  { name: 'Meta', tier: 'PLATINUM', logoText: 'Meta', color: '#0668e1', x: 210, y: 320, side: 'left', floatDuration: 4.6, floatDelay: 0.4, websiteUrl: 'https://about.meta.com' },
-  { name: 'ADN', tier: 'SILVER', logoText: 'ADN', color: '#18181b', x: 320, y: 320, side: 'left', floatDuration: 3.7, floatDelay: 0.8, websiteUrl: 'https://adn.de' },
-  { name: 'Microsoft Partner', tier: 'GOLD', logoText: 'MSFT', color: '#00a4ef', x: 430, y: 320, side: 'left', floatDuration: 4.3, floatDelay: 0.1, websiteUrl: 'https://microsoft.com' },
-
-  // --- SISI KANAN (9 Nodes: Kolom Dekat Pusat, Tengah, Luar) ---
-  // Baris 1 (Top)
-  { name: 'Gemini', tier: 'PLATINUM', logoText: 'Gemini', color: '#8b5cf6', x: 670, y: 100, side: 'right', floatDuration: 4.0, floatDelay: 0.2, websiteUrl: 'https://gemini.google.com' },
-  { name: 'AWS', tier: 'PLATINUM', logoText: 'aws', color: '#ff9900', x: 780, y: 100, side: 'right', floatDuration: 4.7, floatDelay: 0.5, websiteUrl: 'https://aws.amazon.com' },
-  { name: 'AnyDesk', tier: 'GOLD', logoText: 'AnyDesk', color: '#ef4444', x: 890, y: 100, side: 'right', floatDuration: 3.9, floatDelay: 0.3, websiteUrl: 'https://anydesk.com' },
-
-  // Baris 2 (Mid, Staggered ke kanan)
-  { name: 'Google', tier: 'PLATINUM', logoText: 'Google', color: '#4285f4', x: 725, y: 210, side: 'right', floatDuration: 4.3, floatDelay: 0.6, websiteUrl: 'https://google.com' },
-  { name: 'ID:C', tier: 'SILVER', logoText: 'ID:C', color: '#dc2626', x: 835, y: 210, side: 'right', floatDuration: 3.8, floatDelay: 0.1, websiteUrl: 'https://idc.com' },
-  { name: 'Security Core', tier: 'OFFICIAL_PARTNER', logoText: 'CORE', color: '#10b981', x: 945, y: 210, side: 'right', floatDuration: 4.5, floatDelay: 0.4, websiteUrl: '#' },
-
-  // Baris 3 (Bottom)
-  { name: 'ASUS', tier: 'GOLD', logoText: 'ASUS', color: '#00539b', x: 670, y: 320, side: 'right', floatDuration: 4.1, floatDelay: 0.7, websiteUrl: 'https://asus.com' },
-  { name: 'HotellerieSuisse', tier: 'SILVER', logoText: 'Hotellerie', color: '#b91c1c', x: 780, y: 320, side: 'right', floatDuration: 3.9, floatDelay: 0.2, websiteUrl: 'https://hotelleriesuisse.ch' },
-  { name: 'Swiss Hosting', tier: 'OFFICIAL_PARTNER', logoText: 'SwissHost', color: '#dc2626', x: 890, y: 320, side: 'right', floatDuration: 4.4, floatDelay: 0.5, websiteUrl: '#' },
+const RIGHT_SLOTS: SlotPos[] = [
+  { x: 725, y: 220, side: 'right', floatDuration: 4.1, floatDelay: 0.3 }, // Mid dekat pusat
+  { x: 700, y: 110, side: 'right', floatDuration: 4.0, floatDelay: 0.1 }, // Top dekat pusat
+  { x: 700, y: 330, side: 'right', floatDuration: 4.4, floatDelay: 0.6 }, // Bottom dekat pusat
+  { x: 835, y: 220, side: 'right', floatDuration: 3.9, floatDelay: 0.5 }, // Mid tengah
+  { x: 810, y: 110, side: 'right', floatDuration: 4.6, floatDelay: 0.2 }, // Top tengah
+  { x: 810, y: 330, side: 'right', floatDuration: 4.2, floatDelay: 0.7 }, // Bottom tengah
+  { x: 945, y: 220, side: 'right', floatDuration: 4.3, floatDelay: 0.4 }, // Mid luar
+  { x: 920, y: 110, side: 'right', floatDuration: 3.8, floatDelay: 0.8 }, // Top luar
+  { x: 920, y: 330, side: 'right', floatDuration: 4.5, floatDelay: 0.3 }, // Bottom luar
 ];
 
 export const SponsorSection: React.FC = () => {
   const { sponsors, config, committeeContacts, isInitialLoading } = useTournament();
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+  const handleImageError = (id: string) => {
+    setImageErrors(prev => ({ ...prev, [id]: true }));
+  };
 
   const primaryContact = committeeContacts?.find(c => c.isPrimary) || committeeContacts?.[0];
   const waNumber = primaryContact?.phone || config.adminContactPhone || '6281234567890';
@@ -113,42 +102,65 @@ export const SponsorSection: React.FC = () => {
   const CENTER_X = 550;
   const CENTER_Y = 220;
 
-  // Gabungkan sponsor nyata dari database dengan layout 18 posisi
-  const partners: PartnerNode[] = DEFAULT_PARTNERS_LAYOUT.map((pos, idx) => {
-    const realSponsor = sponsors[idx];
-    if (realSponsor) {
-      return {
-        ...pos,
-        id: realSponsor.id,
-        name: realSponsor.name,
-        tier: realSponsor.tier,
-        logoUrl: realSponsor.logoUrl,
-        logoText: realSponsor.logoText || realSponsor.name,
-        websiteUrl: realSponsor.websiteUrl,
-        description: realSponsor.description,
-      };
+  // HANYA MENGGUNAKAN DATA REAL DARI DATABASE
+  // Distribusikan sponsor secara seimbang antara sisi kiri dan kanan
+  const realNodes: (SponsorItem & SlotPos)[] = [];
+  let leftIdx = 0;
+  let rightIdx = 0;
+
+  sponsors.forEach((sp, i) => {
+    if (i % 2 === 0) {
+      if (leftIdx < LEFT_SLOTS.length) {
+        realNodes.push({ ...sp, ...LEFT_SLOTS[leftIdx] });
+        leftIdx++;
+      } else if (rightIdx < RIGHT_SLOTS.length) {
+        realNodes.push({ ...sp, ...RIGHT_SLOTS[rightIdx] });
+        rightIdx++;
+      }
+    } else {
+      if (rightIdx < RIGHT_SLOTS.length) {
+        realNodes.push({ ...sp, ...RIGHT_SLOTS[rightIdx] });
+        rightIdx++;
+      } else if (leftIdx < LEFT_SLOTS.length) {
+        realNodes.push({ ...sp, ...LEFT_SLOTS[leftIdx] });
+        leftIdx++;
+      }
     }
-    return {
-      ...pos,
-      id: `default-node-${idx}`,
-    };
   });
+
+  // Jika sponsor hanya 1, siapkan 1 slot undangan terbuka di sisi berlawanan agar seimbang
+  const hasSingleSponsor = sponsors.length === 1;
+  const openSlotPos: SlotPos | null = hasSingleSponsor
+    ? RIGHT_SLOTS[0]
+    : sponsors.length === 0
+    ? null
+    : null;
 
   // Helper untuk membuat garis lengkung Cubic Bezier dari pusat ke posisi partner
   const getBezierPath = (targetX: number, targetY: number, side: 'left' | 'right') => {
-    // Posisi keluar dari sisi hexagon pusat
     const startX = side === 'left' ? CENTER_X - 60 : CENTER_X + 60;
     const startY = CENTER_Y;
-
-    // Control point elegan yang melengkung natural
     const dx = targetX - startX;
     const dy = targetY - startY;
     const c1x = startX + dx * 0.45;
     const c1y = startY + dy * 0.15;
     const c2x = startX + dx * 0.75;
     const c2y = targetY;
-
     return `M ${startX} ${startY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${targetX} ${targetY}`;
+  };
+
+  const tierColors: Record<SponsorTier, string> = {
+    PLATINUM: '#ef4444',
+    GOLD: '#f59e0b',
+    SILVER: '#94a3b8',
+    OFFICIAL_PARTNER: '#3b82f6',
+  };
+
+  const tierBadges: Record<SponsorTier, string> = {
+    PLATINUM: 'bg-red-600 text-white',
+    GOLD: 'bg-amber-500 text-slate-950 font-black',
+    SILVER: 'bg-slate-700 text-white',
+    OFFICIAL_PARTNER: 'bg-blue-600 text-white',
   };
 
   return (
@@ -171,7 +183,7 @@ export const SponsorSection: React.FC = () => {
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-purple-500/10 dark:bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400 text-xs font-bold uppercase tracking-wider mb-3 shadow-sm">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Ekosistem Kemitraan & Kolaborasi</span>
+            <span>Kemitraan & Kolaborasi Resmi</span>
           </div>
           
           <h2 className="text-3xl sm:text-5xl font-heading font-extrabold uppercase tracking-tight text-slate-900 dark:text-white">
@@ -179,399 +191,552 @@ export const SponsorSection: React.FC = () => {
           </h2>
           
           <p className="mt-3 text-sm sm:text-base text-slate-600 dark:text-slate-400">
-            Apresiasi dan penghormatan tertinggi kepada institusi, korporasi, dan mitra media yang menyatukan energi dalam mewujudkan pesta olahraga futsal terbesar Wabup Cup 2026.
+            Apresiasi dan penghormatan tertinggi kepada institusi, korporasi, dan mitra resmi yang mendukung terselenggaranya turnamen akbar Wabup Cup 2026.
           </p>
         </div>
 
-        {/* =========================================================================
-            DESKTOP INTERACTIVE CANVAS (Interactive Energy Beams + Hexagons + Orbit)
-            ========================================================================= */}
-        <div className="hidden lg:block relative w-full max-w-[1100px] mx-auto h-[480px] select-none">
-          
-          {/* SVG LAYER: CONNECTING BEAMS, PARTICLES & ORBITAL ARROWS */}
-          <svg
-            viewBox="0 0 1100 480"
-            className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible"
-          >
-            <defs>
-              {/* Center glow radial gradient */}
-              <radialGradient id="centerAura" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.45" />
-                <stop offset="60%" stopColor="#f97316" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#000000" stopOpacity="0" />
-              </radialGradient>
+        {/* LOADING STATE */}
+        {isInitialLoading && sponsors.length === 0 ? (
+          <div className="space-y-6 text-center py-16">
+            <div className="flex items-center justify-center space-x-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+              </span>
+              <span>Menyinkronkan daftar sponsor resmi dari database...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* =========================================================================
+                DESKTOP INTERACTIVE CANVAS (Interactive Energy Beams + Real Sponsor Hexagons)
+                ========================================================================= */}
+            <div className="hidden lg:block relative w-full max-w-[1100px] mx-auto h-[480px] select-none">
+              
+              {/* SVG LAYER: CONNECTING BEAMS, PARTICLES & ORBITAL ARROWS */}
+              <svg
+                viewBox="0 0 1100 480"
+                className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible"
+              >
+                <defs>
+                  <radialGradient id="centerAuraReal" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.45" />
+                    <stop offset="60%" stopColor="#f97316" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+                  </radialGradient>
 
-              {/* Energy line gradients */}
-              <linearGradient id="beamGradActive" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
-                <stop offset="60%" stopColor="#f97316" stopOpacity="1" />
-                <stop offset="100%" stopColor="#38bdf8" stopOpacity="1" />
-              </linearGradient>
+                  <linearGradient id="beamGradActiveReal" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="1" />
+                    <stop offset="60%" stopColor="#f97316" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#38bdf8" stopOpacity="1" />
+                  </linearGradient>
 
-              <linearGradient id="beamGradIdle" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.15" />
-              </linearGradient>
+                  <linearGradient id="beamGradIdleReal" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.15" />
+                  </linearGradient>
 
-              {/* Arrow markers for orbit loops */}
-              <marker id="orbitArrowRight" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
-                <polygon points="0 1, 7 4, 0 7" fill="#8b5cf6" />
-              </marker>
-              <marker id="orbitArrowLeft" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
-                <polygon points="7 1, 0 4, 7 7" fill="#f97316" />
-              </marker>
-            </defs>
+                  <marker id="orbitArrowRightReal" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
+                    <polygon points="0 1, 7 4, 0 7" fill="#8b5cf6" />
+                  </marker>
+                  <marker id="orbitArrowLeftReal" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
+                    <polygon points="7 1, 0 4, 7 7" fill="#f97316" />
+                  </marker>
+                </defs>
 
-            {/* AURA GLOW BEHIND CENTER */}
-            <circle cx={CENTER_X} cy={CENTER_Y} r="140" fill="url(#centerAura)" />
+                {/* AURA GLOW BEHIND CENTER */}
+                <circle cx={CENTER_X} cy={CENTER_Y} r="140" fill="url(#centerAuraReal)" />
 
-            {/* EFEK PUTARAN / ORBIT SIRKULASI HALUS (LOOP ARROWS ATAS & BAWAH) */}
-            <g className="opacity-70 dark:opacity-85">
-              {/* Upper Arc Loop (Clockwise flow: Kiri ke Kanan) */}
-              <path
-                d="M 450 100 C 510 65, 590 65, 650 100"
-                fill="none"
-                stroke="#8b5cf6"
-                strokeWidth="1.8"
-                strokeDasharray="4 6"
-                markerEnd="url(#orbitArrowRight)"
-                className="animate-[pulse_3s_ease-in-out_infinite]"
-              />
-              {/* Lower Arc Loop (Counter-clockwise flow: Kanan ke Kiri) */}
-              <path
-                d="M 650 340 C 590 375, 510 375, 450 340"
-                fill="none"
-                stroke="#f97316"
-                strokeWidth="1.8"
-                strokeDasharray="4 6"
-                markerEnd="url(#orbitArrowLeft)"
-                className="animate-[pulse_3s_ease-in-out_infinite]"
-              />
-            </g>
-
-            {/* GARIS KONEKSI & ALIRAN ENERGI (BEZIER ENERGY BEAMS) */}
-            {partners.map(p => {
-              const pathD = getBezierPath(p.x, p.y, p.side);
-              const isActive = activePartnerId === p.id;
-
-              return (
-                <g key={`beam-${p.id}`}>
-                  {/* 1. Base subtle line */}
+                {/* EFEK PUTARAN / ORBIT SIRKULASI HALUS (LOOP ARROWS ATAS & BAWAH) */}
+                <g className="opacity-70 dark:opacity-85">
                   <path
-                    d={pathD}
+                    d="M 450 100 C 510 65, 590 65, 650 100"
                     fill="none"
-                    stroke={isActive ? 'url(#beamGradActive)' : 'url(#beamGradIdle)'}
-                    strokeWidth={isActive ? 2.8 : 1.2}
-                    className="transition-all duration-300"
+                    stroke="#8b5cf6"
+                    strokeWidth="1.8"
+                    strokeDasharray="4 6"
+                    markerEnd="url(#orbitArrowRightReal)"
+                    className="animate-[pulse_3s_ease-in-out_infinite]"
+                  />
+                  <path
+                    d="M 650 340 C 590 375, 510 375, 450 340"
+                    fill="none"
+                    stroke="#f97316"
+                    strokeWidth="1.8"
+                    strokeDasharray="4 6"
+                    markerEnd="url(#orbitArrowLeftReal)"
+                    className="animate-[pulse_3s_ease-in-out_infinite]"
+                  />
+                </g>
+
+                {/* GARIS KONEKSI & ENERGI BEZIER KE REAL SPONSORS */}
+                {realNodes.map(p => {
+                  const pathD = getBezierPath(p.x, p.y, p.side);
+                  const isActive = activePartnerId === p.id;
+
+                  return (
+                    <g key={`beam-${p.id}`}>
+                      {/* 1. Base line */}
+                      <path
+                        d={pathD}
+                        fill="none"
+                        stroke={isActive ? 'url(#beamGradActiveReal)' : 'url(#beamGradIdleReal)'}
+                        strokeWidth={isActive ? 2.8 : 1.4}
+                        className="transition-all duration-300"
+                      />
+
+                      {/* 2. Flowing pulse dashes */}
+                      <path
+                        d={pathD}
+                        fill="none"
+                        stroke={isActive ? '#f97316' : '#8b5cf6'}
+                        strokeWidth={isActive ? 3.5 : 1.8}
+                        strokeDasharray={isActive ? '12 24' : '6 36'}
+                        strokeLinecap="round"
+                        className="opacity-80"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          from="100"
+                          to="0"
+                          dur={isActive ? '1.2s' : '3.2s'}
+                          repeatCount="indefinite"
+                        />
+                      </path>
+
+                      {/* 3. Glowing Light Dot Particle */}
+                      <circle r={isActive ? 4 : 2.5} fill={isActive ? '#38bdf8' : '#f97316'}>
+                        <animateMotion
+                          path={pathD}
+                          dur={isActive ? '1.2s' : '3.2s'}
+                          repeatCount="indefinite"
+                        />
+                      </circle>
+                    </g>
+                  );
+                })}
+
+                {/* Garis halus ke Open Slot jika ada 1 sponsor */}
+                {openSlotPos && (
+                  <path
+                    d={getBezierPath(openSlotPos.x, openSlotPos.y, openSlotPos.side)}
+                    fill="none"
+                    stroke="rgba(148, 163, 184, 0.25)"
+                    strokeWidth="1.2"
+                    strokeDasharray="4 8"
+                  />
+                )}
+              </svg>
+
+              {/* ===================================================================
+                  CENTER LARGE HEXAGON LOGO UTAMA WABUP CUP (UNGU - ORANYE NEON GLOW)
+                  =================================================================== */}
+              <div
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex items-center justify-center pointer-events-auto"
+                style={{ width: 190, height: 220 }}
+              >
+                {/* AMBIENT NEON GLOW */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-2xl animate-pulse pointer-events-none" />
+
+                {/* SVG CENTER HEXAGON FRAME */}
+                <svg
+                  viewBox="0 0 100 115.47"
+                  className="absolute inset-0 w-full h-full filter drop-shadow-[0_15px_35px_rgba(139,92,246,0.35)] transition-transform duration-500 hover:scale-105"
+                >
+                  <defs>
+                    <linearGradient id="centerMainFillReal" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#120726" />
+                      <stop offset="45%" stopColor="#1e103c" />
+                      <stop offset="100%" stopColor="#080314" />
+                    </linearGradient>
+
+                    <linearGradient id="centerMainBorderReal" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8b5cf6" />
+                      <stop offset="50%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#a855f7" />
+                    </linearGradient>
+
+                    <linearGradient id="centerInnerBevelReal" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#f97316" stopOpacity="0.4" />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.2" />
+                    </linearGradient>
+                  </defs>
+
+                  <path
+                    d={HEXAGON_PATH}
+                    fill="url(#centerMainFillReal)"
+                    stroke="url(#centerMainBorderReal)"
+                    strokeWidth="3"
                   />
 
-                  {/* 2. Flowing pulse / signal dashes */}
                   <path
-                    d={pathD}
+                    d={HEXAGON_PATH}
                     fill="none"
-                    stroke={isActive ? '#f97316' : '#8b5cf6'}
-                    strokeWidth={isActive ? 3.5 : 1.8}
-                    strokeDasharray={isActive ? '12 24' : '6 36'}
-                    strokeLinecap="round"
-                    className="opacity-80"
-                  >
-                    <animate
-                      attributeName="stroke-dashoffset"
-                      from="100"
-                      to="0"
-                      dur={isActive ? '1.2s' : '3.2s'}
-                      repeatCount="indefinite"
-                    />
-                  </path>
+                    stroke="url(#centerInnerBevelReal)"
+                    strokeWidth="1.2"
+                    transform="scale(0.94) translate(3.2, 3.7)"
+                  />
+                </svg>
 
-                  {/* 3. Glowing Light Dot Particle flowing to partner node */}
-                  <circle r={isActive ? 4 : 2.5} fill={isActive ? '#38bdf8' : '#f97316'}>
-                    <animateMotion
-                      path={pathD}
-                      dur={isActive ? '1.2s' : '3.2s'}
-                      repeatCount="indefinite"
-                    />
-                  </circle>
-                </g>
-              );
-            })}
-          </svg>
-
-          {/* ===================================================================
-              CENTER LARGE HEXAGON LOGO UTAMA WABUP CUP (UNGU - ORANYE NEON GLOW)
-              =================================================================== */}
-          <div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex items-center justify-center pointer-events-auto"
-            style={{ width: 190, height: 220 }}
-          >
-            {/* AMBIENT ROTATING NEON PULSE */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-2xl animate-pulse pointer-events-none" />
-
-            {/* SVG CENTER HEXAGON FRAME */}
-            <svg
-              viewBox="0 0 100 115.47"
-              className="absolute inset-0 w-full h-full filter drop-shadow-[0_15px_35px_rgba(139,92,246,0.35)] transition-transform duration-500 hover:scale-105"
-            >
-              <defs>
-                <linearGradient id="centerMainFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#120726" />
-                  <stop offset="45%" stopColor="#1e103c" />
-                  <stop offset="100%" stopColor="#080314" />
-                </linearGradient>
-
-                <linearGradient id="centerMainBorder" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="50%" stopColor="#f97316" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-
-                <linearGradient id="centerInnerBevel" x1="0%" y1="100%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#f97316" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.2" />
-                </linearGradient>
-              </defs>
-
-              {/* Main Outer Hexagon */}
-              <path
-                d={HEXAGON_PATH}
-                fill="url(#centerMainFill)"
-                stroke="url(#centerMainBorder)"
-                strokeWidth="3"
-              />
-
-              {/* Inner Glowing Bevel */}
-              <path
-                d={HEXAGON_PATH}
-                fill="none"
-                stroke="url(#centerInnerBevel)"
-                strokeWidth="1.2"
-                transform="scale(0.94) translate(3.2, 3.7)"
-              />
-            </svg>
-
-            {/* CENTER CONTENT: LOGO WABUP CUP DARI PENGATURAN INFORMASI DAN LOGO */}
-            <div className="relative z-10 flex flex-col items-center justify-center p-6 text-center select-none">
-              <img
-                src={wabupLogo}
-                alt={config.name || 'Logo Turnamen WabupCup 2026'}
-                className="max-w-[100px] max-h-[82px] w-auto h-auto object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-110"
-              />
-              
-              <div className="mt-2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-950/80 to-amber-950/80 border border-purple-500/40 text-[9px] font-mono font-bold tracking-wider text-amber-300 shadow-sm backdrop-blur-md">
-                OFFICIAL LOGO
-              </div>
-            </div>
-          </div>
-
-          {/* ===================================================================
-              INTERACTIVE PARTNER HEXAGON BADGES (SISI KIRI & SISI KANAN)
-              =================================================================== */}
-          {partners.map(p => {
-            const isActive = activePartnerId === p.id;
-            const targetUrl = formatSponsorUrl(p.websiteUrl);
-            const isInstagram = targetUrl.toLowerCase().includes('instagram.com');
-
-            return (
-              <motion.div
-                key={p.id}
-                className="absolute z-20 cursor-pointer"
-                style={{
-                  left: p.x - 46, // Center anchor
-                  top: p.y - 53,
-                  width: 92,
-                  height: 106,
-                }}
-                animate={{
-                  y: [-3, 3, -3],
-                }}
-                transition={{
-                  duration: p.floatDuration,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                  delay: p.floatDelay,
-                }}
-                onMouseEnter={() => setActivePartnerId(p.id)}
-                onMouseLeave={() => setActivePartnerId(null)}
-              >
-                <a
-                  href={targetUrl || '#'}
-                  target={targetUrl ? '_blank' : undefined}
-                  rel="noopener noreferrer"
-                  onClick={e => {
-                    if (!targetUrl) e.preventDefault();
-                  }}
-                  className="relative block w-full h-full no-underline"
-                >
-                  {/* SPARK / GLOW EFFECT SAAT HOVER */}
-                  <AnimatePresence>
-                    {isActive && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1.18 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        className="absolute inset-0 bg-gradient-to-tr from-purple-500/35 to-amber-500/35 rounded-2xl blur-lg pointer-events-none"
-                      />
-                    )}
-                  </AnimatePresence>
-
-                  {/* SVG WHITE/GLASS HEXAGON BADGE */}
-                  <motion.svg
-                    viewBox="0 0 100 115.47"
-                    className="w-full h-full filter transition-all duration-300"
-                    animate={{
-                      scale: isActive ? 1.08 : 1.0,
-                    }}
-                    style={{
-                      filter: isActive
-                        ? 'drop-shadow(0 0 20px rgba(139, 92, 246, 0.5)) drop-shadow(0 10px 15px rgba(0,0,0,0.18))'
-                        : 'drop-shadow(0 4px 6px rgba(0,0,0,0.08))',
-                    }}
-                  >
-                    <path
-                      d={HEXAGON_PATH}
-                      className="fill-white dark:fill-white transition-colors duration-300"
-                      stroke={isActive ? '#8b5cf6' : 'rgba(226, 232, 240, 0.95)'}
-                      strokeWidth={isActive ? 2.8 : 1.5}
-                    />
-                  </motion.svg>
-
-                  {/* CONTENT (Centered inside Hexagon Badge) */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-3 select-none pointer-events-none z-10">
-                    {p.logoUrl ? (
-                      <img
-                        src={p.logoUrl}
-                        alt={`Logo ${p.name}`}
-                        className="max-w-[76%] max-h-[58%] object-contain filter drop-shadow-sm transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center">
-                        <span
-                          className="font-heading font-black text-xs sm:text-sm tracking-wider uppercase truncate max-w-[74px]"
-                          style={{ color: p.color || '#0f172a' }}
-                        >
-                          {p.logoText || p.name}
-                        </span>
-                      </div>
-                    )}
+                {/* CENTER CONTENT: LOGO WABUP CUP DARI PENGATURAN INFORMASI DAN LOGO */}
+                <div className="relative z-10 flex flex-col items-center justify-center p-6 text-center select-none">
+                  <img
+                    src={wabupLogo}
+                    alt={config.name || 'Logo Turnamen WabupCup 2026'}
+                    className="max-w-[100px] max-h-[82px] w-auto h-auto object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-110"
+                  />
+                  
+                  <div className="mt-2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-950/80 to-amber-950/80 border border-purple-500/40 text-[9px] font-mono font-bold tracking-wider text-amber-300 shadow-sm backdrop-blur-md">
+                    OFFICIAL LOGO
                   </div>
+                </div>
+              </div>
 
-                  {/* FLOATING HOVER TOOLTIP */}
-                  <AnimatePresence>
-                    {isActive && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8, scale: 0.92 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 4, scale: 0.92 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none z-50 whitespace-nowrap shadow-2xl"
+              {/* ===================================================================
+                  REAL SPONSORS DARI DATABASE (TANPA DATA DUMMY)
+                  =================================================================== */}
+              {realNodes.map(p => {
+                const isActive = activePartnerId === p.id;
+                const targetUrl = formatSponsorUrl(p.websiteUrl);
+                const isInstagram = targetUrl.toLowerCase().includes('instagram.com');
+                const hasValidImage = Boolean(p.logoUrl && !imageErrors[p.id]);
+
+                return (
+                  <motion.div
+                    key={p.id}
+                    className="absolute z-20 cursor-pointer"
+                    style={{
+                      left: p.x - 52, // Center anchor
+                      top: p.y - 60,
+                      width: 104,
+                      height: 120,
+                    }}
+                    animate={{
+                      y: [-3, 3, -3],
+                    }}
+                    transition={{
+                      duration: p.floatDuration,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                      delay: p.floatDelay,
+                    }}
+                    onMouseEnter={() => setActivePartnerId(p.id)}
+                    onMouseLeave={() => setActivePartnerId(null)}
+                  >
+                    <a
+                      href={targetUrl || '#'}
+                      target={targetUrl ? '_blank' : undefined}
+                      rel="noopener noreferrer"
+                      onClick={e => {
+                        if (!targetUrl) e.preventDefault();
+                      }}
+                      className="relative block w-full h-full no-underline"
+                    >
+                      {/* SPARK / GLOW SAAT HOVER */}
+                      <AnimatePresence>
+                        {isActive && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1.18 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            className="absolute inset-0 bg-gradient-to-tr from-purple-500/35 to-amber-500/35 rounded-2xl blur-lg pointer-events-none"
+                          />
+                        )}
+                      </AnimatePresence>
+
+                      {/* SVG WHITE HEXAGON CARD */}
+                      <motion.svg
+                        viewBox="0 0 100 115.47"
+                        className="w-full h-full filter transition-all duration-300"
+                        animate={{
+                          scale: isActive ? 1.08 : 1.0,
+                        }}
+                        style={{
+                          filter: isActive
+                            ? 'drop-shadow(0 0 22px rgba(139, 92, 246, 0.55)) drop-shadow(0 10px 15px rgba(0,0,0,0.18))'
+                            : 'drop-shadow(0 4px 8px rgba(0,0,0,0.08))',
+                        }}
                       >
-                        <div className="bg-slate-900/95 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-slate-700/80 backdrop-blur-md flex flex-col items-center space-y-0.5">
-                          <div className="flex items-center space-x-1.5">
-                            <span>{p.name}</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-purple-600 text-white">
-                              {p.tier}
+                        <path
+                          d={HEXAGON_PATH}
+                          className="fill-white dark:fill-white transition-colors duration-300"
+                          stroke={isActive ? '#8b5cf6' : (tierColors[p.tier] || 'rgba(226, 232, 240, 0.95)')}
+                          strokeWidth={isActive ? 2.8 : 1.6}
+                        />
+                      </motion.svg>
+
+                      {/* CONTENT REAL LOGO DARI DATABASE */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-3 select-none pointer-events-none z-10">
+                        {hasValidImage ? (
+                          <img
+                            src={p.logoUrl}
+                            alt={`Logo ${p.name}`}
+                            onError={() => handleImageError(p.id)}
+                            className="max-w-[76%] max-h-[58%] object-contain filter drop-shadow-sm transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center px-1">
+                            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 to-rose-700 text-white font-black text-xs flex items-center justify-center shadow-sm mb-1">
+                              {(p.logoText || p.name).slice(0, 2).toUpperCase()}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-1 max-w-[80px]">
+                              {p.logoText || p.name}
                             </span>
                           </div>
-                          {targetUrl && (
-                            <div className="text-[10px] font-normal text-slate-300 flex items-center space-x-1 pt-0.5 border-t border-slate-800/80 w-full justify-center">
-                              {isInstagram ? (
-                                <>
-                                  <Instagram className="w-3 h-3 text-pink-400" />
-                                  <span className="text-pink-300">Buka Instagram</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Globe className="w-3 h-3 text-blue-400" />
-                                  <span className="text-blue-300">Kunjungi Website</span>
-                                </>
+                        )}
+                      </div>
+
+                      {/* FLOATING HOVER TOOLTIP */}
+                      <AnimatePresence>
+                        {isActive && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 8, scale: 0.92 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 4, scale: 0.92 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute -top-16 left-1/2 -translate-x-1/2 pointer-events-none z-50 whitespace-nowrap shadow-2xl"
+                          >
+                            <div className="bg-slate-900/95 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-slate-700/80 backdrop-blur-md flex flex-col items-center space-y-0.5">
+                              <div className="flex items-center space-x-1.5">
+                                <span>{p.name}</span>
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${tierBadges[p.tier] || 'bg-purple-600 text-white'}`}>
+                                  {p.tier}
+                                </span>
+                              </div>
+                              {targetUrl && (
+                                <div className="text-[10px] font-normal text-slate-300 flex items-center space-x-1 pt-0.5 border-t border-slate-800/80 w-full justify-center">
+                                  {isInstagram ? (
+                                    <>
+                                      <Instagram className="w-3 h-3 text-pink-400" />
+                                      <span className="text-pink-300">Buka Instagram</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Globe className="w-3 h-3 text-blue-400" />
+                                      <span className="text-blue-300">Kunjungi Website</span>
+                                    </>
+                                  )}
+                                  <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                                </div>
                               )}
-                              <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
                             </div>
+                            <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1 border-r border-b border-slate-700/80" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </a>
+                  </motion.div>
+                );
+              })}
+
+              {/* SLOT TERBUKA SIMETRIS (JIKA SPONSOR BARU 1, TAMPILKAN SLOT AJAKAN MITRA DI KANAN) */}
+              {openSlotPos && (
+                <motion.div
+                  className="absolute z-20 cursor-pointer"
+                  style={{
+                    left: openSlotPos.x - 52,
+                    top: openSlotPos.y - 60,
+                    width: 104,
+                    height: 120,
+                  }}
+                  animate={{
+                    y: [-3, 3, -3],
+                  }}
+                  transition={{
+                    duration: 4.2,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                    delay: 0.3,
+                  }}
+                >
+                  <a
+                    href={`https://wa.me/${cleanWaNumber}?text=${encodeURIComponent(
+                      `Halo Panitia ${config.name || 'WabupCup 2026'}, kami berminat mengajukan diri menjadi mitra sponsor resmi.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Slot Sponsor Terbuka - Ajukan Kerjasama"
+                    className="relative block w-full h-full no-underline group"
+                  >
+                    <svg viewBox="0 0 100 115.47" className="w-full h-full filter drop-shadow-sm group-hover:scale-105 transition-transform duration-300">
+                      <path
+                        d={HEXAGON_PATH}
+                        className="fill-slate-100/90 dark:fill-slate-900/80"
+                        stroke="rgba(148, 163, 184, 0.4)"
+                        strokeWidth="1.6"
+                        strokeDasharray="4 4"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10">
+                      <PlusCircle className="w-6 h-6 text-purple-500 mb-1 group-hover:scale-110 transition-transform" />
+                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-tight">
+                        Slot Mitra Terbuka
+                      </span>
+                    </div>
+                  </a>
+                </motion.div>
+              )}
+            </div>
+
+            {/* =========================================================================
+                MOBILE & TABLET VIEW (< lg): CENTER LOGO ON TOP + REAL SPONSOR GRID
+                ========================================================================= */}
+            <div className="lg:hidden flex flex-col items-center">
+              {/* CENTER WABUP CUP LOGO */}
+              <div className="relative w-40 h-44 flex items-center justify-center mb-8">
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-xl pointer-events-none animate-pulse" />
+                <svg viewBox="0 0 100 115.47" className="absolute inset-0 w-full h-full filter drop-shadow-xl">
+                  <defs>
+                    <linearGradient id="centerMobileFillReal" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#120726" />
+                      <stop offset="100%" stopColor="#080314" />
+                    </linearGradient>
+                    <linearGradient id="centerMobileBorderReal" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8b5cf6" />
+                      <stop offset="50%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#a855f7" />
+                    </linearGradient>
+                  </defs>
+                  <path d={HEXAGON_PATH} fill="url(#centerMobileFillReal)" stroke="url(#centerMobileBorderReal)" strokeWidth="3" />
+                </svg>
+                <div className="relative z-10 flex flex-col items-center justify-center p-4">
+                  <img
+                    src={wabupLogo}
+                    alt={config.name || 'WabupCup 2026'}
+                    className="max-w-[76px] max-h-[64px] object-contain filter drop-shadow-md"
+                  />
+                  <span className="mt-1 text-[8px] font-mono font-bold text-amber-300 uppercase tracking-widest bg-purple-950/80 px-2 py-0.5 rounded-full border border-purple-500/40">
+                    OFFICIAL
+                  </span>
+                </div>
+              </div>
+
+              {/* REAL SPONSORS MOBILE GRID */}
+              {sponsors.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-center gap-3 max-w-md px-2">
+                  {sponsors.map(sp => {
+                    const targetUrl = formatSponsorUrl(sp.websiteUrl);
+                    const hasValidImage = Boolean(sp.logoUrl && !imageErrors[sp.id]);
+
+                    return (
+                      <motion.a
+                        key={`mobile-${sp.id}`}
+                        href={targetUrl || '#'}
+                        target={targetUrl ? '_blank' : undefined}
+                        rel="noopener noreferrer"
+                        onClick={e => {
+                          if (!targetUrl) e.preventDefault();
+                        }}
+                        whileTap={{ scale: 0.95 }}
+                        className="relative w-[96px] h-[110px] flex items-center justify-center"
+                      >
+                        <svg viewBox="0 0 100 115.47" className="absolute inset-0 w-full h-full filter drop-shadow-sm">
+                          <path
+                            d={HEXAGON_PATH}
+                            fill="#ffffff"
+                            stroke={tierColors[sp.tier] || 'rgba(226, 232, 240, 0.95)'}
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-3 z-10">
+                          {hasValidImage ? (
+                            <img
+                              src={sp.logoUrl}
+                              alt={sp.name}
+                              onError={() => handleImageError(sp.id)}
+                              className="max-w-[76%] max-h-[58%] object-contain"
+                            />
+                          ) : (
+                            <span className="font-heading font-black text-xs uppercase text-slate-900 text-center line-clamp-1">
+                              {sp.logoText || sp.name}
+                            </span>
                           )}
                         </div>
-                        <div className="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1 border-r border-b border-slate-700/80" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </a>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* =========================================================================
-            MOBILE & TABLET VIEW (< lg): CENTER LOGO ON TOP + HONEYCOMB GRID
-            ========================================================================= */}
-        <div className="lg:hidden flex flex-col items-center">
-          {/* CENTER WABUP CUP LOGO */}
-          <div className="relative w-40 h-44 flex items-center justify-center mb-8">
-            <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/35 via-orange-500/30 to-indigo-600/40 rounded-full blur-xl pointer-events-none animate-pulse" />
-            <svg viewBox="0 0 100 115.47" className="absolute inset-0 w-full h-full filter drop-shadow-xl">
-              <defs>
-                <linearGradient id="centerMobileFill" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#120726" />
-                  <stop offset="100%" stopColor="#080314" />
-                </linearGradient>
-                <linearGradient id="centerMobileBorder" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="50%" stopColor="#f97316" />
-                  <stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-              </defs>
-              <path d={HEXAGON_PATH} fill="url(#centerMobileFill)" stroke="url(#centerMobileBorder)" strokeWidth="3" />
-            </svg>
-            <div className="relative z-10 flex flex-col items-center justify-center p-4">
-              <img
-                src={wabupLogo}
-                alt={config.name || 'WabupCup 2026'}
-                className="max-w-[76px] max-h-[64px] object-contain filter drop-shadow-md"
-              />
-              <span className="mt-1 text-[8px] font-mono font-bold text-amber-300 uppercase tracking-widest bg-purple-950/80 px-2 py-0.5 rounded-full border border-purple-500/40">
-                OFFICIAL
-              </span>
+                      </motion.a>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center p-4 rounded-2xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 max-w-xs">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Slot kemitraan sponsor resmi turnamen masih terbuka.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* MOBILE PARTNERS HONEYCOMB FLEX/GRID */}
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 max-w-md px-2">
-            {partners.slice(0, sponsors.length > 0 ? sponsors.length : 18).map(p => {
-              const targetUrl = formatSponsorUrl(p.websiteUrl);
+            {/* DETAIL DAFTAR MITRA RESMI DARI DATABASE */}
+            {sponsors.length > 0 && (
+              <div className="mt-14 pt-8 border-t border-slate-200 dark:border-slate-800/80 max-w-4xl mx-auto">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                    <Award className="w-4 h-4 text-amber-500" />
+                    <span>Mitra Resmi Terdaftar ({sponsors.length})</span>
+                  </h3>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    VERIFIED PARTNERS
+                  </span>
+                </div>
 
-              return (
-                <motion.a
-                  key={`mobile-${p.id}`}
-                  href={targetUrl || '#'}
-                  target={targetUrl ? '_blank' : undefined}
-                  rel="noopener noreferrer"
-                  onClick={e => {
-                    if (!targetUrl) e.preventDefault();
-                  }}
-                  whileTap={{ scale: 0.95 }}
-                  className="relative w-[84px] h-[97px] sm:w-[96px] sm:h-[111px] flex items-center justify-center m-0.5"
-                >
-                  <svg viewBox="0 0 100 115.47" className="absolute inset-0 w-full h-full filter drop-shadow-sm">
-                    <path d={HEXAGON_PATH} fill="#ffffff" stroke="rgba(226, 232, 240, 0.95)" strokeWidth="1.6" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-3 z-10">
-                    {p.logoUrl ? (
-                      <img src={p.logoUrl} alt={p.name} className="max-w-[76%] max-h-[58%] object-contain" />
-                    ) : (
-                      <span className="font-heading font-black text-xs uppercase" style={{ color: p.color || '#0f172a' }}>
-                        {p.logoText || p.name}
-                      </span>
-                    )}
-                  </div>
-                </motion.a>
-              );
-            })}
-          </div>
-        </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sponsors.map(sp => {
+                    const targetUrl = formatSponsorUrl(sp.websiteUrl);
+                    const isInstagram = targetUrl.toLowerCase().includes('instagram.com');
+
+                    return (
+                      <div
+                        key={`card-${sp.id}`}
+                        className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-3 hover:border-purple-500/50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-center p-2 shrink-0">
+                            {sp.logoUrl && !imageErrors[sp.id] ? (
+                              <img
+                                src={sp.logoUrl}
+                                alt={sp.name}
+                                onError={() => handleImageError(sp.id)}
+                                className="max-w-full max-h-full object-contain"
+                              />
+                            ) : (
+                              <span className="font-bold text-xs text-purple-600">
+                                {(sp.logoText || sp.name).slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {sp.name}
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {sp.description || `${sp.tier} Partner`}
+                            </p>
+                          </div>
+                        </div>
+
+                        {targetUrl && (
+                          <a
+                            href={targetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg bg-slate-100 hover:bg-purple-100 dark:bg-slate-800 dark:hover:bg-purple-950/60 text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-300 transition shrink-0"
+                            title={`Buka ${isInstagram ? 'Instagram' : 'Website'} ${sp.name}`}
+                          >
+                            {isInstagram ? <Instagram className="w-4 h-4 text-pink-500" /> : <Globe className="w-4 h-4 text-blue-500" />}
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* =========================================================================
             MODERN BECOME A SPONSOR CALLOUT BANNER (AJUKAN PROPOSAL VIA WA)
             ========================================================================= */}
         <div className="mt-16 sm:mt-20 relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-purple-950 border-2 border-purple-500/40 text-white p-8 sm:p-10 shadow-2xl shadow-purple-950/30 flex flex-col lg:flex-row items-center justify-between gap-8">
-          {/* Ambient Glow */}
           <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-64 h-64 bg-orange-600/20 rounded-full blur-3xl pointer-events-none" />
 
