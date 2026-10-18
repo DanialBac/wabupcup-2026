@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   MapPin,
   Clock,
+  Calendar,
 } from 'lucide-react';
 import { getRegistrationStatus, handleRegistrationAction } from '../utils/registrationStatus';
 import { HeroAmbientParticles } from './hero/HeroAmbientParticles';
@@ -30,6 +31,29 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
   const cleanCategoryName = (name?: string) => {
     if (!name) return '';
     return name.replace(/^kategori\s+/i, '').trim();
+  };
+
+  // Helper untuk memformat tanggal ke format Indonesia resmi (contoh: 23 OKTOBER 2026)
+  const formatIndonesianDate = (dateStr?: string) => {
+    if (!dateStr) return '23 OKTOBER 2026';
+    const months = [
+      'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
+      'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
+    ];
+    const parts = dateStr.trim().split('-');
+    if (parts.length === 3) {
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (monthIdx >= 0 && monthIdx < 12 && !isNaN(day)) {
+        return `${String(day).padStart(2, '0')} ${months[monthIdx]} ${year}`;
+      }
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    return dateStr;
   };
 
   const handleRegisterClick = () => {
@@ -210,19 +234,26 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
               <HeroParallaxVisual wabupLogoUrl={config.wabupLogoUrl} className="max-w-[280px] sm:max-w-[340px]" />
             </div>
 
-            {/* COUNTDOWN TIMER BOX WITH SLIDE/FLIP ANIMATION */}
-            <div className="mt-10 sm:mt-12 max-w-2xl mx-auto lg:mx-0 bg-white/90 dark:bg-gradient-to-b dark:from-slate-900/90 dark:to-slate-950/90 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-5 shadow-xl dark:shadow-2xl backdrop-blur-md">
-              <div className="flex items-center justify-between mb-3 px-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                  <Clock className="w-4 h-4 text-red-500" />
-                  <span>Hitung Mundur Menuju Kick-Off Perdana:</span>
-                </span>
-                <span className="text-xs font-bold text-red-600 dark:text-red-400">
-                  {config.tournamentStartDate}
-                </span>
+            {/* COUNTDOWN TIMER BOX WITH INTERACTIVE NEON & FLIP ANIMATION */}
+            <div className="mt-10 sm:mt-12 max-w-2xl mx-auto lg:mx-0 bg-white/90 dark:bg-gradient-to-b dark:from-slate-900/90 dark:to-slate-950/95 border border-slate-200 dark:border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl dark:shadow-2xl backdrop-blur-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 px-1 pb-3.5 border-b border-slate-200 dark:border-white/10">
+                <div className="flex items-center space-x-2.5">
+                  <span className="w-7 h-7 rounded-lg bg-red-950/70 border border-red-700/50 flex items-center justify-center text-red-500 shrink-0 shadow-sm">
+                    <Clock className="w-4 h-4" />
+                  </span>
+                  <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    Hitung Mundur Kick-Off Perdana
+                  </span>
+                </div>
+                <div className="flex items-center self-start sm:self-auto shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-600/10 dark:bg-red-950/70 border border-red-500/40 text-xs font-black text-red-600 dark:text-red-400 tracking-wider shadow-sm uppercase whitespace-nowrap">
+                    <Calendar className="w-3.5 h-3.5 text-red-500" />
+                    <span>{formatIndonesianDate(config.tournamentStartDate)}</span>
+                  </span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-2 sm:gap-4 text-center">
+              <div className="grid grid-cols-4 gap-2.5 sm:gap-4 text-center">
                 <HeroCountdownItem value={timeLeft.days} label="Hari" />
                 <HeroCountdownItem value={timeLeft.hours} label="Jam" isAccent />
                 <HeroCountdownItem value={timeLeft.minutes} label="Menit" />

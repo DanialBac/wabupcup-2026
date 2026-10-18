@@ -8,33 +8,43 @@ interface HeroCountdownItemProps {
 }
 
 /**
- * Kotak Countdown dengan animasi slide-down / fade flip halus saat nilai berganti.
- * Menggunakan AnimatePresence mode="popLayout" untuk transisi angka yang presisi tanpa layout shift.
+ * Kotak Countdown Interaktif dengan transisi angka mulus,
+ * tata letak proporsional anti-glitch, dan efek hover mikro-interaksi.
  */
 export const HeroCountdownItem: React.FC<HeroCountdownItemProps> = ({
   value,
   label,
   isAccent = false,
 }) => {
-  const formattedValue = String(value).padStart(2, '0');
+  const formattedValue = String(Math.max(0, value)).padStart(2, '0');
 
   return (
-    <div className="bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3 relative overflow-hidden backdrop-blur-sm group hover:border-slate-400 dark:hover:border-slate-700 transition-colors">
-      <div className="h-8 sm:h-10 flex items-center justify-center relative overflow-hidden">
-        <AnimatePresence mode="popLayout" initial={false}>
+    <div
+      className={`relative overflow-hidden rounded-2xl p-2.5 sm:p-4 flex flex-col items-center justify-between transition-all duration-300 group hover:-translate-y-1 hover:shadow-xl backdrop-blur-md cursor-default select-none ${
+        isAccent
+          ? 'bg-gradient-to-b from-red-500/10 via-slate-900/90 to-slate-950 border border-red-500/40 hover:border-red-500/70 shadow-[0_0_20px_rgba(239,68,68,0.15)]'
+          : 'bg-gradient-to-b from-white/95 to-slate-100/90 dark:from-slate-900/90 dark:to-slate-950/90 border border-slate-200/90 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/25 shadow-md dark:shadow-inner'
+      }`}
+    >
+      {/* Top subtle sheen / gloss line */}
+      <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/40 dark:via-white/20 to-transparent pointer-events-none" />
+
+      {/* Number Display with smooth sliding roll animation */}
+      <div className="h-10 sm:h-14 flex items-center justify-center relative w-full overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
           <motion.span
             key={formattedValue}
-            initial={{ y: -20, opacity: 0, filter: 'blur(2px)' }}
-            animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-            exit={{ y: 20, opacity: 0, filter: 'blur(2px)' }}
+            initial={{ y: -16, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 16, opacity: 0 }}
             transition={{
-              duration: 0.35,
+              duration: 0.22,
               ease: [0.22, 1, 0.36, 1], // easeOutCubic
             }}
-            className={`block text-2xl sm:text-4xl font-heading font-bold tabular-nums select-none ${
+            className={`block text-2xl sm:text-4xl lg:text-5xl font-heading font-black tabular-nums tracking-tight ${
               isAccent
-                ? 'text-red-600 dark:text-red-500'
-                : 'text-slate-900 dark:text-white'
+                ? 'text-red-500 dark:text-red-400 drop-shadow-[0_2px_12px_rgba(239,68,68,0.4)]'
+                : 'text-slate-900 dark:text-white drop-shadow-sm'
             }`}
           >
             {formattedValue}
@@ -42,9 +52,18 @@ export const HeroCountdownItem: React.FC<HeroCountdownItemProps> = ({
         </AnimatePresence>
       </div>
 
-      <span className="block text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5 select-none">
-        {label}
-      </span>
+      {/* Label Pill */}
+      <div className="mt-1 w-full flex justify-center">
+        <span
+          className={`inline-block px-2 sm:px-2.5 py-0.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-colors ${
+            isAccent
+              ? 'bg-red-500/15 text-red-500 dark:text-red-400 border border-red-500/20'
+              : 'bg-slate-200/70 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-300/40 dark:border-white/5'
+          }`}
+        >
+          {label}
+        </span>
+      </div>
     </div>
   );
 };
