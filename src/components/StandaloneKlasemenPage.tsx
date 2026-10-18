@@ -23,6 +23,7 @@ import {
   X,
   Sun,
   Moon,
+  Users,
 } from 'lucide-react';
 import { WabupCupLogo } from './WabupCupLogo';
 
@@ -117,6 +118,12 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
       r => r.teamName.trim().toLowerCase() === teamName.trim().toLowerCase()
     );
     return reg?.teamLogo || '';
+  };
+
+  // Helper untuk membersihkan prefix "Kategori " agar label tidak redundan
+  const cleanCategoryName = (name?: string) => {
+    if (!name) return '';
+    return name.replace(/^kategori\s+/i, '').trim();
   };
 
   // Helper untuk mengecek apakah tim sedang aktif bertanding LIVE
@@ -823,27 +830,6 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
               <span>Bagan Knockout</span>
             </button>
           )}
-
-          {/* Mobile Theme Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            id="btn-standalone-mobile-theme-toggle"
-            aria-label={theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
-            title={theme === 'dark' ? 'Ganti ke Mode Terang' : 'Ganti ke Mode Gelap'}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 flex items-center space-x-1 ml-auto ${
-              theme === 'light'
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/60'
-            }`}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-3.5 h-3.5 text-amber-400" />
-            ) : (
-              <Moon className="w-3.5 h-3.5 text-indigo-500" />
-            )}
-            <span className="text-[10px]">{theme === 'dark' ? 'Terang' : 'Gelap'}</span>
-          </button>
         </div>
       </header>
 
@@ -854,7 +840,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
       />
 
       {/* ========================================================================= */}
-      {/* 2. SECONDARY FILTER BAR: KATEGORI & MUSIM BADGE                           */}
+      {/* 2. SECONDARY FILTER BAR: KATEGORI & ACTION DOCK                           */}
       {/* ========================================================================= */}
       <section className="relative z-10 w-full max-w-[1440px] mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-2">
         <div className="backdrop-blur-2xl bg-gradient-to-r from-slate-900/85 via-slate-900/70 to-slate-950/85 border border-white/10 rounded-2xl p-2.5 sm:p-3 shadow-2xl shadow-black/50 flex flex-col lg:flex-row items-center justify-between gap-3.5">
@@ -903,7 +889,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                         : 'bg-white/[0.04] hover:bg-white/[0.09] text-slate-300 hover:text-white border border-white/10 hover:border-white/25 backdrop-blur-md shadow-sm'
                     }`}
                   >
-                    <span className="tracking-wide">{cat.name}</span>
+                    <span className="tracking-wide">{cleanCategoryName(cat.name)}</span>
                   </button>
                 );
               })}
@@ -926,14 +912,8 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
             )}
           </div>
 
-          {/* SEASON & TROPHY BADGES (RIGHT DOCK) */}
-          <div className="flex items-center flex-wrap gap-2 shrink-0 self-end lg:self-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-white/5 w-full lg:w-auto justify-end">
-            <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-white/10 text-xs text-slate-300 font-bold shadow-inner">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-              <span className="text-slate-400 font-normal">Musim:</span>
-              <span className="text-white font-extrabold">{config.edition || '2026/2027'}</span>
-            </div>
-
+          {/* TROPHY BADGE & ACTIONS (RIGHT DOCK) */}
+          <div className="flex items-center flex-wrap gap-2 shrink-0 self-center lg:self-auto pt-2.5 lg:pt-0 border-t lg:border-t-0 border-white/10 lg:border-white/5 w-full lg:w-auto justify-center lg:justify-end">
             <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-950/60 to-red-900/40 border border-red-800/40 text-xs font-bold text-red-200 shadow-sm">
               <div className="w-4 h-4 shrink-0 flex items-center justify-center">
                 {config.wabupLogoUrl ? (
@@ -995,9 +975,14 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
             <div className="backdrop-blur-2xl bg-gradient-to-b from-slate-900/80 to-slate-950/80 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xl shadow-black/50">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-white/10">
                 <div>
-                  <h2 className="text-base sm:text-lg lg:text-xl font-black text-white flex items-center gap-2 tracking-wide">
-                    <Calendar className="w-5 h-5 text-red-500 shrink-0" />
-                    <span>JADWAL &amp; HASIL LENGKAP - KATEGORI {currentCatDetail.name}</span>
+                  <h2 className="text-base sm:text-lg lg:text-xl font-black text-white flex items-start gap-2.5 tracking-wide">
+                    <Calendar className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span>JADWAL &amp; HASIL LENGKAP</span>
+                      <span className="block text-xs sm:text-sm font-extrabold text-red-400 mt-0.5 uppercase">
+                        {cleanCategoryName(currentCatDetail.name)}
+                      </span>
+                    </div>
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
                     Format pertandingan terbagi atas <span className="text-red-400 font-semibold">Fase Penyisihan Grup</span> {catGroups.length > 0 ? `(${catGroups.length} Grup)` : '(Semua Grup)'} dan <span className="text-amber-400 font-semibold">Babak Gugur (Knockout)</span>.
@@ -1402,7 +1387,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                       </div>
                       <div>
                         <h3 className="text-sm font-black text-white tracking-wide uppercase">TOP SKORER</h3>
-                        <p className="text-[10px] text-slate-400">Kategori {currentCatDetail.name}</p>
+                        <p className="text-[10px] text-slate-400">{cleanCategoryName(currentCatDetail.name)}</p>
                       </div>
                     </div>
                     <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-bold text-slate-300">
@@ -1425,7 +1410,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                   ) : topScorers.length === 0 ? (
                     <div className="py-8 text-center px-4">
                       <p className="text-xs text-slate-400 leading-relaxed">
-                        Belum ada catatan gol untuk kategori {currentCatDetail.name}. Gol akan tercatat otomatis saat pertandingan live score berjalan.
+                        Belum ada catatan gol untuk kategori {cleanCategoryName(currentCatDetail.name)}. Gol akan tercatat otomatis saat pertandingan live score berjalan.
                       </p>
                     </div>
                   ) : (
@@ -1478,7 +1463,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                       </div>
                       <div>
                         <h3 className="text-sm font-black text-white tracking-wide uppercase">JADWAL MENDATANG</h3>
-                        <p className="text-[10px] text-slate-400">Kategori {currentCatDetail.name}</p>
+                        <p className="text-[10px] text-slate-400">{cleanCategoryName(currentCatDetail.name)}</p>
                       </div>
                     </div>
                     <button
@@ -1678,9 +1663,11 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
               <div className="backdrop-blur-2xl bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/10 mb-4 gap-3">
                   <div>
-                    <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                      KLASEMEN LIGA UTAMA - KATEGORI {currentCatDetail.name}
+                    <h2 className="text-base sm:text-lg font-black text-white">
+                      <span>KLASEMEN LIGA UTAMA</span>
+                      <span className="block text-xs sm:text-sm font-extrabold text-red-400 mt-0.5 uppercase">
+                        {cleanCategoryName(currentCatDetail.name)}
+                      </span>
                     </h2>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Peringkat 1 &amp; 2 fase grup lolos otomatis ke Babak Knockout (Fase Gugur)
@@ -1689,8 +1676,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
 
                   {/* Kontrol Kanan: Info Badge & Button Logo Info Singkatan */}
                   <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                    <span className="px-3 py-1.5 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    <span className="px-3 py-1.5 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold">
                       Fase Grup ({catGroups.length} Grup)
                     </span>
 
@@ -1726,7 +1712,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                     </div>
                     <h3 className="text-base sm:text-lg font-black text-white">Belum Ada Data Pertandingan Untuk Kategori Ini</h3>
                     <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mt-1">
-                      Jadwal fase grup untuk Kategori {currentCatDetail.name} belum dibuat atau belum ada tim yang dialokasikan ke grup.
+                      Jadwal fase grup untuk Kategori {cleanCategoryName(currentCatDetail.name)} belum dibuat atau belum ada tim yang dialokasikan ke grup.
                     </p>
                   </div>
                 ) : (
@@ -1734,8 +1720,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                     {catStandings.map(grp => (
                       <div key={grp.groupName} className="space-y-2">
                         <div className="flex items-center justify-between px-1">
-                          <h4 className="text-xs font-black text-red-400 tracking-wider uppercase flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-red-500" />
+                          <h4 className="text-xs font-black text-red-400 tracking-wider uppercase">
                             {grp.groupName}
                           </h4>
                           <span className="text-[10px] text-slate-400 font-bold">{grp.teams.length} Tim</span>
@@ -2070,21 +2055,27 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
             
             {/* LEFT CARD: DAFTAR TOP SCORER */}
             <div className="backdrop-blur-2xl bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-red-950/60 border border-red-700/50 flex items-center justify-center text-red-500">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-white/10 mb-4 gap-2.5 sm:gap-4">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-red-950/60 border border-red-700/50 flex items-center justify-center text-red-500 shrink-0">
                     <Flame className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black text-white uppercase">
-                      DAFTAR TOP SCORER - KATEGORI {currentCatDetail.name}
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
+                      <span>DAFTAR TOP SCORER</span>
+                      <span className="block text-xs sm:text-sm font-extrabold text-red-400 mt-0.5">
+                        {cleanCategoryName(currentCatDetail.name)}
+                      </span>
                     </h3>
-                    <p className="text-xs text-slate-400">Pencetak gol terbanyak turnamen</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Pencetak gol terbanyak turnamen</p>
                   </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-slate-800 text-xs font-bold text-slate-300">
-                  {topScorers.length} Pemain
-                </span>
+                <div className="flex items-center self-start sm:self-auto shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-white/10 text-xs font-bold text-slate-300 shadow-sm">
+                    <Users className="w-3.5 h-3.5 text-red-400" />
+                    <span><strong className="text-white font-extrabold">{topScorers.length}</strong> Pemain</span>
+                  </span>
+                </div>
               </div>
 
               {isLoading ? (
@@ -2132,15 +2123,26 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
 
             {/* RIGHT CARD: REKAP KARTU */}
             <div className="backdrop-blur-2xl bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-950/60 border border-amber-700/50 flex items-center justify-center text-amber-400">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-white/10 mb-4 gap-2.5 sm:gap-4">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-amber-950/60 border border-amber-700/50 flex items-center justify-center text-amber-400 shrink-0">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-black text-white uppercase">REKAP KARTU</h3>
-                    <p className="text-xs text-slate-400">Disiplin &amp; Fair Play</p>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
+                      <span>REKAP KARTU</span>
+                      <span className="block text-xs sm:text-sm font-extrabold text-amber-400 mt-0.5">
+                        {cleanCategoryName(currentCatDetail.name)}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Disiplin &amp; Fair Play</p>
                   </div>
+                </div>
+                <div className="flex items-center self-start sm:self-auto shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/70 border border-white/10 text-xs font-bold text-slate-300 shadow-sm">
+                    <Users className="w-3.5 h-3.5 text-amber-400" />
+                    <span><strong className="text-white font-extrabold">{disciplinedPlayers.length}</strong> Pemain</span>
+                  </span>
                 </div>
               </div>
 
@@ -2192,9 +2194,14 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
             <div className="backdrop-blur-2xl bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-2xl shadow-black/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/10 mb-6 gap-2">
                 <div>
-                  <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-red-500" />
-                    BAGAN KNOCKOUT (FASE GUGUR) - KATEGORI {currentCatDetail.name}
+                  <h2 className="text-base sm:text-lg font-black text-white flex items-start gap-2.5">
+                    <Layers className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span>BAGAN KNOCKOUT (FASE GUGUR)</span>
+                      <span className="block text-xs sm:text-sm font-extrabold text-red-400 mt-0.5 uppercase">
+                        {cleanCategoryName(currentCatDetail.name)}
+                      </span>
+                    </div>
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Format otomatis hasil dari Juara Grup &amp; Runner-up Grup ({categoryRegistrationCounts[selectedCat] || 0} Tim Terdaftar)

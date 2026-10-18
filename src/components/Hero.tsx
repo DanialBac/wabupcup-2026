@@ -26,6 +26,12 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
   const regStatus = getRegistrationStatus(config);
   const isRegButtonVisible = regStatus.isVisible;
 
+  // Helper untuk membersihkan prefix "Kategori " dari nama kategori
+  const cleanCategoryName = (name?: string) => {
+    if (!name) return '';
+    return name.replace(/^kategori\s+/i, '').trim();
+  };
+
   const handleRegisterClick = () => {
     handleRegistrationAction(config, () => {
       if (onOpenRegister) onOpenRegister();
@@ -119,12 +125,6 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
                     : 'bg-red-50 dark:bg-gradient-to-r dark:from-red-950/80 dark:via-slate-900/90 dark:to-blue-950/80 border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-300'
                 }`}
               >
-                {/* LIVE BLINK DOT MERAH BERDENYUT GANDA */}
-                <span className="flex h-2.5 w-2.5 relative items-center justify-center">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-80 [will-change:transform,opacity]"></span>
-                  <span className="absolute inline-flex h-4 w-4 rounded-full bg-red-600/30 animate-pulse pointer-events-none"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
-                </span>
                 <span className="tracking-wide uppercase">Pendaftaran Resmi Telah Dibuka</span>
                 <span className="text-slate-400 dark:text-slate-500">•</span>
                 <span className={hasCustomBg ? 'text-white font-bold' : 'text-slate-900 dark:text-white font-bold'}>
@@ -166,7 +166,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
                   <>
                     {' '}dalam {categories.length} kategori:{' '}
                     <strong className={hasCustomBg ? 'text-white' : 'text-slate-900 dark:text-white'}>
-                      {categories.map((c) => c.name || c.id).join(', ')}
+                      {categories.map((c) => cleanCategoryName(c.name || c.id)).join(', ')}
                     </strong>
                     .
                   </>
@@ -271,9 +271,9 @@ export const Hero: React.FC<HeroProps> = ({ onOpenRegister, onOpenRegistration, 
                 </span>
                 <p
                   className="text-xs text-slate-400 font-medium mt-0.5 truncate"
-                  title={categories.map((c) => c.name || c.id).join(', ')}
+                  title={categories.map((c) => cleanCategoryName(c.name || c.id)).join(', ')}
                 >
-                  {categories.length > 0 ? categories.map((c) => c.name || c.id).join(', ') : 'Sinkronisasi Database...'}
+                  {categories.length > 0 ? categories.map((c) => cleanCategoryName(c.name || c.id)).join(', ') : 'Sinkronisasi Database...'}
                 </p>
               </div>
             </div>
