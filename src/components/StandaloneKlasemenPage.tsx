@@ -2254,9 +2254,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
                         GRAND FINAL &amp; JUARA 3
                       </span>
                       <p className="text-xs font-bold text-white mb-1">Perebutan Juara 1 &amp; Piala Bergilir</p>
-                      <p className="text-[11px] text-amber-300/90 font-semibold">
-                        Total Hadiah {currentCatDetail.prizePool || 'Rp 11.000.000'}
-                      </p>
+                      <p className="text-xs font-bold text-white">Perebutan Juara 3</p>
                     </div>
                   </div>
                 </div>
