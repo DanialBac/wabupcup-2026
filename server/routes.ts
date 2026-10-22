@@ -73,6 +73,13 @@ const cachePublic = (req: Request, res: Response, next: any) => {
   next();
 };
 
+const noCache = (req: Request, res: Response, next: any) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+};
+
 export const apiRouter = Router();
 
 // Dynamic Sitemap & Robots.txt endpoints under /api as well
@@ -269,14 +276,13 @@ apiRouter.put('/config', requireAdmin, async (req: Request, res: Response) => {
 });
 
 // 6. Categories
-apiRouter.get('/categories', cachePublic, async (req: Request, res: Response) => {
+apiRouter.get('/categories', noCache, async (req: Request, res: Response) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
 
-apiRouter.get('/categories/quota', async (_req: Request, res: Response) => {
+apiRouter.get('/categories/quota', noCache, async (_req: Request, res: Response) => {
   try {
-    res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=20');
     const quotas = await Database.getCategoryQuotas();
     res.json(quotas);
   } catch (err: any) {
@@ -705,7 +711,7 @@ apiRouter.delete('/registrations/:id', requireAdmin, async (req: Request, res: R
 });
 
 // 8. Matches & Live Score
-apiRouter.get('/matches', cachePublic, async (req: Request, res: Response) => {
+apiRouter.get('/matches', noCache, async (req: Request, res: Response) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
@@ -1051,7 +1057,7 @@ apiRouter.get('/auth/me', async (req: Request, res: Response) => {
 });
 
 // 11. Players Management & Excel Import (table_players)
-apiRouter.get('/players', cachePublic, async (req: Request, res: Response) => {
+apiRouter.get('/players', noCache, async (req: Request, res: Response) => {
   try {
     const { category, teamName } = req.query;
     const players = await Database.getPlayers(
@@ -1119,7 +1125,7 @@ apiRouter.delete('/players/:id', requireAdmin, async (req: Request, res: Respons
   }
 });
 
-apiRouter.get('/players/top-scorers', async (req: Request, res: Response) => {
+apiRouter.get('/players/top-scorers', noCache, async (req: Request, res: Response) => {
   try {
     const { category } = req.query;
     const players = await Database.getPlayers(category as string | undefined);
@@ -1133,7 +1139,7 @@ apiRouter.get('/players/top-scorers', async (req: Request, res: Response) => {
 });
 
 // 12. Groups & Group Stages
-apiRouter.get('/groups', cachePublic, async (req: Request, res: Response) => {
+apiRouter.get('/groups', noCache, async (req: Request, res: Response) => {
   try {
     const { category } = req.query;
     const groups = await Database.getGroupStages(category as string | undefined);
@@ -1183,7 +1189,7 @@ apiRouter.post('/groups/reset', requireAdmin, async (req: Request, res: Response
 });
 
 // 13. Standings (Klasemen Real-time & Sinkronisasi table_standings)
-apiRouter.get('/standings', cachePublic, async (req: Request, res: Response) => {
+apiRouter.get('/standings', noCache, async (req: Request, res: Response) => {
   try {
     const { category, source } = req.query;
     if (source === 'db') {

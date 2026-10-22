@@ -133,7 +133,7 @@ export const computeStandingsFromData = (
         }
       }
 
-      const hasScore = m.teamA.score !== undefined && m.teamB.score !== undefined;
+      const hasScore = m.status !== 'UPCOMING' && m.teamA.score !== undefined && m.teamB.score !== undefined;
       if (hasScore) {
         const itemA = teamMap.get(m.teamA.name);
         const itemB = teamMap.get(m.teamB.name);
@@ -1302,7 +1302,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ...newMatch,
       id: `match-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     };
-    setMatches(prev => [item, ...prev]);
+    setMatches(prev => {
+      const next = [item, ...prev];
+      safeLocalStorageSet('wabupcup_matches', JSON.stringify(next));
+      return next;
+    });
     ApiService.saveMatch(item).catch(err =>
       console.warn('Could not save match to backend:', err)
     );
@@ -1409,6 +1413,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
       }
 
+      const updatedStandings = computeStandingsFromData(newMatchesList, groups, registrations);
+      setStandings(updatedStandings);
+      safeLocalStorageSet('wabupcup_standings', JSON.stringify(updatedStandings));
+      safeLocalStorageSet('wabupcup_matches', JSON.stringify(newMatchesList));
+
       return newMatchesList;
     });
 
@@ -1418,7 +1427,14 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const deleteMatch = (matchId: string) => {
-    setMatches(prev => prev.filter(m => m.id !== matchId));
+    setMatches(prev => {
+      const updated = prev.filter(m => m.id !== matchId);
+      safeLocalStorageSet('wabupcup_matches', JSON.stringify(updated));
+      const nextStandings = computeStandingsFromData(updated, groups, registrations);
+      setStandings(nextStandings);
+      safeLocalStorageSet('wabupcup_standings', JSON.stringify(nextStandings));
+      return updated;
+    });
     ApiService.deleteMatch(matchId).catch(err =>
       console.warn('Could not delete match on backend:', err)
     );
@@ -1858,7 +1874,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   useEffect(() => {
-    setStandings(computeStandingsFromData(matches, groups, registrations));
+    const computed = computeStandingsFromData(matches, groups, registrations);
+    setStandings(computed);
+    safeLocalStorageSet('wabupcup_standings', JSON.stringify(computed));
   }, [matches, groups, registrations]);
 
   const refreshStandings = async () => {
@@ -1866,11 +1884,16 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const serverStandings = await ApiService.getStandings();
       if (serverStandings && Object.keys(serverStandings).length > 0) {
         setStandings(serverStandings);
+        safeLocalStorageSet('wabupcup_standings', JSON.stringify(serverStandings));
       } else {
-        setStandings(computeStandingsFromData(matches, groups, registrations));
+        const computed = computeStandingsFromData(matches, groups, registrations);
+        setStandings(computed);
+        safeLocalStorageSet('wabupcup_standings', JSON.stringify(computed));
       }
     } catch {
-      setStandings(computeStandingsFromData(matches, groups, registrations));
+      const computed = computeStandingsFromData(matches, groups, registrations);
+      setStandings(computed);
+      safeLocalStorageSet('wabupcup_standings', JSON.stringify(computed));
     }
   };
 
@@ -2500,38 +2523,45 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const currentMatch = matches.find(m => m.id === matchId);
     if (!currentMatch) return;
 
+    const finalScoreA = scoreA !== undefined ? scoreA : currentMatch.teamA.score;
+    const finalScoreB = scoreB !== undefined ? scoreB : currentMatch.teamB.score;
+    const finalStatus = status || currentMatch.status;
+
+    let determinedWinner: 'A' | 'B' | 'DRAW' | undefined = undefined;
+    if (finalStatus === 'FINISHED' && finalScoreA !== undefined && finalScoreB !== undefined) {
+      if (finalScoreA > finalScoreB) {
+        determinedWinner = 'A';
+      } else if (finalScoreB > finalScoreA) {
+        determinedWinner = 'B';
+      } else {
+        determinedWinner = 'DRAW';
+      }
+    }
+
     const updatedMatch: MatchItem = {
       ...currentMatch,
       teamA: {
         ...currentMatch.teamA,
-        score: scoreA !== undefined ? scoreA : currentMatch.teamA.score,
+        score: finalScoreA,
       },
       teamB: {
         ...currentMatch.teamB,
-        score: scoreB !== undefined ? scoreB : currentMatch.teamB.score,
+        score: finalScoreB,
       },
-      status: status || currentMatch.status,
+      status: finalStatus,
       liveMinute: liveMinute !== undefined ? liveMinute : currentMatch.liveMinute,
       events: events !== undefined ? events : currentMatch.events,
+      winnerId: determinedWinner,
     };
-
-    if (updatedMatch.status === 'FINISHED' && updatedMatch.teamA.score !== undefined && updatedMatch.teamB.score !== undefined) {
-      if (updatedMatch.teamA.score > updatedMatch.teamB.score) {
-        updatedMatch.winnerId = 'A';
-      } else if (updatedMatch.teamB.score > updatedMatch.teamA.score) {
-        updatedMatch.winnerId = 'B';
-      } else {
-        updatedMatch.winnerId = 'DRAW';
-      }
-    }
 
     const newMatches = matches.map(m => (m.id === matchId ? updatedMatch : m));
     setMatches(newMatches);
     safeLocalStorageSet('wabupcup_matches', JSON.stringify(newMatches));
 
-    ApiService.saveMatch(updatedMatch).catch(err => {
-      console.warn('Could not sync match live score to server:', err);
-    });
+    // Immediately calculate and update standings in React state & local storage
+    const updatedStandings = computeStandingsFromData(newMatches, groups, registrations);
+    setStandings(updatedStandings);
+    safeLocalStorageSet('wabupcup_standings', JSON.stringify(updatedStandings));
 
     if (events !== undefined) {
       const playerStatsMap = new Map<string, { goals: number; yellow: number; red: number }>();
@@ -2571,6 +2601,25 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return updatedPlayers;
       });
     }
+
+    // Await server persistence so MySQL and server-side state are fully updated
+    try {
+      await ApiService.saveMatch(updatedMatch);
+    } catch (err) {
+      console.warn('Could not sync match live score to server:', err);
+    }
+
+    // Refresh standings from backend for full sync
+    try {
+      const serverStandings = await ApiService.getStandings(updatedMatch.category);
+      if (serverStandings && Object.keys(serverStandings).length > 0) {
+        setStandings(prev => {
+          const merged = { ...prev, ...serverStandings };
+          safeLocalStorageSet('wabupcup_standings', JSON.stringify(merged));
+          return merged;
+        });
+      }
+    } catch {}
 
     const cat = updatedMatch.category;
     const catGroupMatches = newMatches.filter(m => m.category === cat && !!m.group);

@@ -51,7 +51,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   // Helper to calculate real-time registered count for a category
   const getCategoryCount = (catId: TournamentCategory) => {
     const catObj = categories.find(c => c.id === catId);
-    return catObj?.registeredTeamsCount || 0;
+    const backendCount = catObj?.registeredTeamsCount || 0;
+    const clientCount = registrations.filter(r => 
+      (r.category === catId || (catObj && r.category === catObj.name) || (catObj && r.category?.toUpperCase() === catId.toUpperCase())) &&
+      ['PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED'].includes(r.status)
+    ).length;
+    return Math.max(backendCount, clientCount);
   };
 
   // Helper to determine if a category's quota is full
@@ -81,16 +86,29 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     return availableCategories[0]?.id || 'SMA';
   });
 
-  // Sync category selection whenever modal opens or category availability changes
+  // Track previous isOpen state to only trigger preselected initialization on modal OPEN
+  const prevIsOpenRef = useRef(false);
+
+  // Sync category selection only on modal opening or if current category becomes completely full
   useEffect(() => {
     if (isOpen) {
-      if (preselectedCategory && availableCategories.some(c => c.id === preselectedCategory)) {
-        setCategory(preselectedCategory);
-      } else if (availableCategories.length > 0 && !availableCategories.some(c => c.id === category)) {
-        setCategory(availableCategories[0].id);
+      if (!prevIsOpenRef.current) {
+        // Modal just transitioned from closed to open: apply preselectedCategory if valid and available
+        if (preselectedCategory && availableCategories.some(c => c.id === preselectedCategory)) {
+          setCategory(preselectedCategory);
+        } else if (availableCategories.length > 0 && !availableCategories.some(c => c.id === category)) {
+          setCategory(availableCategories[0].id);
+        }
+      } else {
+        // Modal was already open: NEVER overwrite user's selected category on background quota refresh.
+        // Only adapt if the currently selected category is no longer available.
+        if (availableCategories.length > 0 && !availableCategories.some(c => c.id === category)) {
+          setCategory(availableCategories[0].id);
+        }
       }
     }
-  }, [isOpen, preselectedCategory, categories, registrations]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, preselectedCategory, availableCategories, category]);
 
   const [teamName, setTeamName] = useState('');
   const [coachName, setCoachName] = useState('');
@@ -150,7 +168,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   // (i) Refresh quota when form opens (isOpen becomes true)
   useEffect(() => {
     if (isOpen) {
-      refreshCategoryQuotas().then((fresh) => {
+      refreshCategoryQuotas(true).then((fresh) => {
         lastFormQuotaFetchRef.current = Date.now();
         if (fresh) {
           const cur = fresh.find(f => f.id === category);
@@ -935,15 +953,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                     </label>
                     {currentCatDetail && (
                       <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                        Sisa {Math.max(0, currentCatDetail.maxTeams - getCategoryCount(currentCatDetail.id))} 
-                         {/* Slot ({currentCatDetail.maxTeams} Tim) */}
+                        Sisa {Math.max(0, currentCatDetail.maxTeams - getCategoryCount(currentCatDetail.id))} Slot ({getCategoryCount(currentCatDetail.id)}/{currentCatDetail.maxTeams} Terdaftar)
                       </span>
                     )}
                   </div>
                   <select
                     id="reg-input-category"
                     value={category}
-                    onChange={e => setCategory(e.target.value as TournamentCategory)}
+                    onChange={e => {
+                      setCategory(e.target.value as TournamentCategory);
+                      setQuotaError(null);
+                    }}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
                   >
                     {availableCategories.map(c => {
@@ -951,9 +971,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                       const sisa = Math.max(0, c.maxTeams - count);
                       return (
                         <option key={c.id} value={c.id}>
-                          {c.name} — Biaya: Rp {c.registrationFee.toLocaleString('id-ID')}
-                           {/* (Sisa {sisa} Slot) */}
-                           
+                          {c.name} — Biaya: Rp {c.registrationFee.toLocaleString('id-ID')} (Sisa {sisa} Slot - {count}/{c.maxTeams} Tim)
                         </option>
                       );
                     })}

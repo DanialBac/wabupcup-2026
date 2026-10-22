@@ -937,14 +937,24 @@ var Database = {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT * FROM categories ORDER BY sort_order ASC, id ASC");
+        const [rows] = await pool.query(`
+          SELECT c.*,
+            (
+              SELECT COUNT(*) 
+              FROM registrations r 
+              WHERE (r.category_id = c.id OR r.category_id = c.name) 
+                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            ) AS actual_count
+          FROM categories c 
+          ORDER BY sort_order ASC, id ASC
+        `);
         return rows.map((r) => ({
           id: r.id,
           name: r.name,
           badgeTitle: r.badge_title,
           ageRestriction: r.age_restriction,
           maxTeams: r.max_teams,
-          registeredTeamsCount: r.registered_teams_count,
+          registeredTeamsCount: Number(r.actual_count !== void 0 && r.actual_count !== null ? r.actual_count : r.registered_teams_count || 0),
           registrationFee: Number(r.registration_fee),
           totalPrize: Number(r.total_prize),
           description: r.description,
@@ -955,29 +965,54 @@ var Database = {
         console.error("Error getting categories from MySQL:", err);
       }
     }
-    return memStore.categories;
+    return memStore.categories.map((c) => {
+      const actualCount = memStore.registrations.filter(
+        (r) => (r.category === c.id || c.name && r.category === c.name) && ["PENDING_PAYMENT", "PENDING", "APPROVED", "REJECTED"].includes(r.status)
+      ).length;
+      return {
+        ...c,
+        registeredTeamsCount: actualCount > 0 ? actualCount : c.registeredTeamsCount || 0
+      };
+    });
   },
   async getCategoryQuotas() {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
-        const [rows] = await pool.query("SELECT id, max_teams, registered_teams_count FROM categories");
+        const [rows] = await pool.query(`
+          SELECT 
+            c.id, 
+            c.max_teams, 
+            c.registered_teams_count,
+            (
+              SELECT COUNT(*) 
+              FROM registrations r 
+              WHERE (r.category_id = c.id OR r.category_id = c.name) 
+                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            ) AS actual_count
+          FROM categories c
+        `);
         if (Array.isArray(rows)) {
           return rows.map((r) => ({
             id: r.id,
             maxTeams: Number(r.max_teams || 0),
-            registeredTeamsCount: Number(r.registered_teams_count || 0)
+            registeredTeamsCount: Number(r.actual_count !== void 0 && r.actual_count !== null ? r.actual_count : r.registered_teams_count || 0)
           }));
         }
       } catch (err) {
         console.error("Error getting category quotas from MySQL:", err);
       }
     }
-    return memStore.categories.map((c) => ({
-      id: c.id,
-      maxTeams: Number(c.maxTeams || 0),
-      registeredTeamsCount: Number(c.registeredTeamsCount || 0)
-    }));
+    return memStore.categories.map((c) => {
+      const actualCount = memStore.registrations.filter(
+        (r) => (r.category === c.id || c.name && r.category === c.name) && ["PENDING_PAYMENT", "PENDING", "APPROVED", "REJECTED"].includes(r.status)
+      ).length;
+      return {
+        id: c.id,
+        maxTeams: Number(c.maxTeams || 0),
+        registeredTeamsCount: actualCount > 0 ? actualCount : Number(c.registeredTeamsCount || 0)
+      };
+    });
   },
   async saveCategory(cat) {
     await ensureDbConnected();
@@ -1610,10 +1645,22 @@ var Database = {
         console.error("Error saving match to MySQL:", err);
       }
     }
+    try {
+      await this.calculateStandings(match.category);
+    } catch (err) {
+      console.warn("Error recalculating standings on saveMatch:", err);
+    }
+    try {
+      await this.syncPlayerStatsFromMatches(match.category);
+    } catch (err) {
+      console.warn("Error syncing player stats on saveMatch:", err);
+    }
     return match;
   },
   async deleteMatch(matchId) {
     await ensureDbConnected();
+    const targetMatch = memStore.matches.find((m) => m.id === matchId);
+    const cat = targetMatch?.category;
     memStore.matches = memStore.matches.filter((m) => m.id !== matchId);
     persistLocalStore();
     if (pool && isMySqlConnected) {
@@ -1622,6 +1669,12 @@ var Database = {
       } catch (err) {
         console.error("Error deleting match from MySQL:", err);
       }
+    }
+    try {
+      await this.calculateStandings(cat);
+      await this.syncPlayerStatsFromMatches(cat);
+    } catch (err) {
+      console.warn("Error updating standings/stats on deleteMatch:", err);
     }
     return true;
   },
@@ -1669,11 +1722,19 @@ var Database = {
         console.error("Error replacing category matches in MySQL:", err);
       }
     }
+    try {
+      await this.calculateStandings(category);
+      await this.syncPlayerStatsFromMatches(category);
+    } catch (err) {
+      console.warn("Error updating standings/stats on replaceCategoryMatches:", err);
+    }
     return newMatches;
   },
   async saveMatchesBatch(matchesToSave) {
     await ensureDbConnected();
+    const categoriesAffected = /* @__PURE__ */ new Set();
     for (const match of matchesToSave) {
+      categoriesAffected.add(match.category);
       const idx = memStore.matches.findIndex((m) => m.id === match.id);
       if (idx >= 0) {
         memStore.matches[idx] = match;
@@ -1741,6 +1802,14 @@ var Database = {
         } catch (err) {
           console.error("Error saving batch match item in MySQL:", err);
         }
+      }
+    }
+    for (const cat of categoriesAffected) {
+      try {
+        await this.calculateStandings(cat);
+        await this.syncPlayerStatsFromMatches(cat);
+      } catch (err) {
+        console.warn("Error updating standings/stats on saveMatchesBatch:", err);
       }
     }
     return matchesToSave;
@@ -2741,7 +2810,7 @@ var Database = {
             });
           }
         }
-        const hasScore = m.teamA.score !== void 0 && m.teamB.score !== void 0;
+        const hasScore = m.status !== "UPCOMING" && m.teamA.score !== void 0 && m.teamB.score !== void 0;
         if (hasScore) {
           const itemA = teamMap.get(m.teamA.name);
           const itemB = teamMap.get(m.teamB.name);
@@ -2875,6 +2944,62 @@ var Database = {
       }
     }
     return this.calculateStandings(category);
+  },
+  async syncPlayerStatsFromMatches(category) {
+    await ensureDbConnected();
+    const matches = await this.getMatches();
+    const relevantMatches = category ? matches.filter((m) => m.category === category) : matches;
+    const statsMap = /* @__PURE__ */ new Map();
+    for (const m of relevantMatches) {
+      if (m.events && Array.isArray(m.events)) {
+        for (const ev of m.events) {
+          if (!ev.playerName) continue;
+          const pName = ev.playerName.trim();
+          const key = `${m.category}:::${pName.toLowerCase()}`;
+          const current = statsMap.get(key) || { goals: 0, yellow: 0, red: 0 };
+          if (ev.type === "GOAL") current.goals += 1;
+          if (ev.type === "YELLOW") current.yellow += 1;
+          if (ev.type === "RED") current.red += 1;
+          statsMap.set(key, current);
+        }
+      }
+    }
+    for (const p of memStore.players) {
+      if (!category || p.category === category) {
+        const key = `${p.category}:::${p.name.trim().toLowerCase()}`;
+        const stats = statsMap.get(key);
+        p.goals = stats ? stats.goals : 0;
+        p.yellowCards = stats ? stats.yellow : 0;
+        p.redCards = stats ? stats.red : 0;
+      }
+    }
+    persistLocalStore();
+    if (pool && isMySqlConnected) {
+      try {
+        let fetchQuery = "SELECT id, category_id, name FROM table_players WHERE 1=1";
+        const params = [];
+        if (category) {
+          fetchQuery += " AND category_id = ?";
+          params.push(category);
+        }
+        const [rows] = await pool.query(fetchQuery, params);
+        if (Array.isArray(rows)) {
+          for (const r of rows) {
+            const key = `${r.category_id}:::${String(r.name).trim().toLowerCase()}`;
+            const stats = statsMap.get(key);
+            const goals = stats ? stats.goals : 0;
+            const yellow = stats ? stats.yellow : 0;
+            const red = stats ? stats.red : 0;
+            await pool.query(
+              "UPDATE table_players SET goals = ?, yellow_cards = ?, red_cards = ? WHERE id = ?",
+              [goals, yellow, red, r.id]
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Error syncing player stats in MySQL:", err);
+      }
+    }
   }
 };
 
@@ -3879,6 +4004,12 @@ var cachePublic = (req, res, next) => {
   res.setHeader("Cache-Control", "public, s-maxage=300");
   next();
 };
+var noCache = (req, res, next) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+};
 var apiRouter = Router4();
 apiRouter.get("/sitemap.xml", sitemapHandler);
 apiRouter.get("/robots.txt", robotsHandler);
@@ -4049,13 +4180,12 @@ apiRouter.put("/config", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/categories", cachePublic, async (req, res) => {
+apiRouter.get("/categories", noCache, async (req, res) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
-apiRouter.get("/categories/quota", async (_req, res) => {
+apiRouter.get("/categories/quota", noCache, async (_req, res) => {
   try {
-    res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=20");
     const quotas = await Database.getCategoryQuotas();
     res.json(quotas);
   } catch (err) {
@@ -4437,7 +4567,7 @@ apiRouter.delete("/registrations/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/matches", cachePublic, async (req, res) => {
+apiRouter.get("/matches", noCache, async (req, res) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
@@ -4732,7 +4862,7 @@ apiRouter.get("/auth/me", async (req, res) => {
     return res.status(500).json({ authenticated: false, success: false, error: "Server error" });
   }
 });
-apiRouter.get("/players", cachePublic, async (req, res) => {
+apiRouter.get("/players", noCache, async (req, res) => {
   try {
     const { category, teamName } = req.query;
     const players = await Database.getPlayers(
@@ -4795,7 +4925,7 @@ apiRouter.delete("/players/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal menghapus pemain" });
   }
 });
-apiRouter.get("/players/top-scorers", async (req, res) => {
+apiRouter.get("/players/top-scorers", noCache, async (req, res) => {
   try {
     const { category } = req.query;
     const players = await Database.getPlayers(category);
@@ -4805,7 +4935,7 @@ apiRouter.get("/players/top-scorers", async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/groups", cachePublic, async (req, res) => {
+apiRouter.get("/groups", noCache, async (req, res) => {
   try {
     const { category } = req.query;
     const groups = await Database.getGroupStages(category);
@@ -4850,7 +4980,7 @@ apiRouter.post("/groups/reset", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal mereset grup dan jadwal" });
   }
 });
-apiRouter.get("/standings", cachePublic, async (req, res) => {
+apiRouter.get("/standings", noCache, async (req, res) => {
   try {
     const { category, source } = req.query;
     if (source === "db") {

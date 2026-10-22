@@ -326,6 +326,16 @@ export const LiveScoreManagerTab: React.FC = () => {
         curr.liveMinute,
         curr.events
       );
+      setLocalScores(prev => ({
+        ...prev,
+        [match.id]: {
+          scoreA: curr.scoreA,
+          scoreB: curr.scoreB,
+          status: curr.status,
+          liveMinute: curr.liveMinute,
+          events: curr.events,
+        },
+      }));
       setSuccessMsg(`Match #${match.matchNumber} (${match.teamA.name} vs ${match.teamB.name}) & Klasemen berhasil disinkronkan!`);
       setTimeout(() => setSuccessMsg(null), 3500);
     } catch (err: any) {
@@ -401,12 +411,17 @@ export const LiveScoreManagerTab: React.FC = () => {
     const removedEvent = curr.events[eventIndex];
     const filtered = curr.events.filter((_, idx) => idx !== eventIndex);
 
-    // If removed event was a goal, optionally decrement score if desired
+    // If removed event was a goal, decrement score accordingly
     let newScoreA = curr.scoreA ?? 0;
     let newScoreB = curr.scoreB ?? 0;
     if (removedEvent && removedEvent.type === 'GOAL') {
-      if (removedEvent.team === 'A') newScoreA = Math.max(0, newScoreA - 1);
-      else if (removedEvent.team === 'B') newScoreB = Math.max(0, newScoreB - 1);
+      const isTeamA = removedEvent.team === 'A' || removedEvent.team === match.teamA?.name;
+      const isTeamB = removedEvent.team === 'B' || removedEvent.team === match.teamB?.name;
+      if (isTeamA) {
+        newScoreA = Math.max(0, newScoreA - 1);
+      } else if (isTeamB) {
+        newScoreB = Math.max(0, newScoreB - 1);
+      }
     }
 
     setLocalScores(prev => ({
@@ -498,6 +513,20 @@ export const LiveScoreManagerTab: React.FC = () => {
     };
 
     updateMatch(updated);
+    setLocalScores(prev => {
+      const next = { ...prev };
+      if (next[updated.id]) {
+        next[updated.id] = {
+          ...next[updated.id],
+          scoreA: updated.teamA.score ?? 0,
+          scoreB: updated.teamB.score ?? 0,
+          status: updated.status,
+          liveMinute: updated.liveMinute || '',
+          events: updated.events || [],
+        };
+      }
+      return next;
+    });
     setEditingMatch(null);
     setEditMatchForm(null);
     setScheduleWarning(null);

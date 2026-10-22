@@ -792,14 +792,24 @@ export const Database = {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
-        const [rows]: any = await pool.query('SELECT * FROM categories ORDER BY sort_order ASC, id ASC');
+        const [rows]: any = await pool.query(`
+          SELECT c.*,
+            (
+              SELECT COUNT(*) 
+              FROM registrations r 
+              WHERE (r.category_id = c.id OR r.category_id = c.name) 
+                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            ) AS actual_count
+          FROM categories c 
+          ORDER BY sort_order ASC, id ASC
+        `);
         return rows.map((r: any) => ({
           id: r.id,
           name: r.name,
           badgeTitle: r.badge_title,
           ageRestriction: r.age_restriction,
           maxTeams: r.max_teams,
-          registeredTeamsCount: r.registered_teams_count,
+          registeredTeamsCount: Number(r.actual_count !== undefined && r.actual_count !== null ? r.actual_count : (r.registered_teams_count || 0)),
           registrationFee: Number(r.registration_fee),
           totalPrize: Number(r.total_prize),
           description: r.description,
@@ -810,30 +820,57 @@ export const Database = {
         console.error('Error getting categories from MySQL:', err);
       }
     }
-    return memStore.categories;
+    return memStore.categories.map(c => {
+      const actualCount = memStore.registrations.filter(r => 
+        (r.category === c.id || (c.name && r.category === c.name)) &&
+        ['PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED'].includes(r.status)
+      ).length;
+      return {
+        ...c,
+        registeredTeamsCount: actualCount > 0 ? actualCount : (c.registeredTeamsCount || 0),
+      };
+    });
   },
 
   async getCategoryQuotas(): Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>> {
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
-        const [rows]: any = await pool.query('SELECT id, max_teams, registered_teams_count FROM categories');
+        const [rows]: any = await pool.query(`
+          SELECT 
+            c.id, 
+            c.max_teams, 
+            c.registered_teams_count,
+            (
+              SELECT COUNT(*) 
+              FROM registrations r 
+              WHERE (r.category_id = c.id OR r.category_id = c.name) 
+                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            ) AS actual_count
+          FROM categories c
+        `);
         if (Array.isArray(rows)) {
           return rows.map((r: any) => ({
             id: r.id,
             maxTeams: Number(r.max_teams || 0),
-            registeredTeamsCount: Number(r.registered_teams_count || 0),
+            registeredTeamsCount: Number(r.actual_count !== undefined && r.actual_count !== null ? r.actual_count : (r.registered_teams_count || 0)),
           }));
         }
       } catch (err) {
         console.error('Error getting category quotas from MySQL:', err);
       }
     }
-    return memStore.categories.map(c => ({
-      id: c.id,
-      maxTeams: Number(c.maxTeams || 0),
-      registeredTeamsCount: Number(c.registeredTeamsCount || 0),
-    }));
+    return memStore.categories.map(c => {
+      const actualCount = memStore.registrations.filter(r => 
+        (r.category === c.id || (c.name && r.category === c.name)) &&
+        ['PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED'].includes(r.status)
+      ).length;
+      return {
+        id: c.id,
+        maxTeams: Number(c.maxTeams || 0),
+        registeredTeamsCount: actualCount > 0 ? actualCount : Number(c.registeredTeamsCount || 0),
+      };
+    });
   },
 
   async saveCategory(cat: CategoryDetail): Promise<CategoryDetail> {
@@ -1403,11 +1440,28 @@ export const Database = {
         console.error('Error saving match to MySQL:', err);
       }
     }
+
+    // Automatically recalculate standings so table_standings is immediately fresh
+    try {
+      await this.calculateStandings(match.category);
+    } catch (err) {
+      console.warn('Error recalculating standings on saveMatch:', err);
+    }
+
+    // Automatically synchronize player stats (goals & cards) from match events
+    try {
+      await this.syncPlayerStatsFromMatches(match.category);
+    } catch (err) {
+      console.warn('Error syncing player stats on saveMatch:', err);
+    }
+
     return match;
   },
 
   async deleteMatch(matchId: string): Promise<boolean> {
     await ensureDbConnected();
+    const targetMatch = memStore.matches.find(m => m.id === matchId);
+    const cat = targetMatch?.category;
     memStore.matches = memStore.matches.filter(m => m.id !== matchId);
     persistLocalStore();
     if (pool && isMySqlConnected) {
@@ -1417,6 +1471,14 @@ export const Database = {
         console.error('Error deleting match from MySQL:', err);
       }
     }
+
+    try {
+      await this.calculateStandings(cat);
+      await this.syncPlayerStatsFromMatches(cat);
+    } catch (err) {
+      console.warn('Error updating standings/stats on deleteMatch:', err);
+    }
+
     return true;
   },
 
@@ -1443,12 +1505,22 @@ export const Database = {
         console.error('Error replacing category matches in MySQL:', err);
       }
     }
+
+    try {
+      await this.calculateStandings(category);
+      await this.syncPlayerStatsFromMatches(category);
+    } catch (err) {
+      console.warn('Error updating standings/stats on replaceCategoryMatches:', err);
+    }
+
     return newMatches;
   },
 
   async saveMatchesBatch(matchesToSave: MatchItem[]): Promise<MatchItem[]> {
     await ensureDbConnected();
+    const categoriesAffected = new Set<string>();
     for (const match of matchesToSave) {
+      categoriesAffected.add(match.category);
       const idx = memStore.matches.findIndex(m => m.id === match.id);
       if (idx >= 0) {
         memStore.matches[idx] = match;
@@ -1472,6 +1544,16 @@ export const Database = {
         }
       }
     }
+
+    for (const cat of categoriesAffected) {
+      try {
+        await this.calculateStandings(cat);
+        await this.syncPlayerStatsFromMatches(cat);
+      } catch (err) {
+        console.warn('Error updating standings/stats on saveMatchesBatch:', err);
+      }
+    }
+
     return matchesToSave;
   },
 
@@ -2429,8 +2511,8 @@ export const Database = {
           }
         }
 
-        // Calculate statistics for finished matches (or matches with scores)
-        const hasScore = m.teamA.score !== undefined && m.teamB.score !== undefined;
+        // Calculate statistics for finished or live matches (or matches with scores)
+        const hasScore = m.status !== 'UPCOMING' && m.teamA.score !== undefined && m.teamB.score !== undefined;
         if (hasScore) {
           const itemA = teamMap.get(m.teamA.name)!;
           const itemB = teamMap.get(m.teamB.name)!;
@@ -2555,5 +2637,68 @@ export const Database = {
     }
     // Fallback to real-time calculation
     return this.calculateStandings(category);
+  },
+
+  async syncPlayerStatsFromMatches(category?: string): Promise<void> {
+    await ensureDbConnected();
+    const matches = await this.getMatches();
+    const relevantMatches = category ? matches.filter(m => m.category === category) : matches;
+
+    // Tally stats per player: key = `${category}:::${playerName.toLowerCase()}`
+    const statsMap = new Map<string, { goals: number; yellow: number; red: number }>();
+    for (const m of relevantMatches) {
+      if (m.events && Array.isArray(m.events)) {
+        for (const ev of m.events) {
+          if (!ev.playerName) continue;
+          const pName = ev.playerName.trim();
+          const key = `${m.category}:::${pName.toLowerCase()}`;
+          const current = statsMap.get(key) || { goals: 0, yellow: 0, red: 0 };
+          if (ev.type === 'GOAL') current.goals += 1;
+          if (ev.type === 'YELLOW') current.yellow += 1;
+          if (ev.type === 'RED') current.red += 1;
+          statsMap.set(key, current);
+        }
+      }
+    }
+
+    // Update in-memory player store
+    for (const p of memStore.players) {
+      if (!category || p.category === category) {
+        const key = `${p.category}:::${p.name.trim().toLowerCase()}`;
+        const stats = statsMap.get(key);
+        p.goals = stats ? stats.goals : 0;
+        p.yellowCards = stats ? stats.yellow : 0;
+        p.redCards = stats ? stats.red : 0;
+      }
+    }
+    persistLocalStore();
+
+    // Update MySQL table_players
+    if (pool && isMySqlConnected) {
+      try {
+        let fetchQuery = 'SELECT id, category_id, name FROM table_players WHERE 1=1';
+        const params: any[] = [];
+        if (category) {
+          fetchQuery += ' AND category_id = ?';
+          params.push(category);
+        }
+        const [rows]: any = await pool.query(fetchQuery, params);
+        if (Array.isArray(rows)) {
+          for (const r of rows) {
+            const key = `${r.category_id}:::${String(r.name).trim().toLowerCase()}`;
+            const stats = statsMap.get(key);
+            const goals = stats ? stats.goals : 0;
+            const yellow = stats ? stats.yellow : 0;
+            const red = stats ? stats.red : 0;
+            await pool.query(
+              'UPDATE table_players SET goals = ?, yellow_cards = ?, red_cards = ? WHERE id = ?',
+              [goals, yellow, red, r.id]
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Error syncing player stats in MySQL:', err);
+      }
+    }
   },
 };
