@@ -113,11 +113,25 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
 
   // Helper untuk mendapatkan logo tim secara proporsional & konsisten
   const getTeamLogo = (teamName: string, existingLogo?: string) => {
-    if (existingLogo && existingLogo.trim()) return existingLogo;
+    const norm = (teamName || '').trim().toLowerCase();
+    if (!norm) return existingLogo || '';
+
+    // 1. Prioritaskan logo real-time terbaru dari database pendaftar (registrations)
     const reg = registrations.find(
-      r => r.teamName.trim().toLowerCase() === teamName.trim().toLowerCase()
+      r => (r.teamName && r.teamName.trim().toLowerCase() === norm) ||
+           (r.institutionName && r.institutionName.trim().toLowerCase() === norm)
     );
-    return reg?.teamLogo || '';
+    const regLogo = reg?.teamLogo || (reg?.documents as any)?.logoTim?.url || (reg?.documents as any)?.logoTim?.fileData;
+    if (regLogo && typeof regLogo === 'string' && regLogo.trim()) {
+      return regLogo;
+    }
+
+    // 2. Fallback ke logo yang sudah tersimpan di objek grup / laga jika ada
+    if (existingLogo && typeof existingLogo === 'string' && existingLogo.trim()) {
+      return existingLogo;
+    }
+
+    return '';
   };
 
   // Helper untuk membersihkan prefix "Kategori " agar label tidak redundan

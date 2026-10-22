@@ -370,10 +370,9 @@ apiRouter.delete('/categories/:id', requireAdmin, async (req: Request, res: Resp
 });
 
 // 7. Registrations
-apiRouter.get('/registrations/public', async (req: Request, res: Response) => {
+apiRouter.get('/registrations/public', noCache, async (req: Request, res: Response) => {
   try {
     const publicData = await Database.getPublicRegistrations();
-    res.setHeader('Cache-Control', 'public, s-maxage=300');
     res.json(publicData);
   } catch (err: any) {
     res.status(500).json({ error: err?.message });

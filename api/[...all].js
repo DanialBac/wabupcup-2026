@@ -1175,18 +1175,28 @@ var Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows] = await pool.query(
-          "SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status FROM registrations ORDER BY created_at DESC"
+          "SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status, documents_json FROM registrations ORDER BY created_at DESC"
         );
         if (Array.isArray(rows)) {
-          return rows.map((r) => ({
-            id: r.id,
-            regCode: r.reg_code,
-            category: r.category_id,
-            teamName: r.team_name,
-            teamLogo: r.team_logo || null,
-            institutionName: r.institution_name,
-            status: r.status
-          }));
+          return rows.map((r) => {
+            let docLogo = null;
+            if (r.documents_json) {
+              try {
+                const parsed = typeof r.documents_json === "string" ? JSON.parse(r.documents_json) : r.documents_json;
+                docLogo = parsed?.logoTim?.url || parsed?.logoTim?.fileData || null;
+              } catch {
+              }
+            }
+            return {
+              id: r.id,
+              regCode: r.reg_code,
+              category: r.category_id,
+              teamName: r.team_name,
+              teamLogo: r.team_logo || docLogo || null,
+              institutionName: r.institution_name,
+              status: r.status
+            };
+          });
         }
       } catch (err) {
         console.error("Error fetching public registrations from MySQL:", err);
@@ -1197,7 +1207,7 @@ var Database = {
       regCode: r.regCode,
       category: r.category,
       teamName: r.teamName,
-      teamLogo: r.teamLogo || r.documents?.teamLogo || null,
+      teamLogo: r.teamLogo || r.documents?.logoTim?.url || r.documents?.logoTim?.fileData || r.documents?.teamLogo || null,
       institutionName: r.institutionName,
       status: r.status
     }));
@@ -1402,6 +1412,56 @@ var Database = {
       } catch (err) {
         console.error("[Database] Error saving registration to MySQL:", err);
       }
+    }
+    if (item.teamLogo || item.teamName) {
+      const normName = (item.teamName || "").trim().toLowerCase();
+      const normInst = (item.institutionName || "").trim().toLowerCase();
+      for (const m of memStore.matches) {
+        if (m.teamA?.name?.trim().toLowerCase() === normName || normInst && m.teamA?.institution?.trim().toLowerCase() === normInst) {
+          if (item.teamLogo) m.teamA.logo = item.teamLogo;
+          if (item.institutionName) m.teamA.institution = item.institutionName;
+        }
+        if (m.teamB?.name?.trim().toLowerCase() === normName || normInst && m.teamB?.institution?.trim().toLowerCase() === normInst) {
+          if (item.teamLogo) m.teamB.logo = item.teamLogo;
+          if (item.institutionName) m.teamB.institution = item.institutionName;
+        }
+      }
+      for (const g of memStore.groups) {
+        if (Array.isArray(g.teams)) {
+          for (const t of g.teams) {
+            if (t.name?.trim().toLowerCase() === normName || normInst && t.institution?.trim().toLowerCase() === normInst) {
+              if (item.teamLogo) t.logo = item.teamLogo;
+              if (item.institutionName) t.institution = item.institutionName;
+            }
+          }
+        }
+      }
+      persistLocalStore();
+      if (pool && isMySqlConnected) {
+        try {
+          if (item.teamLogo) {
+            await pool.query(
+              `UPDATE matches SET team_a_logo = ? WHERE LOWER(TRIM(team_a_name)) = ? OR (team_a_institution IS NOT NULL AND LOWER(TRIM(team_a_institution)) = ?)`,
+              [item.teamLogo, normName, normInst || normName]
+            );
+            await pool.query(
+              `UPDATE matches SET team_b_logo = ? WHERE LOWER(TRIM(team_b_name)) = ? OR (team_b_institution IS NOT NULL AND LOWER(TRIM(team_b_institution)) = ?)`,
+              [item.teamLogo, normName, normInst || normName]
+            );
+            await pool.query(
+              `UPDATE table_standings SET team_logo = ? WHERE LOWER(TRIM(team_name)) = ? OR (institution_name IS NOT NULL AND LOWER(TRIM(institution_name)) = ?)`,
+              [item.teamLogo, normName, normInst || normName]
+            );
+          }
+        } catch (cascadeErr) {
+          console.warn("[Database] Error cascading logo update to MySQL:", cascadeErr);
+        }
+      }
+    }
+    try {
+      await this.calculateStandings(item.category);
+    } catch (err) {
+      console.warn("Error recalculating standings on saveRegistration:", err);
     }
     return item;
   },
@@ -2766,14 +2826,27 @@ var Database = {
       const grpMatches = targetMatches.filter((m) => m.category === cat && m.group === grpName);
       const grpObj = allGroups.find((g) => g.category === cat && g.groupName === grpName);
       const teamMap = /* @__PURE__ */ new Map();
+      const findTeamReg = (name, institution) => {
+        const normName = (name || "").trim().toLowerCase();
+        const normInst = (institution || "").trim().toLowerCase();
+        if (!normName && !normInst) return void 0;
+        return regs.find(
+          (r) => (cat ? r.category === cat : true) && (normName && r.teamName?.trim().toLowerCase() === normName || normName && r.institutionName?.trim().toLowerCase() === normName || normInst && r.teamName?.trim().toLowerCase() === normInst || normInst && r.institutionName?.trim().toLowerCase() === normInst)
+        ) || regs.find(
+          (r) => normName && r.teamName?.trim().toLowerCase() === normName || normName && r.institutionName?.trim().toLowerCase() === normName || normInst && r.teamName?.trim().toLowerCase() === normInst || normInst && r.institutionName?.trim().toLowerCase() === normInst
+        );
+      };
       if (grpObj && Array.isArray(grpObj.teams)) {
         for (const t of grpObj.teams) {
+          const reg = findTeamReg(t.name, t.institution);
+          const resolvedLogo = reg?.teamLogo || reg?.documents?.logoTim?.url || reg?.documents?.logoTim?.fileData || t.logo || "";
+          const resolvedInst = t.institution || reg?.institutionName || "";
           if (!teamMap.has(t.name)) {
             teamMap.set(t.name, {
               position: 0,
               teamName: t.name,
-              institution: t.institution,
-              teamLogo: t.logo,
+              institution: resolvedInst,
+              teamLogo: resolvedLogo,
               groupName: grpName,
               category: cat,
               played: 0,
@@ -2785,18 +2858,28 @@ var Database = {
               goalDifference: 0,
               points: 0
             });
+          } else {
+            const item = teamMap.get(t.name);
+            if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+              item.teamLogo = resolvedLogo;
+            }
+            if (resolvedInst && !item.institution) {
+              item.institution = resolvedInst;
+            }
           }
         }
       }
       for (const m of grpMatches) {
         for (const team of [m.teamA, m.teamB]) {
+          const reg = findTeamReg(team.name, team.institution);
+          const resolvedLogo = reg?.teamLogo || reg?.documents?.logoTim?.url || reg?.documents?.logoTim?.fileData || team.logo || "";
+          const resolvedInst = team.institution || reg?.institutionName || "";
           if (!teamMap.has(team.name)) {
-            const reg = regs.find((r) => r.teamName === team.name && r.category === cat);
             teamMap.set(team.name, {
               position: 0,
               teamName: team.name,
-              institution: team.institution || reg?.institutionName,
-              teamLogo: team.logo || reg?.teamLogo,
+              institution: resolvedInst,
+              teamLogo: resolvedLogo,
               groupName: grpName,
               category: cat,
               played: 0,
@@ -2808,6 +2891,14 @@ var Database = {
               goalDifference: 0,
               points: 0
             });
+          } else {
+            const item = teamMap.get(team.name);
+            if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+              item.teamLogo = resolvedLogo;
+            }
+            if (resolvedInst && !item.institution) {
+              item.institution = resolvedInst;
+            }
           }
         }
         const hasScore = m.status !== "UPCOMING" && m.teamA.score !== void 0 && m.teamB.score !== void 0;
@@ -4260,10 +4351,9 @@ apiRouter.delete("/categories/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/registrations/public", async (req, res) => {
+apiRouter.get("/registrations/public", noCache, async (req, res) => {
   try {
     const publicData = await Database.getPublicRegistrations();
-    res.setHeader("Cache-Control", "public, s-maxage=300");
     res.json(publicData);
   } catch (err) {
     res.status(500).json({ error: err?.message });

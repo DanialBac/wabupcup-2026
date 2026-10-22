@@ -87,14 +87,39 @@ export const computeStandingsFromData = (
 
     const teamMap = new Map<string, TeamStandingItem>();
 
+    const findTeamReg = (name: string, institution?: string) => {
+      const normName = (name || '').trim().toLowerCase();
+      const normInst = (institution || '').trim().toLowerCase();
+      if (!normName && !normInst) return undefined;
+      return (
+        registrationsList.find(r => 
+          (cat ? r.category === cat : true) &&
+          ((normName && r.teamName?.trim().toLowerCase() === normName) ||
+           (normName && r.institutionName?.trim().toLowerCase() === normName) ||
+           (normInst && r.teamName?.trim().toLowerCase() === normInst) ||
+           (normInst && r.institutionName?.trim().toLowerCase() === normInst))
+        ) ||
+        registrationsList.find(r => 
+          (normName && r.teamName?.trim().toLowerCase() === normName) ||
+          (normName && r.institutionName?.trim().toLowerCase() === normName) ||
+          (normInst && r.teamName?.trim().toLowerCase() === normInst) ||
+          (normInst && r.institutionName?.trim().toLowerCase() === normInst)
+        )
+      );
+    };
+
     if (grpObj && Array.isArray(grpObj.teams)) {
       for (const t of grpObj.teams) {
+        const reg = findTeamReg(t.name, t.institution);
+        const resolvedLogo = reg?.teamLogo || (reg?.documents as any)?.logoTim?.url || (reg?.documents as any)?.logoTim?.fileData || t.logo || '';
+        const resolvedInst = t.institution || reg?.institutionName || '';
+
         if (!teamMap.has(t.name)) {
           teamMap.set(t.name, {
             position: 0,
             teamName: t.name,
-            institution: t.institution,
-            teamLogo: t.logo,
+            institution: resolvedInst,
+            teamLogo: resolvedLogo,
             groupName: grpName,
             category: cat,
             played: 0,
@@ -106,19 +131,30 @@ export const computeStandingsFromData = (
             goalDifference: 0,
             points: 0,
           });
+        } else {
+          const item = teamMap.get(t.name)!;
+          if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+            item.teamLogo = resolvedLogo;
+          }
+          if (resolvedInst && !item.institution) {
+            item.institution = resolvedInst;
+          }
         }
       }
     }
 
     for (const m of grpMatches) {
       for (const team of [m.teamA, m.teamB]) {
+        const reg = findTeamReg(team.name, team.institution);
+        const resolvedLogo = reg?.teamLogo || (reg?.documents as any)?.logoTim?.url || (reg?.documents as any)?.logoTim?.fileData || team.logo || '';
+        const resolvedInst = team.institution || reg?.institutionName || '';
+
         if (!teamMap.has(team.name)) {
-          const reg = registrationsList.find(r => r.teamName === team.name && r.category === cat);
           teamMap.set(team.name, {
             position: 0,
             teamName: team.name,
-            institution: team.institution || reg?.institutionName,
-            teamLogo: team.logo || reg?.teamLogo,
+            institution: resolvedInst,
+            teamLogo: resolvedLogo,
             groupName: grpName,
             category: cat,
             played: 0,
@@ -130,6 +166,14 @@ export const computeStandingsFromData = (
             goalDifference: 0,
             points: 0,
           });
+        } else {
+          const item = teamMap.get(team.name)!;
+          if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+            item.teamLogo = resolvedLogo;
+          }
+          if (resolvedInst && !item.institution) {
+            item.institution = resolvedInst;
+          }
         }
       }
 
@@ -1098,6 +1142,49 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setRegistrations(prev =>
       prev.map(item => (item.id === updatedItem.id ? fullUpdated : item))
     );
+
+    // Cascade update to groups and matches state when team logo or name is edited
+    if (fullUpdated.teamLogo || fullUpdated.teamName) {
+      const normName = fullUpdated.teamName.trim().toLowerCase();
+      const normInst = (fullUpdated.institutionName || '').trim().toLowerCase();
+
+      setGroups(prev => {
+        const next = prev.map(g => ({
+          ...g,
+          teams: Array.isArray(g.teams)
+            ? g.teams.map(t =>
+                t.name?.trim().toLowerCase() === normName ||
+                (normInst && t.institution?.trim().toLowerCase() === normInst)
+                  ? { ...t, logo: fullUpdated.teamLogo || t.logo, institution: fullUpdated.institutionName || t.institution }
+                  : t
+              )
+            : g.teams,
+        }));
+        safeLocalStorageSet('wabupcup_groups', JSON.stringify(next));
+        return next;
+      });
+
+      setMatches(prev => {
+        const next = prev.map(m => {
+          let changed = false;
+          let newA = { ...m.teamA };
+          let newB = { ...m.teamB };
+          if (m.teamA?.name?.trim().toLowerCase() === normName || (normInst && m.teamA?.institution?.trim().toLowerCase() === normInst)) {
+            newA.logo = fullUpdated.teamLogo || newA.logo;
+            newA.institution = fullUpdated.institutionName || newA.institution;
+            changed = true;
+          }
+          if (m.teamB?.name?.trim().toLowerCase() === normName || (normInst && m.teamB?.institution?.trim().toLowerCase() === normInst)) {
+            newB.logo = fullUpdated.teamLogo || newB.logo;
+            newB.institution = fullUpdated.institutionName || newB.institution;
+            changed = true;
+          }
+          return changed ? { ...m, teamA: newA, teamB: newB } : m;
+        });
+        safeLocalStorageSet('wabupcup_matches', JSON.stringify(next));
+        return next;
+      });
+    }
 
     idbSaveRegistration(fullUpdated).catch(() => {});
 

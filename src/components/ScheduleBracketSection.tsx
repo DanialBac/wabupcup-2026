@@ -74,11 +74,25 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
   const catRegistrations = registrations.filter(r => r.category === selectedCat);
 
   const getTeamLogo = (teamName: string, existingLogo?: string) => {
-    if (existingLogo && existingLogo.trim()) return existingLogo;
+    const norm = (teamName || '').trim().toLowerCase();
+    if (!norm) return existingLogo || '';
+
+    // 1. Prioritaskan logo real-time terbaru dari database pendaftar (registrations)
     const reg = registrations.find(
-      r => r.teamName.trim().toLowerCase() === teamName.trim().toLowerCase()
+      r => (r.teamName && r.teamName.trim().toLowerCase() === norm) ||
+           (r.institutionName && r.institutionName.trim().toLowerCase() === norm)
     );
-    return reg?.teamLogo || '';
+    const regLogo = reg?.teamLogo || (reg?.documents as any)?.logoTim?.url || (reg?.documents as any)?.logoTim?.fileData;
+    if (regLogo && typeof regLogo === 'string' && regLogo.trim()) {
+      return regLogo;
+    }
+
+    // 2. Fallback ke logo yang sudah tersimpan di objek laga jika ada
+    if (existingLogo && typeof existingLogo === 'string' && existingLogo.trim()) {
+      return existingLogo;
+    }
+
+    return '';
   };
 
   const filteredTeams = catRegistrations.filter(t => {
@@ -881,32 +895,37 @@ export const ScheduleBracketSection: React.FC<ScheduleBracketSectionProps> = ({
                         </div>
 
                         {/* TEAM DETAILS */}
-                        <div className="flex items-start space-x-3 mb-3">
-                          <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden shrink-0 p-1">
-                            {team.teamLogo ? (
-                              <img
-                                src={team.teamLogo}
-                                alt={`Logo ${team.teamName}`}
-                                width="44"
-                                height="44"
-                                loading="lazy"
-                                decoding="async"
-                                className="max-h-full max-w-full object-contain"
-                              />
-                            ) : (
-                              <span className="text-xl">🛡️</span>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-base text-slate-900 dark:text-white leading-tight truncate">
-                              {team.teamName}
-                            </h4>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1 mt-0.5 truncate">
-                              <Building className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{team.institutionName}</span>
-                            </p>
-                          </div>
-                        </div>
+                        {(() => {
+                          const logoSrc = team.teamLogo || (team.documents as any)?.logoTim?.url || (team.documents as any)?.logoTim?.fileData;
+                          return (
+                            <div className="flex items-start space-x-3 mb-3">
+                              <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden shrink-0 p-1">
+                                {logoSrc ? (
+                                  <img
+                                    src={logoSrc}
+                                    alt={`Logo ${team.teamName}`}
+                                    width="44"
+                                    height="44"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="max-h-full max-w-full object-contain"
+                                  />
+                                ) : (
+                                  <span className="text-xl">🛡️</span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-base text-slate-900 dark:text-white leading-tight truncate">
+                                  {team.teamName}
+                                </h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1 mt-0.5 truncate">
+                                  <Building className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate">{team.institutionName}</span>
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                           <div className="flex items-center justify-between">
