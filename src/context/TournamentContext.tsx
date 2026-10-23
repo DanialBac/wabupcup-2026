@@ -2696,9 +2696,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.warn('Could not sync match live score to server:', err);
     }
 
-    // Refresh standings from backend for full sync
+    // Refresh standings from backend for full sync (reads persisted table_standings directly)
     try {
-      const serverStandings = await ApiService.getStandings(updatedMatch.category);
+      const serverStandings = await ApiService.getStandings(updatedMatch.category, 'db');
       if (serverStandings && Object.keys(serverStandings).length > 0) {
         setStandings(prev => {
           const merged = { ...prev, ...serverStandings };

@@ -2679,25 +2679,51 @@ export const Database = {
     // Persist all calculated group standings into MySQL table_standings
     if (pool && isMySqlConnected) {
       try {
+        const allItems: TeamStandingItem[] = [];
         for (const k of Object.keys(result)) {
           const items = result[k] || [];
           for (const item of items) {
-            const standingId = `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
-            await pool.query(
-              `INSERT INTO table_standings (
+            allItems.push(item);
+          }
+        }
+
+        if (allItems.length > 0) {
+          // Batch insert in chunks of 50 to avoid query size / parameter limits
+          const chunkSize = 50;
+          for (let i = 0; i < allItems.length; i += chunkSize) {
+            const chunk = allItems.slice(i, i + chunkSize);
+            const valuePlaceholders: string[] = [];
+            const params: any[] = [];
+
+            for (const item of chunk) {
+              const standingId = `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_');
+              valuePlaceholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+              params.push(
+                standingId, item.category, item.groupName, item.teamName, null, item.institution || null, item.teamLogo || null,
+                item.position, item.played, item.won, item.drawn, item.lost, item.goalsFor, item.goalsAgainst, item.goalDifference, item.points
+              );
+            }
+
+            const sql = `
+              INSERT INTO table_standings (
                 id, category_id, group_name, team_name, team_id, institution_name, team_logo,
                 position, played, won, drawn, lost, goals_for, goals_against, goal_difference, points
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES ${valuePlaceholders.join(', ')}
               ON DUPLICATE KEY UPDATE
-                position=?, played=?, won=?, drawn=?, lost=?, goals_for=?, goals_against=?, goal_difference=?, points=?,
-                institution_name=?, team_logo=?`,
-              [
-                standingId, item.category, item.groupName, item.teamName, null, item.institution || null, item.teamLogo || null,
-                item.position, item.played, item.won, item.drawn, item.lost, item.goalsFor, item.goalsAgainst, item.goalDifference, item.points,
-                item.position, item.played, item.won, item.drawn, item.lost, item.goalsFor, item.goalsAgainst, item.goalDifference, item.points,
-                item.institution || null, item.teamLogo || null
-              ]
-            );
+                position = VALUES(position),
+                played = VALUES(played),
+                won = VALUES(won),
+                drawn = VALUES(drawn),
+                lost = VALUES(lost),
+                goals_for = VALUES(goals_for),
+                goals_against = VALUES(goals_against),
+                goal_difference = VALUES(goal_difference),
+                points = VALUES(points),
+                institution_name = VALUES(institution_name),
+                team_logo = VALUES(team_logo)
+            `;
+
+            await pool.query(sql, params);
           }
         }
       } catch (err: any) {
@@ -2789,7 +2815,7 @@ export const Database = {
     // Update MySQL table_players
     if (pool && isMySqlConnected) {
       try {
-        let fetchQuery = 'SELECT id, category_id, name FROM table_players WHERE 1=1';
+        let fetchQuery = 'SELECT id, category_id, name, goals, yellow_cards, red_cards FROM table_players WHERE 1=1';
         const params: any[] = [];
         if (category) {
           fetchQuery += ' AND category_id = ?';
@@ -2797,15 +2823,31 @@ export const Database = {
         }
         const [rows]: any = await pool.query(fetchQuery, params);
         if (Array.isArray(rows)) {
+          const playersToUpdate: { id: string; goals: number; yellow: number; red: number }[] = [];
           for (const r of rows) {
             const key = `${r.category_id}:::${String(r.name).trim().toLowerCase()}`;
             const stats = statsMap.get(key);
             const goals = stats ? stats.goals : 0;
             const yellow = stats ? stats.yellow : 0;
             const red = stats ? stats.red : 0;
-            await pool.query(
-              'UPDATE table_players SET goals = ?, yellow_cards = ?, red_cards = ? WHERE id = ?',
-              [goals, yellow, red, r.id]
+            const curGoals = Number(r.goals) || 0;
+            const curYellow = Number(r.yellow_cards) || 0;
+            const curRed = Number(r.red_cards) || 0;
+
+            if (curGoals !== goals || curYellow !== yellow || curRed !== red) {
+              playersToUpdate.push({ id: r.id, goals, yellow, red });
+            }
+          }
+
+          if (playersToUpdate.length > 0) {
+            // Update only players whose stats actually changed in parallel
+            await Promise.all(
+              playersToUpdate.map(p =>
+                pool.query(
+                  'UPDATE table_players SET goals = ?, yellow_cards = ?, red_cards = ? WHERE id = ?',
+                  [p.goals, p.yellow, p.red, p.id]
+                )
+              )
             );
           }
         }

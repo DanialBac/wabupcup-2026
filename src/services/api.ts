@@ -527,9 +527,10 @@ export const ApiService = {
   },
 
   // Standings
-  async getStandings(category?: string): Promise<Record<string, TeamStandingItem[]>> {
+  async getStandings(category?: string, source?: string): Promise<Record<string, TeamStandingItem[]>> {
     const query = new URLSearchParams();
     if (category) query.append('category', category);
+    if (source) query.append('source', source);
     query.append('_t', String(Date.now()));
     const res = await safeJsonFetch<Record<string, TeamStandingItem[]>>(`${API_BASE}/standings?${query.toString()}`);
     return res || {};
