@@ -2787,6 +2787,11 @@ var Database = {
         console.error("Error saving group stages to MySQL:", err);
       }
     }
+    try {
+      await this.calculateStandings(category);
+    } catch (err) {
+      console.warn("Error recalculating standings on saveGroupStages:", err);
+    }
     return groups;
   },
   async resetCategoryGroupsAndMatches(category) {
@@ -2943,6 +2948,20 @@ var Database = {
           const items = result[k] || [];
           for (const item of items) {
             allItems.push(item);
+          }
+        }
+        const validIds = allItems.map(
+          (item) => `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, "_")
+        );
+        if (category) {
+          if (validIds.length > 0) {
+            const placeholders = validIds.map(() => "?").join(", ");
+            await pool.query(
+              `DELETE FROM table_standings WHERE category_id = ? AND id NOT IN (${placeholders})`,
+              [category, ...validIds]
+            );
+          } else {
+            await pool.query("DELETE FROM table_standings WHERE category_id = ?", [category]);
           }
         }
         if (allItems.length > 0) {

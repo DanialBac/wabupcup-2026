@@ -2492,6 +2492,14 @@ export const Database = {
         console.error('Error saving group stages to MySQL:', err);
       }
     }
+
+    // Automatically recalculate standings and prune deleted/renamed teams
+    try {
+      await this.calculateStandings(category);
+    } catch (err) {
+      console.warn('Error recalculating standings on saveGroupStages:', err);
+    }
+
     return groups;
   },
 
@@ -2677,6 +2685,23 @@ export const Database = {
           const items = result[k] || [];
           for (const item of items) {
             allItems.push(item);
+          }
+        }
+
+        // Auto-prune orphaned standings: delete rows in table_standings that no longer exist in current groups/matches
+        const validIds = allItems.map(item =>
+          `std-${item.category}-${item.groupName}-${item.teamName}`.toLowerCase().replace(/[^a-z0-9-]/g, '_')
+        );
+
+        if (category) {
+          if (validIds.length > 0) {
+            const placeholders = validIds.map(() => '?').join(', ');
+            await pool.query(
+              `DELETE FROM table_standings WHERE category_id = ? AND id NOT IN (${placeholders})`,
+              [category, ...validIds]
+            );
+          } else {
+            await pool.query('DELETE FROM table_standings WHERE category_id = ?', [category]);
           }
         }
 
