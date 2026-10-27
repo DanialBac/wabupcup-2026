@@ -93,6 +93,25 @@ class MemoryStore {
 
 const memStore = new MemoryStore();
 
+// In-Memory caches with short TTL to drastically reduce TiDB Cloud RU consumption
+let categoriesCache: { data: CategoryDetail[]; timestamp: number } | null = null;
+let categoryQuotasCache: { data: Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>; timestamp: number } | null = null;
+let matchesCache: { data: MatchItem[]; timestamp: number } | null = null;
+let playersCache: Map<string, { data: PlayerItem[]; timestamp: number }> = new Map();
+
+export function invalidateCategoriesCache() {
+  categoriesCache = null;
+  categoryQuotasCache = null;
+}
+
+export function invalidateMatchesCache() {
+  matchesCache = null;
+}
+
+export function invalidatePlayersCache() {
+  playersCache.clear();
+}
+
 export function loadLocalStore(): void {}
 export function persistLocalStore(): void {}
 let isMySqlConnected = false;
@@ -146,37 +165,16 @@ export async function initDatabaseConnection(): Promise<boolean> {
   }
 }
 
+let isSchemaChecked = false;
+
 async function autoMigrateTables() {
-  if (!pool || !isMySqlConnected) return;
+  if (!pool || !isMySqlConnected || isSchemaChecked) return;
 
   try {
-    // Always run schema initialization (all queries use CREATE TABLE IF NOT EXISTS)
-    // to guarantee that new tables like table_players, tournament_groups, app_media_storage exist in pre-existing databases.
+    // Only run schema initialization once per process lifecycle to prevent repetitive DDL on cold starts
     await runFullSchemaInit();
     await ensureMediaColumns(pool);
-
-    // Safe non-blocking column upgrade for existing databases (e.g. migrate ENUM role to VARCHAR(64))
-    try {
-      await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
-    } catch (colErr: any) {
-      // Table might not exist yet or already updated, safe to ignore
-    }
-    // Ensure table_standings has all required columns in case of older pre-existing tables
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN category_id VARCHAR(32) NOT NULL AFTER id");
-    } catch {}
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN position INT NOT NULL DEFAULT 0 AFTER team_logo");
-    } catch {}
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN team_id VARCHAR(64) NULL AFTER team_name");
-    } catch {}
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN institution_name VARCHAR(200) NULL AFTER team_id");
-    } catch {}
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN team_logo LONGTEXT NULL AFTER institution_name");
-    } catch {}
+    isSchemaChecked = true;
   } catch (err) {
     console.error('[MySQL] Error checking tables:', err);
   }
@@ -255,11 +253,6 @@ export async function runFullSchemaInit() {
 
   try {
     await pool.query('SET FOREIGN_KEY_CHECKS = 0;');
-  } catch {}
-
-  // Remove old incompatible foreign key if present on obsolete players table
-  try {
-    await pool.query('ALTER TABLE players DROP FOREIGN KEY fk_players_registration;');
   } catch {}
 
   const queries = [
@@ -787,23 +780,28 @@ export const Database = {
     return updated;
   },
 
+  // Memory caches to drastically reduce TiDB Cloud RU usage
   // Categories
-  async getCategories(): Promise<CategoryDetail[]> {
+  async getCategories(forceRefresh = false): Promise<CategoryDetail[]> {
+    if (!forceRefresh && categoriesCache && Date.now() - categoriesCache.timestamp < 30000) {
+      return categoriesCache.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query(`
           SELECT c.*,
-            (
-              SELECT COUNT(*) 
-              FROM registrations r 
-              WHERE (r.category_id = c.id OR r.category_id = c.name) 
-                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
-            ) AS actual_count
-          FROM categories c 
-          ORDER BY sort_order ASC, id ASC
+            COALESCE(r.actual_count, 0) AS actual_count
+          FROM categories c
+          LEFT JOIN (
+            SELECT category_id, COUNT(*) AS actual_count
+            FROM registrations
+            WHERE status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            GROUP BY category_id
+          ) r ON (r.category_id = c.id)
+          ORDER BY c.sort_order ASC, c.id ASC
         `);
-        return rows.map((r: any) => ({
+        const result = rows.map((r: any) => ({
           id: r.id,
           name: r.name,
           badgeTitle: r.badge_title,
@@ -816,6 +814,8 @@ export const Database = {
           prizes: typeof r.prizes_json === 'string' ? JSON.parse(r.prizes_json) : (r.prizes_json || []),
           rules: typeof r.rules_json === 'string' ? JSON.parse(r.rules_json) : (r.rules_json || []),
         }));
+        categoriesCache = { data: result, timestamp: Date.now() };
+        return result;
       } catch (err) {
         console.error('Error getting categories from MySQL:', err);
       }
@@ -832,7 +832,10 @@ export const Database = {
     });
   },
 
-  async getCategoryQuotas(): Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>> {
+  async getCategoryQuotas(forceRefresh = false): Promise<Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>> {
+    if (!forceRefresh && categoryQuotasCache && Date.now() - categoryQuotasCache.timestamp < 30000) {
+      return categoryQuotasCache.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
@@ -841,20 +844,24 @@ export const Database = {
             c.id, 
             c.max_teams, 
             c.registered_teams_count,
-            (
-              SELECT COUNT(*) 
-              FROM registrations r 
-              WHERE (r.category_id = c.id OR r.category_id = c.name) 
-                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
-            ) AS actual_count
+            COALESCE(r.actual_count, 0) AS actual_count
           FROM categories c
+          LEFT JOIN (
+            SELECT category_id, COUNT(*) AS actual_count
+            FROM registrations
+            WHERE status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            GROUP BY category_id
+          ) r ON (r.category_id = c.id)
+          ORDER BY c.sort_order ASC, c.id ASC
         `);
         if (Array.isArray(rows)) {
-          return rows.map((r: any) => ({
+          const result = rows.map((r: any) => ({
             id: r.id,
             maxTeams: Number(r.max_teams || 0),
             registeredTeamsCount: Number(r.actual_count !== undefined && r.actual_count !== null ? r.actual_count : (r.registered_teams_count || 0)),
           }));
+          categoryQuotasCache = { data: result, timestamp: Date.now() };
+          return result;
         }
       } catch (err) {
         console.error('Error getting category quotas from MySQL:', err);
@@ -1010,27 +1017,18 @@ export const Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query(
-          'SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status, documents_json FROM registrations ORDER BY created_at DESC'
+          'SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status FROM registrations ORDER BY created_at DESC'
         );
         if (Array.isArray(rows)) {
-          return rows.map((r: any) => {
-            let docLogo: string | null = null;
-            if (r.documents_json) {
-              try {
-                const parsed = typeof r.documents_json === 'string' ? JSON.parse(r.documents_json) : r.documents_json;
-                docLogo = parsed?.logoTim?.url || parsed?.logoTim?.fileData || null;
-              } catch {}
-            }
-            return {
-              id: r.id,
-              regCode: r.reg_code,
-              category: r.category_id,
-              teamName: r.team_name,
-              teamLogo: r.team_logo || docLogo || null,
-              institutionName: r.institution_name,
-              status: r.status,
-            };
-          });
+          return rows.map((r: any) => ({
+            id: r.id,
+            regCode: r.reg_code,
+            category: r.category_id,
+            teamName: r.team_name,
+            teamLogo: r.team_logo || null,
+            institutionName: r.institution_name,
+            status: r.status,
+          }));
         }
       } catch (err) {
         console.error('Error fetching public registrations from MySQL:', err);
@@ -1041,7 +1039,7 @@ export const Database = {
       regCode: r.regCode,
       category: r.category,
       teamName: r.teamName,
-      teamLogo: r.teamLogo || (r.documents as any)?.logoTim?.url || (r.documents as any)?.logoTim?.fileData || (r.documents as any)?.teamLogo || null,
+      teamLogo: r.teamLogo || null,
       institutionName: r.institutionName,
       status: r.status,
     }));
@@ -1439,13 +1437,16 @@ export const Database = {
   },
 
   // Matches
-  async getMatches(): Promise<MatchItem[]> {
+  async getMatches(forceRefresh = false): Promise<MatchItem[]> {
+    if (!forceRefresh && matchesCache && Date.now() - matchesCache.timestamp < 15000) {
+      return matchesCache.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows]: any = await pool.query('SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC');
         if (Array.isArray(rows)) {
-          return rows.map((r: any) => ({
+          const result = rows.map((r: any) => ({
             id: r.id,
             matchNumber: r.match_number,
             category: r.category_id,
@@ -1476,6 +1477,8 @@ export const Database = {
             nextMatchId: r.next_match_id || undefined,
             nextMatchSlot: r.next_match_slot || undefined,
           }));
+          matchesCache = { data: result, timestamp: Date.now() };
+          return result;
         }
       } catch (err) {
         console.error('Error fetching matches from MySQL:', err);
@@ -1485,6 +1488,7 @@ export const Database = {
   },
 
   async saveMatch(match: MatchItem): Promise<MatchItem> {
+    invalidateMatchesCache();
     await ensureDbConnected();
     const idx = memStore.matches.findIndex(m => m.id === match.id);
     if (idx >= 0) {
@@ -1528,6 +1532,7 @@ export const Database = {
   },
 
   async deleteMatch(matchId: string): Promise<boolean> {
+    invalidateMatchesCache();
     await ensureDbConnected();
     const targetMatch = memStore.matches.find(m => m.id === matchId);
     const cat = targetMatch?.category;
@@ -1552,6 +1557,7 @@ export const Database = {
   },
 
   async replaceCategoryMatches(category: string, newMatches: MatchItem[]): Promise<MatchItem[]> {
+    invalidateMatchesCache();
     await ensureDbConnected();
     // 1. Update in-memory store
     memStore.matches = memStore.matches.filter(m => m.category !== category).concat(newMatches);
@@ -1586,6 +1592,7 @@ export const Database = {
   },
 
   async saveMatchesBatch(matchesToSave: MatchItem[]): Promise<MatchItem[]> {
+    invalidateMatchesCache();
     await ensureDbConnected();
     const categoriesAffected = new Set<string>();
     for (const match of matchesToSave) {
@@ -2238,7 +2245,12 @@ export const Database = {
   },
 
   // 12. Players (table_players)
-  async getPlayers(category?: string, teamName?: string): Promise<PlayerItem[]> {
+  async getPlayers(category?: string, teamName?: string, forceRefresh = false): Promise<PlayerItem[]> {
+    const cacheKey = `${category || 'all'}:::${teamName || 'all'}`;
+    const cached = playersCache.get(cacheKey);
+    if (!forceRefresh && cached && Date.now() - cached.timestamp < 30000) {
+      return cached.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
@@ -2255,7 +2267,7 @@ export const Database = {
         query += ' ORDER BY team_name ASC, jersey_number ASC';
         const [rows]: any = await pool.query(query, params);
         if (Array.isArray(rows)) {
-          return rows.map((r: any) => ({
+          const result = rows.map((r: any) => ({
             id: r.id,
             teamId: r.team_id || undefined,
             teamName: r.team_name,
@@ -2270,6 +2282,8 @@ export const Database = {
             createdAt: r.created_at,
             updatedAt: r.updated_at,
           }));
+          playersCache.set(cacheKey, { data: result, timestamp: Date.now() });
+          return result;
         }
       } catch (err) {
         console.error('Error fetching players from MySQL:', err);
@@ -2282,6 +2296,7 @@ export const Database = {
   },
 
   async savePlayer(player: PlayerItem): Promise<PlayerItem> {
+    invalidatePlayersCache();
     await ensureDbConnected();
 
     // Sanitize every field with defaults to guarantee NO undefined is passed to mysql2
@@ -2362,6 +2377,7 @@ export const Database = {
   },
 
   async savePlayersBatch(players: PlayerItem[]): Promise<PlayerItem[]> {
+    invalidatePlayersCache();
     await ensureDbConnected();
     const sanitizedBatch: PlayerItem[] = [];
 
@@ -2413,6 +2429,7 @@ export const Database = {
   },
 
   async deletePlayer(id: string): Promise<boolean> {
+    invalidatePlayersCache();
     await ensureDbConnected();
     memStore.players = memStore.players.filter(p => p.id !== id);
     persistLocalStore();
@@ -2499,12 +2516,11 @@ export const Database = {
     };
   },
 
-  // 14. Real-time Standings Calculator
+  // 14. Real-time Standings Calculator (Operates purely on matches & groups without touching registrations table)
   async calculateStandings(category?: string): Promise<Record<string, TeamStandingItem[]>> {
     await ensureDbConnected();
     const allMatches = await this.getMatches();
     const allGroups = await this.getGroupStages(category);
-    const regs = await this.getRegistrations();
 
     const result: Record<string, TeamStandingItem[]> = {};
 
@@ -2532,33 +2548,11 @@ export const Database = {
       // Collect team names
       const teamMap = new Map<string, TeamStandingItem>();
 
-      const findTeamReg = (name: string, institution?: string) => {
-        const normName = (name || '').trim().toLowerCase();
-        const normInst = (institution || '').trim().toLowerCase();
-        if (!normName && !normInst) return undefined;
-        return (
-          regs.find(r => 
-            (cat ? r.category === cat : true) &&
-            ((normName && r.teamName?.trim().toLowerCase() === normName) ||
-             (normName && r.institutionName?.trim().toLowerCase() === normName) ||
-             (normInst && r.teamName?.trim().toLowerCase() === normInst) ||
-             (normInst && r.institutionName?.trim().toLowerCase() === normInst))
-          ) ||
-          regs.find(r => 
-            (normName && r.teamName?.trim().toLowerCase() === normName) ||
-            (normName && r.institutionName?.trim().toLowerCase() === normName) ||
-            (normInst && r.teamName?.trim().toLowerCase() === normInst) ||
-            (normInst && r.institutionName?.trim().toLowerCase() === normInst)
-          )
-        );
-      };
-
       // Seed teams from group definitions
       if (grpObj && Array.isArray(grpObj.teams)) {
         for (const t of grpObj.teams) {
-          const reg = findTeamReg(t.name, t.institution);
-          const resolvedLogo = reg?.teamLogo || (reg?.documents as any)?.logoTim?.url || (reg?.documents as any)?.logoTim?.fileData || t.logo || '';
-          const resolvedInst = t.institution || reg?.institutionName || '';
+          const resolvedLogo = t.logo || '';
+          const resolvedInst = t.institution || '';
 
           if (!teamMap.has(t.name)) {
             teamMap.set(t.name, {
@@ -2579,7 +2573,7 @@ export const Database = {
             });
           } else {
             const item = teamMap.get(t.name)!;
-            if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+            if (resolvedLogo && !item.teamLogo) {
               item.teamLogo = resolvedLogo;
             }
             if (resolvedInst && !item.institution) {
@@ -2592,9 +2586,8 @@ export const Database = {
       // Add teams from matches
       for (const m of grpMatches) {
         for (const team of [m.teamA, m.teamB]) {
-          const reg = findTeamReg(team.name, team.institution);
-          const resolvedLogo = reg?.teamLogo || (reg?.documents as any)?.logoTim?.url || (reg?.documents as any)?.logoTim?.fileData || team.logo || '';
-          const resolvedInst = team.institution || reg?.institutionName || '';
+          const resolvedLogo = team.logo || '';
+          const resolvedInst = team.institution || '';
 
           if (!teamMap.has(team.name)) {
             teamMap.set(team.name, {
@@ -2615,7 +2608,7 @@ export const Database = {
             });
           } else {
             const item = teamMap.get(team.name)!;
-            if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+            if (resolvedLogo && !item.teamLogo) {
               item.teamLogo = resolvedLogo;
             }
             if (resolvedInst && !item.institution) {

@@ -217,6 +217,43 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
     handleManualRefresh();
   }, []);
 
+  // Smart Visibility-Aware Polling:
+  // - Stops immediately when user navigates away (component unmount)
+  // - Pauses when tab is hidden (document.visibilityState === 'hidden')
+  // - Adaptive: 15s interval when matches are LIVE, 45s when idle
+  useEffect(() => {
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const executePoll = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      try {
+        await refreshStandings();
+      } catch (err) {
+        // Silently ignore background poll errors
+      }
+    };
+
+    const hasLiveMatch = matches.some(m => m.status === 'LIVE');
+    const intervalMs = hasLiveMatch ? 15000 : 45000;
+
+    pollTimer = setInterval(executePoll, intervalMs);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        executePoll();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [matches, refreshStandings]);
+
   // 5-second loading timeout watchdog: if initial loading or syncing takes > 5s, turn off skeleton
   useEffect(() => {
     if (isInitialLoading || isSyncingWithServer || isRetrying) {

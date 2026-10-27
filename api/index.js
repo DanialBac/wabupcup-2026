@@ -335,6 +335,16 @@ var MemoryStore = class {
   }
 };
 var memStore = new MemoryStore();
+var categoriesCache = null;
+var categoryQuotasCache = null;
+var matchesCache = null;
+var playersCache = /* @__PURE__ */ new Map();
+function invalidateMatchesCache() {
+  matchesCache = null;
+}
+function invalidatePlayersCache() {
+  playersCache.clear();
+}
 function persistLocalStore() {
 }
 var isMySqlConnected = false;
@@ -385,35 +395,13 @@ async function initDatabaseConnection() {
     return false;
   }
 }
+var isSchemaChecked = false;
 async function autoMigrateTables() {
-  if (!pool || !isMySqlConnected) return;
+  if (!pool || !isMySqlConnected || isSchemaChecked) return;
   try {
     await runFullSchemaInit();
     await ensureMediaColumns(pool);
-    try {
-      await pool.query("ALTER TABLE admin_users MODIFY COLUMN role VARCHAR(64) NOT NULL DEFAULT 'PANITIA_INTI'");
-    } catch (colErr) {
-    }
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN category_id VARCHAR(32) NOT NULL AFTER id");
-    } catch {
-    }
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN position INT NOT NULL DEFAULT 0 AFTER team_logo");
-    } catch {
-    }
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN team_id VARCHAR(64) NULL AFTER team_name");
-    } catch {
-    }
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN institution_name VARCHAR(200) NULL AFTER team_id");
-    } catch {
-    }
-    try {
-      await pool.query("ALTER TABLE table_standings ADD COLUMN team_logo LONGTEXT NULL AFTER institution_name");
-    } catch {
-    }
+    isSchemaChecked = true;
   } catch (err) {
     console.error("[MySQL] Error checking tables:", err);
   }
@@ -477,10 +465,6 @@ async function runFullSchemaInit() {
   }
   try {
     await pool.query("SET FOREIGN_KEY_CHECKS = 0;");
-  } catch {
-  }
-  try {
-    await pool.query("ALTER TABLE players DROP FOREIGN KEY fk_players_registration;");
   } catch {
   }
   const queries = [
@@ -932,23 +916,28 @@ var Database = {
     }
     return updated;
   },
+  // Memory caches to drastically reduce TiDB Cloud RU usage
   // Categories
-  async getCategories() {
+  async getCategories(forceRefresh = false) {
+    if (!forceRefresh && categoriesCache && Date.now() - categoriesCache.timestamp < 3e4) {
+      return categoriesCache.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows] = await pool.query(`
           SELECT c.*,
-            (
-              SELECT COUNT(*) 
-              FROM registrations r 
-              WHERE (r.category_id = c.id OR r.category_id = c.name) 
-                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
-            ) AS actual_count
-          FROM categories c 
-          ORDER BY sort_order ASC, id ASC
+            COALESCE(r.actual_count, 0) AS actual_count
+          FROM categories c
+          LEFT JOIN (
+            SELECT category_id, COUNT(*) AS actual_count
+            FROM registrations
+            WHERE status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            GROUP BY category_id
+          ) r ON (r.category_id = c.id)
+          ORDER BY c.sort_order ASC, c.id ASC
         `);
-        return rows.map((r) => ({
+        const result = rows.map((r) => ({
           id: r.id,
           name: r.name,
           badgeTitle: r.badge_title,
@@ -961,6 +950,8 @@ var Database = {
           prizes: typeof r.prizes_json === "string" ? JSON.parse(r.prizes_json) : r.prizes_json || [],
           rules: typeof r.rules_json === "string" ? JSON.parse(r.rules_json) : r.rules_json || []
         }));
+        categoriesCache = { data: result, timestamp: Date.now() };
+        return result;
       } catch (err) {
         console.error("Error getting categories from MySQL:", err);
       }
@@ -975,7 +966,10 @@ var Database = {
       };
     });
   },
-  async getCategoryQuotas() {
+  async getCategoryQuotas(forceRefresh = false) {
+    if (!forceRefresh && categoryQuotasCache && Date.now() - categoryQuotasCache.timestamp < 3e4) {
+      return categoryQuotasCache.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
@@ -984,20 +978,24 @@ var Database = {
             c.id, 
             c.max_teams, 
             c.registered_teams_count,
-            (
-              SELECT COUNT(*) 
-              FROM registrations r 
-              WHERE (r.category_id = c.id OR r.category_id = c.name) 
-                AND r.status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
-            ) AS actual_count
+            COALESCE(r.actual_count, 0) AS actual_count
           FROM categories c
+          LEFT JOIN (
+            SELECT category_id, COUNT(*) AS actual_count
+            FROM registrations
+            WHERE status IN ('PENDING_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED')
+            GROUP BY category_id
+          ) r ON (r.category_id = c.id)
+          ORDER BY c.sort_order ASC, c.id ASC
         `);
         if (Array.isArray(rows)) {
-          return rows.map((r) => ({
+          const result = rows.map((r) => ({
             id: r.id,
             maxTeams: Number(r.max_teams || 0),
             registeredTeamsCount: Number(r.actual_count !== void 0 && r.actual_count !== null ? r.actual_count : r.registered_teams_count || 0)
           }));
+          categoryQuotasCache = { data: result, timestamp: Date.now() };
+          return result;
         }
       } catch (err) {
         console.error("Error getting category quotas from MySQL:", err);
@@ -1175,28 +1173,18 @@ var Database = {
     if (pool && isMySqlConnected) {
       try {
         const [rows] = await pool.query(
-          "SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status, documents_json FROM registrations ORDER BY created_at DESC"
+          "SELECT id, reg_code, category_id, team_name, team_logo, institution_name, status FROM registrations ORDER BY created_at DESC"
         );
         if (Array.isArray(rows)) {
-          return rows.map((r) => {
-            let docLogo = null;
-            if (r.documents_json) {
-              try {
-                const parsed = typeof r.documents_json === "string" ? JSON.parse(r.documents_json) : r.documents_json;
-                docLogo = parsed?.logoTim?.url || parsed?.logoTim?.fileData || null;
-              } catch {
-              }
-            }
-            return {
-              id: r.id,
-              regCode: r.reg_code,
-              category: r.category_id,
-              teamName: r.team_name,
-              teamLogo: r.team_logo || docLogo || null,
-              institutionName: r.institution_name,
-              status: r.status
-            };
-          });
+          return rows.map((r) => ({
+            id: r.id,
+            regCode: r.reg_code,
+            category: r.category_id,
+            teamName: r.team_name,
+            teamLogo: r.team_logo || null,
+            institutionName: r.institution_name,
+            status: r.status
+          }));
         }
       } catch (err) {
         console.error("Error fetching public registrations from MySQL:", err);
@@ -1207,7 +1195,7 @@ var Database = {
       regCode: r.regCode,
       category: r.category,
       teamName: r.teamName,
-      teamLogo: r.teamLogo || r.documents?.logoTim?.url || r.documents?.logoTim?.fileData || r.documents?.teamLogo || null,
+      teamLogo: r.teamLogo || null,
       institutionName: r.institutionName,
       status: r.status
     }));
@@ -1590,13 +1578,16 @@ var Database = {
     return true;
   },
   // Matches
-  async getMatches() {
+  async getMatches(forceRefresh = false) {
+    if (!forceRefresh && matchesCache && Date.now() - matchesCache.timestamp < 15e3) {
+      return matchesCache.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
         const [rows] = await pool.query("SELECT * FROM matches ORDER BY match_date ASC, match_time ASC, match_number ASC");
         if (Array.isArray(rows)) {
-          return rows.map((r) => ({
+          const result = rows.map((r) => ({
             id: r.id,
             matchNumber: r.match_number,
             category: r.category_id,
@@ -1627,6 +1618,8 @@ var Database = {
             nextMatchId: r.next_match_id || void 0,
             nextMatchSlot: r.next_match_slot || void 0
           }));
+          matchesCache = { data: result, timestamp: Date.now() };
+          return result;
         }
       } catch (err) {
         console.error("Error fetching matches from MySQL:", err);
@@ -1635,6 +1628,7 @@ var Database = {
     return memStore.matches;
   },
   async saveMatch(match) {
+    invalidateMatchesCache();
     await ensureDbConnected();
     const idx = memStore.matches.findIndex((m) => m.id === match.id);
     if (idx >= 0) {
@@ -1718,6 +1712,7 @@ var Database = {
     return match;
   },
   async deleteMatch(matchId) {
+    invalidateMatchesCache();
     await ensureDbConnected();
     const targetMatch = memStore.matches.find((m) => m.id === matchId);
     const cat = targetMatch?.category;
@@ -1739,6 +1734,7 @@ var Database = {
     return true;
   },
   async replaceCategoryMatches(category, newMatches) {
+    invalidateMatchesCache();
     await ensureDbConnected();
     memStore.matches = memStore.matches.filter((m) => m.category !== category).concat(newMatches);
     persistLocalStore();
@@ -1791,6 +1787,7 @@ var Database = {
     return newMatches;
   },
   async saveMatchesBatch(matchesToSave) {
+    invalidateMatchesCache();
     await ensureDbConnected();
     const categoriesAffected = /* @__PURE__ */ new Set();
     for (const match of matchesToSave) {
@@ -2501,7 +2498,12 @@ var Database = {
     return true;
   },
   // 12. Players (table_players)
-  async getPlayers(category, teamName) {
+  async getPlayers(category, teamName, forceRefresh = false) {
+    const cacheKey = `${category || "all"}:::${teamName || "all"}`;
+    const cached = playersCache.get(cacheKey);
+    if (!forceRefresh && cached && Date.now() - cached.timestamp < 3e4) {
+      return cached.data;
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
@@ -2518,7 +2520,7 @@ var Database = {
         query += " ORDER BY team_name ASC, jersey_number ASC";
         const [rows] = await pool.query(query, params);
         if (Array.isArray(rows)) {
-          return rows.map((r) => ({
+          const result = rows.map((r) => ({
             id: r.id,
             teamId: r.team_id || void 0,
             teamName: r.team_name,
@@ -2533,6 +2535,8 @@ var Database = {
             createdAt: r.created_at,
             updatedAt: r.updated_at
           }));
+          playersCache.set(cacheKey, { data: result, timestamp: Date.now() });
+          return result;
         }
       } catch (err) {
         console.error("Error fetching players from MySQL:", err);
@@ -2544,6 +2548,7 @@ var Database = {
     return list;
   },
   async savePlayer(player) {
+    invalidatePlayersCache();
     await ensureDbConnected();
     const sanitizedPlayer = {
       id: player.id && String(player.id).trim() !== "" ? String(player.id).trim() : `ply-${Date.now()}-${Math.floor(Math.random() * 1e3)}`,
@@ -2655,6 +2660,7 @@ var Database = {
     return sanitizedPlayer;
   },
   async savePlayersBatch(players) {
+    invalidatePlayersCache();
     await ensureDbConnected();
     const sanitizedBatch = [];
     for (const p of players) {
@@ -2721,6 +2727,7 @@ var Database = {
     return sanitizedBatch;
   },
   async deletePlayer(id) {
+    invalidatePlayersCache();
     await ensureDbConnected();
     memStore.players = memStore.players.filter((p) => p.id !== id);
     persistLocalStore();
@@ -2801,12 +2808,11 @@ var Database = {
       message: `Grup, jadwal pertandingan, dan klasemen untuk kategori ${category} berhasil dikosongkan.`
     };
   },
-  // 14. Real-time Standings Calculator
+  // 14. Real-time Standings Calculator (Operates purely on matches & groups without touching registrations table)
   async calculateStandings(category) {
     await ensureDbConnected();
     const allMatches = await this.getMatches();
     const allGroups = await this.getGroupStages(category);
-    const regs = await this.getRegistrations();
     const result = {};
     const targetMatches = allMatches.filter((m) => {
       if (category && m.category !== category) return false;
@@ -2826,21 +2832,10 @@ var Database = {
       const grpMatches = targetMatches.filter((m) => m.category === cat && m.group === grpName);
       const grpObj = allGroups.find((g) => g.category === cat && g.groupName === grpName);
       const teamMap = /* @__PURE__ */ new Map();
-      const findTeamReg = (name, institution) => {
-        const normName = (name || "").trim().toLowerCase();
-        const normInst = (institution || "").trim().toLowerCase();
-        if (!normName && !normInst) return void 0;
-        return regs.find(
-          (r) => (cat ? r.category === cat : true) && (normName && r.teamName?.trim().toLowerCase() === normName || normName && r.institutionName?.trim().toLowerCase() === normName || normInst && r.teamName?.trim().toLowerCase() === normInst || normInst && r.institutionName?.trim().toLowerCase() === normInst)
-        ) || regs.find(
-          (r) => normName && r.teamName?.trim().toLowerCase() === normName || normName && r.institutionName?.trim().toLowerCase() === normName || normInst && r.teamName?.trim().toLowerCase() === normInst || normInst && r.institutionName?.trim().toLowerCase() === normInst
-        );
-      };
       if (grpObj && Array.isArray(grpObj.teams)) {
         for (const t of grpObj.teams) {
-          const reg = findTeamReg(t.name, t.institution);
-          const resolvedLogo = reg?.teamLogo || reg?.documents?.logoTim?.url || reg?.documents?.logoTim?.fileData || t.logo || "";
-          const resolvedInst = t.institution || reg?.institutionName || "";
+          const resolvedLogo = t.logo || "";
+          const resolvedInst = t.institution || "";
           if (!teamMap.has(t.name)) {
             teamMap.set(t.name, {
               position: 0,
@@ -2860,7 +2855,7 @@ var Database = {
             });
           } else {
             const item = teamMap.get(t.name);
-            if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+            if (resolvedLogo && !item.teamLogo) {
               item.teamLogo = resolvedLogo;
             }
             if (resolvedInst && !item.institution) {
@@ -2871,9 +2866,8 @@ var Database = {
       }
       for (const m of grpMatches) {
         for (const team of [m.teamA, m.teamB]) {
-          const reg = findTeamReg(team.name, team.institution);
-          const resolvedLogo = reg?.teamLogo || reg?.documents?.logoTim?.url || reg?.documents?.logoTim?.fileData || team.logo || "";
-          const resolvedInst = team.institution || reg?.institutionName || "";
+          const resolvedLogo = team.logo || "";
+          const resolvedInst = team.institution || "";
           if (!teamMap.has(team.name)) {
             teamMap.set(team.name, {
               position: 0,
@@ -2893,7 +2887,7 @@ var Database = {
             });
           } else {
             const item = teamMap.get(team.name);
-            if (resolvedLogo && (!item.teamLogo || item.teamLogo !== resolvedLogo)) {
+            if (resolvedLogo && !item.teamLogo) {
               item.teamLogo = resolvedLogo;
             }
             if (resolvedInst && !item.institution) {
@@ -4120,10 +4114,13 @@ var cachePublic = (req, res, next) => {
   res.setHeader("Cache-Control", "public, s-maxage=300");
   next();
 };
-var noCache = (req, res, next) => {
-  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
+var cdnCache = (sMaxAge = 10, swr = 30) => (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    res.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    return next();
+  }
+  res.setHeader("Cache-Control", `public, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`);
   next();
 };
 var apiRouter = Router4();
@@ -4296,11 +4293,11 @@ apiRouter.put("/config", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/categories", noCache, async (req, res) => {
+apiRouter.get("/categories", cdnCache(30, 60), async (req, res) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
-apiRouter.get("/categories/quota", noCache, async (_req, res) => {
+apiRouter.get("/categories/quota", cdnCache(15, 30), async (_req, res) => {
   try {
     const quotas = await Database.getCategoryQuotas();
     res.json(quotas);
@@ -4376,7 +4373,7 @@ apiRouter.delete("/categories/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/registrations/public", noCache, async (req, res) => {
+apiRouter.get("/registrations/public", cdnCache(20, 40), async (req, res) => {
   try {
     const publicData = await Database.getPublicRegistrations();
     res.json(publicData);
@@ -4569,8 +4566,7 @@ apiRouter.put("/registrations/:id", requireAdmin, async (req, res) => {
     if (!id) {
       return res.status(400).json({ error: "ID pendaftaran diperlukan." });
     }
-    const existingList = await Database.getRegistrations();
-    const current = existingList.find((r) => r.id === id);
+    const current = await Database.getRegistrationById(id);
     if (!current) {
       return res.status(404).json({ error: "Data pendaftaran tidak ditemukan." });
     }
@@ -4651,8 +4647,7 @@ apiRouter.patch("/registrations/:id/payment", requireAdmin, async (req, res) => 
 apiRouter.delete("/registrations/:id", requireAdmin, async (req, res) => {
   try {
     const regId = req.params.id;
-    const registrations = await Database.getRegistrations();
-    const reg = registrations.find((r) => r.id === regId);
+    const reg = await Database.getRegistrationById(regId);
     if (!reg) {
       return res.status(404).json({ error: "Registration not found" });
     }
@@ -4682,7 +4677,7 @@ apiRouter.delete("/registrations/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/matches", noCache, async (req, res) => {
+apiRouter.get("/matches", cdnCache(10, 30), async (req, res) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
@@ -4977,7 +4972,7 @@ apiRouter.get("/auth/me", async (req, res) => {
     return res.status(500).json({ authenticated: false, success: false, error: "Server error" });
   }
 });
-apiRouter.get("/players", noCache, async (req, res) => {
+apiRouter.get("/players", cdnCache(15, 30), async (req, res) => {
   try {
     const { category, teamName } = req.query;
     const players = await Database.getPlayers(
@@ -5040,7 +5035,7 @@ apiRouter.delete("/players/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal menghapus pemain" });
   }
 });
-apiRouter.get("/players/top-scorers", noCache, async (req, res) => {
+apiRouter.get("/players/top-scorers", cdnCache(15, 30), async (req, res) => {
   try {
     const { category } = req.query;
     const players = await Database.getPlayers(category);
@@ -5050,7 +5045,7 @@ apiRouter.get("/players/top-scorers", noCache, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/groups", noCache, async (req, res) => {
+apiRouter.get("/groups", cdnCache(15, 30), async (req, res) => {
   try {
     const { category } = req.query;
     const groups = await Database.getGroupStages(category);
@@ -5095,7 +5090,7 @@ apiRouter.post("/groups/reset", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal mereset grup dan jadwal" });
   }
 });
-apiRouter.get("/standings", noCache, async (req, res) => {
+apiRouter.get("/standings", cdnCache(10, 30), async (req, res) => {
   try {
     const { category, source } = req.query;
     if (source === "db") {

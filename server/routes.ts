@@ -73,6 +73,16 @@ const cachePublic = (req: Request, res: Response, next: any) => {
   next();
 };
 
+const cdnCache = (sMaxAge = 10, swr = 30) => (req: Request, res: Response, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return next();
+  }
+  res.setHeader('Cache-Control', `public, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`);
+  next();
+};
+
 const noCache = (req: Request, res: Response, next: any) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -276,12 +286,12 @@ apiRouter.put('/config', requireAdmin, async (req: Request, res: Response) => {
 });
 
 // 6. Categories
-apiRouter.get('/categories', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/categories', cdnCache(30, 60), async (req: Request, res: Response) => {
   const categories = await Database.getCategories();
   res.json(categories);
 });
 
-apiRouter.get('/categories/quota', noCache, async (_req: Request, res: Response) => {
+apiRouter.get('/categories/quota', cdnCache(15, 30), async (_req: Request, res: Response) => {
   try {
     const quotas = await Database.getCategoryQuotas();
     res.json(quotas);
@@ -370,7 +380,7 @@ apiRouter.delete('/categories/:id', requireAdmin, async (req: Request, res: Resp
 });
 
 // 7. Registrations
-apiRouter.get('/registrations/public', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/registrations/public', cdnCache(20, 40), async (req: Request, res: Response) => {
   try {
     const publicData = await Database.getPublicRegistrations();
     res.json(publicData);
@@ -579,8 +589,7 @@ apiRouter.put('/registrations/:id', requireAdmin, async (req: Request, res: Resp
       return res.status(400).json({ error: 'ID pendaftaran diperlukan.' });
     }
 
-    const existingList = await Database.getRegistrations();
-    const current = existingList.find(r => r.id === id);
+    const current = await Database.getRegistrationById(id);
     if (!current) {
       return res.status(404).json({ error: 'Data pendaftaran tidak ditemukan.' });
     }
@@ -670,8 +679,7 @@ apiRouter.delete('/registrations/:id', requireAdmin, async (req: Request, res: R
   try {
     const regId = req.params.id;
     // We need to find the registration first to get its category_id and status
-    const registrations = await Database.getRegistrations();
-    const reg = registrations.find(r => r.id === regId);
+    const reg = await Database.getRegistrationById(regId);
     
     if (!reg) {
       return res.status(404).json({ error: 'Registration not found' });
@@ -710,7 +718,7 @@ apiRouter.delete('/registrations/:id', requireAdmin, async (req: Request, res: R
 });
 
 // 8. Matches & Live Score
-apiRouter.get('/matches', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/matches', cdnCache(10, 30), async (req: Request, res: Response) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
@@ -1056,7 +1064,7 @@ apiRouter.get('/auth/me', async (req: Request, res: Response) => {
 });
 
 // 11. Players Management & Excel Import (table_players)
-apiRouter.get('/players', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/players', cdnCache(15, 30), async (req: Request, res: Response) => {
   try {
     const { category, teamName } = req.query;
     const players = await Database.getPlayers(
@@ -1124,7 +1132,7 @@ apiRouter.delete('/players/:id', requireAdmin, async (req: Request, res: Respons
   }
 });
 
-apiRouter.get('/players/top-scorers', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/players/top-scorers', cdnCache(15, 30), async (req: Request, res: Response) => {
   try {
     const { category } = req.query;
     const players = await Database.getPlayers(category as string | undefined);
@@ -1138,7 +1146,7 @@ apiRouter.get('/players/top-scorers', noCache, async (req: Request, res: Respons
 });
 
 // 12. Groups & Group Stages
-apiRouter.get('/groups', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/groups', cdnCache(15, 30), async (req: Request, res: Response) => {
   try {
     const { category } = req.query;
     const groups = await Database.getGroupStages(category as string | undefined);
@@ -1188,7 +1196,7 @@ apiRouter.post('/groups/reset', requireAdmin, async (req: Request, res: Response
 });
 
 // 13. Standings (Klasemen Real-time & Sinkronisasi table_standings)
-apiRouter.get('/standings', noCache, async (req: Request, res: Response) => {
+apiRouter.get('/standings', cdnCache(10, 30), async (req: Request, res: Response) => {
   try {
     const { category, source } = req.query;
     if (source === 'db') {

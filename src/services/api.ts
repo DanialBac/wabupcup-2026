@@ -272,8 +272,9 @@ export const ApiService = {
   },
 
   // Matches
-  async getMatches(): Promise<MatchItem[] | null> {
-    return safeJsonFetch<MatchItem[]>(`${API_BASE}/matches?_t=${Date.now()}`);
+  async getMatches(forceRefresh = false): Promise<MatchItem[] | null> {
+    const url = forceRefresh ? `${API_BASE}/matches?_t=${Date.now()}` : `${API_BASE}/matches`;
+    return safeJsonFetch<MatchItem[]>(url);
   },
 
   async saveMatch(match: MatchItem): Promise<MatchItem | null> {
@@ -439,12 +440,14 @@ export const ApiService = {
   },
 
   // Players (table_players)
-  async getPlayers(category?: string, teamName?: string): Promise<PlayerItem[]> {
+  async getPlayers(category?: string, teamName?: string, forceRefresh = false): Promise<PlayerItem[]> {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     if (teamName) params.append('teamName', teamName);
-    params.append('_t', String(Date.now()));
-    const res = await safeJsonFetch<PlayerItem[]>(`${API_BASE}/players?${params.toString()}`);
+    if (forceRefresh) params.append('_t', String(Date.now()));
+    const queryString = params.toString();
+    const url = queryString ? `${API_BASE}/players?${queryString}` : `${API_BASE}/players`;
+    const res = await safeJsonFetch<PlayerItem[]>(url);
     return Array.isArray(res) ? res : [];
   },
 
@@ -480,20 +483,24 @@ export const ApiService = {
     }
   },
 
-  async getTopScorers(category?: string): Promise<PlayerItem[]> {
+  async getTopScorers(category?: string, forceRefresh = false): Promise<PlayerItem[]> {
     const query = new URLSearchParams();
     if (category) query.append('category', category);
-    query.append('_t', String(Date.now()));
-    const res = await safeJsonFetch<PlayerItem[]>(`${API_BASE}/players/top-scorers?${query.toString()}`);
+    if (forceRefresh) query.append('_t', String(Date.now()));
+    const queryString = query.toString();
+    const url = queryString ? `${API_BASE}/players/top-scorers?${queryString}` : `${API_BASE}/players/top-scorers`;
+    const res = await safeJsonFetch<PlayerItem[]>(url);
     return Array.isArray(res) ? res : [];
   },
 
   // Groups
-  async getGroups(category?: string): Promise<GroupStageItem[]> {
+  async getGroups(category?: string, forceRefresh = false): Promise<GroupStageItem[]> {
     const query = new URLSearchParams();
     if (category) query.append('category', category);
-    query.append('_t', String(Date.now()));
-    const res = await safeJsonFetch<GroupStageItem[]>(`${API_BASE}/groups?${query.toString()}`);
+    if (forceRefresh) query.append('_t', String(Date.now()));
+    const queryString = query.toString();
+    const url = queryString ? `${API_BASE}/groups?${queryString}` : `${API_BASE}/groups`;
+    const res = await safeJsonFetch<GroupStageItem[]>(url);
     return Array.isArray(res) ? res : [];
   },
 
@@ -527,12 +534,14 @@ export const ApiService = {
   },
 
   // Standings
-  async getStandings(category?: string, source?: string): Promise<Record<string, TeamStandingItem[]>> {
+  async getStandings(category?: string, source?: string, forceRefresh = false): Promise<Record<string, TeamStandingItem[]>> {
     const query = new URLSearchParams();
     if (category) query.append('category', category);
     if (source) query.append('source', source);
-    query.append('_t', String(Date.now()));
-    const res = await safeJsonFetch<Record<string, TeamStandingItem[]>>(`${API_BASE}/standings?${query.toString()}`);
+    if (forceRefresh) query.append('_t', String(Date.now()));
+    const queryString = query.toString();
+    const url = queryString ? `${API_BASE}/standings?${queryString}` : `${API_BASE}/standings`;
+    const res = await safeJsonFetch<Record<string, TeamStandingItem[]>>(url);
     return res || {};
   },
 };
