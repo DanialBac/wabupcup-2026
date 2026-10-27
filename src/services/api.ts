@@ -544,5 +544,17 @@ export const ApiService = {
     const res = await safeJsonFetch<Record<string, TeamStandingItem[]>>(url);
     return res || {};
   },
+
+  async recalculateStandings(category?: string): Promise<Record<string, TeamStandingItem[]>> {
+    const res = await safeJsonFetch<{ success: boolean; standings: Record<string, TeamStandingItem[]> }>(
+      `${API_BASE}/standings/recalculate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      }
+    );
+    return res?.standings || {};
+  },
 };
 

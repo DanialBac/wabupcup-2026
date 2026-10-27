@@ -339,11 +339,15 @@ var categoriesCache = null;
 var categoryQuotasCache = null;
 var matchesCache = null;
 var playersCache = /* @__PURE__ */ new Map();
+var standingsDbCache = /* @__PURE__ */ new Map();
 function invalidateMatchesCache() {
   matchesCache = null;
 }
 function invalidatePlayersCache() {
   playersCache.clear();
+}
+function invalidateStandingsCache() {
+  standingsDbCache.clear();
 }
 function persistLocalStore() {
 }
@@ -2804,6 +2808,7 @@ var Database = {
         await pool.query("DELETE FROM tournament_groups WHERE category_id = ?", [category]);
         await pool.query("DELETE FROM matches WHERE category_id = ?", [category]);
         await pool.query("DELETE FROM table_standings WHERE category_id = ?", [category]);
+        invalidateStandingsCache();
       } catch (err) {
         console.error("Error resetting category groups and matches from MySQL:", err);
       }
@@ -2963,6 +2968,14 @@ var Database = {
           } else {
             await pool.query("DELETE FROM table_standings WHERE category_id = ?", [category]);
           }
+        } else {
+          if (validIds.length > 0) {
+            const placeholders = validIds.map(() => "?").join(", ");
+            await pool.query(
+              `DELETE FROM table_standings WHERE id NOT IN (${placeholders})`,
+              validIds
+            );
+          }
         }
         if (allItems.length > 0) {
           const chunkSize = 50;
@@ -3013,13 +3026,21 @@ var Database = {
             await pool.query(sql, params);
           }
         }
+        invalidateStandingsCache();
       } catch (err) {
         console.error("Error persisting standings to table_standings in MySQL:", err);
       }
     }
     return result;
   },
-  async getStandingsFromDb(category) {
+  async getStandingsFromDb(category, forceRefresh = false) {
+    const cacheKey = category || "__ALL__";
+    if (!forceRefresh && standingsDbCache.has(cacheKey)) {
+      const cached = standingsDbCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < 15e3) {
+        return cached.data;
+      }
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
@@ -3053,13 +3074,16 @@ var Database = {
               points: Number(r.points) || 0
             });
           }
+          standingsDbCache.set(cacheKey, { data: map, timestamp: Date.now() });
           return map;
         }
       } catch (err) {
         console.error("Error fetching standings from table_standings:", err);
       }
     }
-    return this.calculateStandings(category);
+    const calculated = await this.calculateStandings(category);
+    standingsDbCache.set(cacheKey, { data: calculated, timestamp: Date.now() });
+    return calculated;
   },
   async syncPlayerStatsFromMatches(category) {
     await ensureDbConnected();
@@ -4696,7 +4720,7 @@ apiRouter.delete("/registrations/:id", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message });
   }
 });
-apiRouter.get("/matches", cdnCache(10, 30), async (req, res) => {
+apiRouter.get("/matches", cdnCache(30, 60), async (req, res) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
@@ -5109,15 +5133,24 @@ apiRouter.post("/groups/reset", requireAdmin, async (req, res) => {
     res.status(500).json({ error: err?.message || "Gagal mereset grup dan jadwal" });
   }
 });
-apiRouter.get("/standings", cdnCache(10, 30), async (req, res) => {
+apiRouter.get("/standings", cdnCache(60, 180), async (req, res) => {
   try {
-    const { category, source } = req.query;
-    if (source === "db") {
-      const dbStandings = await Database.getStandingsFromDb(category);
-      return res.json(dbStandings);
+    const { category, recalculate } = req.query;
+    if (recalculate === "true") {
+      const standings = await Database.calculateStandings(category);
+      return res.json(standings);
     }
+    const dbStandings = await Database.getStandingsFromDb(category);
+    res.json(dbStandings);
+  } catch (err) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+apiRouter.post("/standings/recalculate", async (req, res) => {
+  try {
+    const { category } = req.body || {};
     const standings = await Database.calculateStandings(category);
-    res.json(standings);
+    res.json({ success: true, standings });
   } catch (err) {
     res.status(500).json({ error: err?.message });
   }

@@ -718,7 +718,7 @@ apiRouter.delete('/registrations/:id', requireAdmin, async (req: Request, res: R
 });
 
 // 8. Matches & Live Score
-apiRouter.get('/matches', cdnCache(10, 30), async (req: Request, res: Response) => {
+apiRouter.get('/matches', cdnCache(30, 60), async (req: Request, res: Response) => {
   const matches = await Database.getMatches();
   res.json(matches);
 });
@@ -1196,15 +1196,26 @@ apiRouter.post('/groups/reset', requireAdmin, async (req: Request, res: Response
 });
 
 // 13. Standings (Klasemen Real-time & Sinkronisasi table_standings)
-apiRouter.get('/standings', cdnCache(10, 30), async (req: Request, res: Response) => {
+apiRouter.get('/standings', cdnCache(60, 180), async (req: Request, res: Response) => {
   try {
-    const { category, source } = req.query;
-    if (source === 'db') {
-      const dbStandings = await Database.getStandingsFromDb(category as string | undefined);
-      return res.json(dbStandings);
+    const { category, recalculate } = req.query;
+    // Default: Read-only dari table_standings (ultra-low RU, 0 DELETE / INSERT per request publik)
+    if (recalculate === 'true') {
+      const standings = await Database.calculateStandings(category as string | undefined);
+      return res.json(standings);
     }
+    const dbStandings = await Database.getStandingsFromDb(category as string | undefined);
+    res.json(dbStandings);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message });
+  }
+});
+
+apiRouter.post('/standings/recalculate', async (req: Request, res: Response) => {
+  try {
+    const { category } = req.body || {};
     const standings = await Database.calculateStandings(category as string | undefined);
-    res.json(standings);
+    res.json({ success: true, standings });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }

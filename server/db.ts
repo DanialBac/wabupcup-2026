@@ -98,6 +98,7 @@ let categoriesCache: { data: CategoryDetail[]; timestamp: number } | null = null
 let categoryQuotasCache: { data: Array<{ id: string; maxTeams: number; registeredTeamsCount: number }>; timestamp: number } | null = null;
 let matchesCache: { data: MatchItem[]; timestamp: number } | null = null;
 let playersCache: Map<string, { data: PlayerItem[]; timestamp: number }> = new Map();
+let standingsDbCache: Map<string, { data: Record<string, TeamStandingItem[]>; timestamp: number }> = new Map();
 
 export function invalidateCategoriesCache() {
   categoriesCache = null;
@@ -110,6 +111,10 @@ export function invalidateMatchesCache() {
 
 export function invalidatePlayersCache() {
   playersCache.clear();
+}
+
+export function invalidateStandingsCache() {
+  standingsDbCache.clear();
 }
 
 export function loadLocalStore(): void {}
@@ -2514,6 +2519,7 @@ export const Database = {
         await pool.query('DELETE FROM tournament_groups WHERE category_id = ?', [category]);
         await pool.query('DELETE FROM matches WHERE category_id = ?', [category]);
         await pool.query('DELETE FROM table_standings WHERE category_id = ?', [category]);
+        invalidateStandingsCache();
       } catch (err) {
         console.error('Error resetting category groups and matches from MySQL:', err);
       }
@@ -2703,6 +2709,14 @@ export const Database = {
           } else {
             await pool.query('DELETE FROM table_standings WHERE category_id = ?', [category]);
           }
+        } else {
+          if (validIds.length > 0) {
+            const placeholders = validIds.map(() => '?').join(', ');
+            await pool.query(
+              `DELETE FROM table_standings WHERE id NOT IN (${placeholders})`,
+              validIds
+            );
+          }
         }
 
         if (allItems.length > 0) {
@@ -2744,6 +2758,7 @@ export const Database = {
             await pool.query(sql, params);
           }
         }
+        invalidateStandingsCache();
       } catch (err: any) {
         console.error('Error persisting standings to table_standings in MySQL:', err);
       }
@@ -2752,7 +2767,14 @@ export const Database = {
     return result;
   },
 
-  async getStandingsFromDb(category?: string): Promise<Record<string, TeamStandingItem[]>> {
+  async getStandingsFromDb(category?: string, forceRefresh = false): Promise<Record<string, TeamStandingItem[]>> {
+    const cacheKey = category || '__ALL__';
+    if (!forceRefresh && standingsDbCache.has(cacheKey)) {
+      const cached = standingsDbCache.get(cacheKey)!;
+      if (Date.now() - cached.timestamp < 15000) {
+        return cached.data;
+      }
+    }
     await ensureDbConnected();
     if (pool && isMySqlConnected) {
       try {
@@ -2786,14 +2808,17 @@ export const Database = {
               points: Number(r.points) || 0,
             });
           }
+          standingsDbCache.set(cacheKey, { data: map, timestamp: Date.now() });
           return map;
         }
       } catch (err) {
         console.error('Error fetching standings from table_standings:', err);
       }
     }
-    // Fallback to real-time calculation
-    return this.calculateStandings(category);
+    // Fallback to real-time calculation if table_standings is not populated yet
+    const calculated = await this.calculateStandings(category);
+    standingsDbCache.set(cacheKey, { data: calculated, timestamp: Date.now() });
+    return calculated;
   },
 
   async syncPlayerStatsFromMatches(category?: string): Promise<void> {

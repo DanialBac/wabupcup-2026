@@ -217,42 +217,9 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
     handleManualRefresh();
   }, []);
 
-  // Smart Visibility-Aware Polling:
-  // - Stops immediately when user navigates away (component unmount)
-  // - Pauses when tab is hidden (document.visibilityState === 'hidden')
-  // - Adaptive: 15s interval when matches are LIVE, 45s when idle
-  useEffect(() => {
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-    const executePoll = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
-      try {
-        await refreshStandings();
-      } catch (err) {
-        // Silently ignore background poll errors
-      }
-    };
-
-    const hasLiveMatch = matches.some(m => m.status === 'LIVE');
-    const intervalMs = hasLiveMatch ? 15000 : 45000;
-
-    pollTimer = setInterval(executePoll, intervalMs);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        executePoll();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (pollTimer) clearInterval(pollTimer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [matches, refreshStandings]);
+  // On-Demand Data Sync (Hemat FOT Vercel & TiDB Cloud RU):
+  // Polling background otomatis dinonaktifkan agar tab yang terbuka tidak mengonsumsi kuota FOT & RU terus-menerus.
+  // Data disinkronkan saat halaman dibuka atau saat pengguna menekan tombol 'Perbarui'.
 
   // 5-second loading timeout watchdog: if initial loading or syncing takes > 5s, turn off skeleton
   useEffect(() => {
@@ -976,14 +943,15 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
               <span>Piala Wakil Bupati Cup</span>
             </div>
 
-            {/* Manual Sync Button with subtle spinner */}
+            {/* Manual Sync Button with subtle spinner & label */}
             <button
               onClick={handleManualRefresh}
               disabled={isLoading}
-              className="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white transition cursor-pointer shadow-sm hover:border-white/20 active:scale-95"
-              title="Sinkronkan data dengan database MySQL"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white transition cursor-pointer shadow-sm hover:border-white/20 active:scale-95 text-xs font-semibold"
+              title="Perbarui data klasemen & jadwal"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-red-500' : ''}`} />
+              <span className="hidden sm:inline">Perbarui</span>
             </button>
           </div>
         </div>
