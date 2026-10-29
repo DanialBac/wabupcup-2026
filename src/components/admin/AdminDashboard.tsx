@@ -1308,6 +1308,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
       }
     }
 
+    let formattedLogo = regForm.teamLogo.trim();
+    if (formattedLogo.includes('/api/media/view/')) {
+      formattedLogo = formattedLogo.substring(formattedLogo.indexOf('/api/media/view/'));
+    } else if (/^med-\d+-[a-zA-Z0-9_-]+$/i.test(formattedLogo)) {
+      formattedLogo = `/api/media/view/${formattedLogo}`;
+    }
+
     const updated: RegistrationItem = {
       ...editingReg,
       teamName: regForm.teamName.trim(),
@@ -1323,7 +1330,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
       status: regForm.status,
       rejectionReason: regForm.rejectionReason.trim() || undefined,
       adminNotes: regForm.adminNotes.trim() || undefined,
-      teamLogo: regForm.teamLogo.trim() || undefined,
+      teamLogo: formattedLogo || undefined,
       documents: cleanDocs,
       lastUpdated: new Date().toISOString(),
     };
@@ -6281,13 +6288,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                               Atau Masukkan URL Logo Eksternal:
                             </label>
                             <input
-                              type="url"
+                              type="text"
                               value={generalConfigForm.wabupLogoUrl}
                               onChange={e => {
                                 setGeneralConfigForm({ ...generalConfigForm, wabupLogoUrl: e.target.value });
                                 updateConfig({ wabupLogoUrl: e.target.value });
                               }}
-                              placeholder="https://example.com/logo-wabupcup.png"
+                              placeholder="/api/media/view/... atau https://..."
                               className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-red-500"
                             />
                           </div>
@@ -6349,13 +6356,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                               Atau Masukkan URL Logo Eksternal:
                             </label>
                             <input
-                              type="url"
+                              type="text"
                               value={generalConfigForm.panitiaLogoUrl}
                               onChange={e => {
                                 setGeneralConfigForm({ ...generalConfigForm, panitiaLogoUrl: e.target.value });
                                 updateConfig({ panitiaLogoUrl: e.target.value });
                               }}
-                              placeholder="https://example.com/logo-panitia.png"
+                              placeholder="/api/media/view/... atau https://..."
                               className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </div>
@@ -6603,13 +6610,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                 {sponsorLogoType === 'URL' && (
                   <div className="space-y-2">
                     <input
-                      type="url"
+                      type="text"
                       value={sponsorForm.logoUrl}
                       onChange={e => {
                         setSponsorForm({ ...sponsorForm, logoUrl: e.target.value });
                         setSponsorLogoPreview(e.target.value);
                       }}
-                      placeholder="https://example.com/images/logo-sponsor.png"
+                      placeholder="/api/media/view/... atau https://..."
                       className="w-full bg-slate-900 border border-slate-700 focus:border-red-500 rounded-xl px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
                     />
                     <p className="text-[10px] text-slate-400">
@@ -7309,12 +7316,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isStand
                       )}
                     </label>
                     <input
-                      type="url"
+                      type="text"
                       value={regForm.teamLogo}
-                      onChange={e => setRegForm(prev => ({ ...prev, teamLogo: e.target.value }))}
-                      placeholder="Atau paste URL logo: https://..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      onChange={e => {
+                        const val = e.target.value.trim();
+                        if (val.includes('/api/media/view/')) {
+                          setRegForm(prev => ({ ...prev, teamLogo: val.substring(val.indexOf('/api/media/view/')) }));
+                        } else if (/^med-\d+-[a-zA-Z0-9_-]+$/i.test(val)) {
+                          setRegForm(prev => ({ ...prev, teamLogo: `/api/media/view/${val}` }));
+                        } else {
+                          setRegForm(prev => ({ ...prev, teamLogo: e.target.value }));
+                        }
+                      }}
+                      placeholder="Link logo: /api/media/view/..., ID med-xxx, atau URL"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-[11px]"
                     />
+                    <p className="text-[10px] text-slate-500">
+                      Mendukung link relatif (<code className="text-amber-400">/api/media/view/...</code>), ID berkas (<code className="text-amber-400">med-xxx</code>), atau URL lengkap.
+                    </p>
                   </div>
                 </div>
               </div>

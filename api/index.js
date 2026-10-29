@@ -1273,6 +1273,14 @@ var Database = {
   },
   async saveRegistration(item) {
     await ensureDbConnected();
+    if (item.teamLogo) {
+      const trimmedLogo = item.teamLogo.trim();
+      if (trimmedLogo.includes("/api/media/view/")) {
+        item.teamLogo = trimmedLogo.substring(trimmedLogo.indexOf("/api/media/view/"));
+      } else if (/^med-\d+-[a-zA-Z0-9_-]+$/i.test(trimmedLogo)) {
+        item.teamLogo = `/api/media/view/${trimmedLogo}`;
+      }
+    }
     const codeConflictMem = memStore.registrations.find(
       (r) => r.id !== item.id && r.regCode && item.regCode && r.regCode.trim().toUpperCase() === item.regCode.trim().toUpperCase()
     );
@@ -1444,6 +1452,33 @@ var Database = {
               `UPDATE table_standings SET team_logo = ? WHERE LOWER(TRIM(team_name)) = ? OR (institution_name IS NOT NULL AND LOWER(TRIM(institution_name)) = ?)`,
               [item.teamLogo, normName, normInst || normName]
             );
+            try {
+              const [grpRows] = await pool.query("SELECT id, teams_json FROM tournament_groups WHERE category_id = ?", [item.category]);
+              if (Array.isArray(grpRows)) {
+                for (const grp of grpRows) {
+                  let teams = [];
+                  try {
+                    teams = typeof grp.teams_json === "string" ? JSON.parse(grp.teams_json) : grp.teams_json || [];
+                  } catch {
+                  }
+                  if (Array.isArray(teams)) {
+                    let changed = false;
+                    for (const t of teams) {
+                      if (t.name?.trim().toLowerCase() === normName || normInst && t.institution?.trim().toLowerCase() === normInst) {
+                        t.logo = item.teamLogo;
+                        if (item.institutionName) t.institution = item.institutionName;
+                        changed = true;
+                      }
+                    }
+                    if (changed) {
+                      await pool.query("UPDATE tournament_groups SET teams_json = ? WHERE id = ?", [JSON.stringify(teams), grp.id]);
+                    }
+                  }
+                }
+              }
+            } catch (grpCascadeErr) {
+              console.warn("[Database] Error cascading logo to tournament_groups in MySQL:", grpCascadeErr);
+            }
           }
         } catch (cascadeErr) {
           console.warn("[Database] Error cascading logo update to MySQL:", cascadeErr);
