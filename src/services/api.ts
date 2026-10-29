@@ -336,6 +336,7 @@ export const ApiService = {
 
   // Admins & Auth
   async getAdmins(isAdmin?: boolean): Promise<AdminUser[] | null> {
+    if (!isAdmin) return [];
     const res = await safeJsonFetch<any>(`${API_BASE}/admins`);
     if (res && Array.isArray(res.admins)) {
       return res.admins;
@@ -440,10 +441,11 @@ export const ApiService = {
   },
 
   // Players (table_players)
-  async getPlayers(category?: string, teamName?: string, forceRefresh = false): Promise<PlayerItem[]> {
+  async getPlayers(category?: string, teamName?: string, forceRefresh = false, hasStats = false): Promise<PlayerItem[]> {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     if (teamName) params.append('teamName', teamName);
+    if (hasStats) params.append('hasStats', 'true');
     if (forceRefresh) params.append('_t', String(Date.now()));
     const queryString = params.toString();
     const url = queryString ? `${API_BASE}/players?${queryString}` : `${API_BASE}/players`;

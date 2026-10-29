@@ -182,7 +182,7 @@ async function linkSponsorMedia(sponsorId: string, logoUrl?: string) {
 }
 
 // 1. Health & Database Status
-apiRouter.get('/health', async (req: Request, res: Response) => {
+apiRouter.get('/health', cdnCache(60, 180), async (req: Request, res: Response) => {
   await ensureDbConnected();
   const status = getMySqlStatus();
   res.json({
@@ -264,8 +264,7 @@ apiRouter.get('/database/export-sql', requireAdmin, async (req: Request, res: Re
 });
 
 // 5. Config
-apiRouter.get('/config', async (req: Request, res: Response) => {
-  res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
+apiRouter.get('/config', cdnCache(120, 300), async (req: Request, res: Response) => {
   const config = await Database.getConfig();
   res.json(config);
 });
@@ -1064,12 +1063,14 @@ apiRouter.get('/auth/me', async (req: Request, res: Response) => {
 });
 
 // 11. Players Management & Excel Import (table_players)
-apiRouter.get('/players', cdnCache(15, 30), async (req: Request, res: Response) => {
+apiRouter.get('/players', cdnCache(30, 60), async (req: Request, res: Response) => {
   try {
-    const { category, teamName } = req.query;
+    const { category, teamName, hasStats } = req.query;
     const players = await Database.getPlayers(
       category as string | undefined,
-      teamName as string | undefined
+      teamName as string | undefined,
+      false,
+      hasStats === 'true' || hasStats === '1'
     );
     res.json(players);
   } catch (err: any) {

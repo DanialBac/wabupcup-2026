@@ -281,6 +281,7 @@ interface TournamentContextType {
   addMatch: (match: Omit<MatchItem, 'id'>) => void;
   updateMatch: (match: MatchItem) => void;
   deleteMatch: (matchId: string) => void;
+  refreshMatches: () => Promise<void>;
   randomizeMatchesForCategory: (
     category: TournamentCategory,
     stageOption?: 'AUTO' | 'PENYISIHAN' | '16_BESAR' | '8_BESAR' | 'SEMIFINAL'
@@ -318,7 +319,7 @@ interface TournamentContextType {
   resetCategoryGroupsAndMatches: (category: TournamentCategory) => Promise<{ success: boolean; message: string }>;
 
   players: PlayerItem[];
-  refreshPlayers: () => Promise<void>;
+  refreshPlayers: (hasStatsOnly?: boolean) => Promise<void>;
   savePlayer: (player: PlayerItem) => Promise<PlayerItem>;
   batchImportPlayers: (players: PlayerItem[]) => Promise<{ success: boolean; count: number }>;
   deletePlayer: (id: string) => Promise<void>;
@@ -454,15 +455,16 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const refreshDataFromServer = useCallback(async () => {
     try {
       setIsSyncingWithServer(true);
+      const isAdminLoggedIn = !!safeLocalStorageGet('wabupcup_current_admin', null);
       const [serverConfig, serverCategories, serverRegistrations, serverMatches, serverSponsors, serverAdmins, serverPlayers, serverGroups, health, authCheck] =
         await Promise.all([
           ApiService.getConfig(),
           ApiService.getCategories(),
-          ApiService.getRegistrations(!!safeLocalStorageGet('wabupcup_current_admin', null)),
+          ApiService.getRegistrations(isAdminLoggedIn),
           ApiService.getMatches(),
           ApiService.getSponsors(),
-          ApiService.getAdmins(!!safeLocalStorageGet('wabupcup_current_admin', null)),
-          ApiService.getPlayers().catch(() => []),
+          ApiService.getAdmins(isAdminLoggedIn),
+          (isAdminLoggedIn ? ApiService.getPlayers() : ApiService.getPlayers(undefined, undefined, false, true)).catch(() => []),
           ApiService.getGroups().catch(() => []),
           ApiService.checkHealth().catch(() => null),
           ApiService.getAuthMe().catch(() => null),
@@ -2508,10 +2510,23 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // Players Management
-  const refreshPlayers = async () => {
+  // Matches & Players Management
+  const refreshMatches = useCallback(async () => {
     try {
-      const serverPlayers = await ApiService.getPlayers();
+      const serverMatches = await ApiService.getMatches();
+      if (Array.isArray(serverMatches)) {
+        setMatches(serverMatches);
+        safeLocalStorageSet('wabupcup_matches', JSON.stringify(serverMatches));
+      }
+    } catch (err) {
+      console.warn('Could not refresh matches from server:', err);
+    }
+  }, []);
+
+  const refreshPlayers = useCallback(async (hasStatsOnly = false) => {
+    try {
+      const isAdminLoggedIn = !!safeLocalStorageGet('wabupcup_current_admin', null);
+      const serverPlayers = await ApiService.getPlayers(undefined, undefined, false, hasStatsOnly || !isAdminLoggedIn);
       if (Array.isArray(serverPlayers)) {
         setPlayers(serverPlayers);
         safeLocalStorageSet('wabupcup_players', JSON.stringify(serverPlayers));
@@ -2519,7 +2534,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch (err) {
       console.warn('Could not refresh players from server:', err);
     }
-  };
+  }, []);
 
   const savePlayer = async (player: PlayerItem): Promise<PlayerItem> => {
     const item: PlayerItem = {
@@ -2679,7 +2694,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               yellowCards: newYellow,
               redCards: newRed,
             };
-            ApiService.savePlayer(mod).catch(() => {});
+            // Note: Server-side saveMatch already runs syncPlayerStatsFromMatches atomically,
+            // avoiding repetitive PUT /api/players/:id calls to preserve TiDB RU & Vercel FOT.
             return mod;
           }
           return p;
@@ -2992,6 +3008,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addMatch,
         updateMatch,
         deleteMatch,
+        refreshMatches,
         randomizeMatchesForCategory,
         checkCanDrawNextRound,
         groups,

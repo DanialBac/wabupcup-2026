@@ -2537,8 +2537,8 @@ var Database = {
     return true;
   },
   // 12. Players (table_players)
-  async getPlayers(category, teamName, forceRefresh = false) {
-    const cacheKey = `${category || "all"}:::${teamName || "all"}`;
+  async getPlayers(category, teamName, forceRefresh = false, hasStats = false) {
+    const cacheKey = `${category || "all"}:::${teamName || "all"}:::${hasStats ? "stats" : "all"}`;
     const cached = playersCache.get(cacheKey);
     if (!forceRefresh && cached && Date.now() - cached.timestamp < 3e4) {
       return cached.data;
@@ -2556,7 +2556,10 @@ var Database = {
           query += " AND team_name = ?";
           params.push(teamName);
         }
-        query += " ORDER BY team_name ASC, jersey_number ASC";
+        if (hasStats) {
+          query += " AND (goals > 0 OR yellow_cards > 0 OR red_cards > 0)";
+        }
+        query += " ORDER BY goals DESC, team_name ASC, jersey_number ASC";
         const [rows] = await pool.query(query, params);
         if (Array.isArray(rows)) {
           const result = rows.map((r) => ({
@@ -2584,6 +2587,7 @@ var Database = {
     let list = [...memStore.players];
     if (category) list = list.filter((p) => p.category === category);
     if (teamName) list = list.filter((p) => p.teamName === teamName);
+    if (hasStats) list = list.filter((p) => (p.goals || 0) > 0 || (p.yellowCards || 0) > 0 || (p.redCards || 0) > 0);
     return list;
   },
   async savePlayer(player) {
@@ -4281,7 +4285,7 @@ async function linkSponsorMedia(sponsorId, logoUrl) {
     console.warn("[linkSponsorMedia warning]", err);
   }
 }
-apiRouter.get("/health", async (req, res) => {
+apiRouter.get("/health", cdnCache(60, 180), async (req, res) => {
   await ensureDbConnected();
   const status = getMySqlStatus();
   res.json({
@@ -4353,8 +4357,7 @@ apiRouter.get("/database/export-sql", requireAdmin, async (req, res) => {
     res.status(500).send(`-- Error generating SQL dump: ${err?.message}`);
   }
 });
-apiRouter.get("/config", async (req, res) => {
-  res.setHeader("Cache-Control", "public, s-maxage=10, stale-while-revalidate=30");
+apiRouter.get("/config", cdnCache(120, 300), async (req, res) => {
   const config = await Database.getConfig();
   res.json(config);
 });
@@ -5050,12 +5053,14 @@ apiRouter.get("/auth/me", async (req, res) => {
     return res.status(500).json({ authenticated: false, success: false, error: "Server error" });
   }
 });
-apiRouter.get("/players", cdnCache(15, 30), async (req, res) => {
+apiRouter.get("/players", cdnCache(30, 60), async (req, res) => {
   try {
-    const { category, teamName } = req.query;
+    const { category, teamName, hasStats } = req.query;
     const players = await Database.getPlayers(
       category,
-      teamName
+      teamName,
+      false,
+      hasStats === "true" || hasStats === "1"
     );
     res.json(players);
   } catch (err) {

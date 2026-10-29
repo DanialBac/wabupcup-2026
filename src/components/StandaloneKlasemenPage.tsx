@@ -50,6 +50,7 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
     refreshDataFromServer,
     refreshStandings,
     refreshPlayers,
+    refreshMatches,
     isSyncingWithServer,
     isInitialLoading,
     dbStatus,
@@ -200,9 +201,9 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
     setIsRetrying(true);
     try {
       await Promise.allSettled([
-        refreshDataFromServer(),
         refreshStandings(),
-        refreshPlayers(),
+        refreshPlayers(true),
+        refreshMatches ? refreshMatches() : Promise.resolve(),
       ]);
     } catch (err) {
       console.warn('Manual refresh failed:', err);
@@ -212,9 +213,13 @@ export const StandaloneKlasemenPage: React.FC<StandaloneKlasemenPageProps> = ({
     }
   };
 
-  // Initial Auto-sync with Database when component mounts
+  // Initial Auto-sync with Database when component mounts:
+  // TournamentContext already initializes data from server on app load.
+  // We only fetch standings if not yet available in state/localStorage, preventing duplicate full dataset fetch.
   useEffect(() => {
-    handleManualRefresh();
+    if (!standings || Object.keys(standings).length === 0) {
+      refreshStandings();
+    }
   }, []);
 
   // On-Demand Data Sync (Hemat FOT Vercel & TiDB Cloud RU):

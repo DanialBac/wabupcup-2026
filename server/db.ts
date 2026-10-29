@@ -2288,8 +2288,8 @@ export const Database = {
   },
 
   // 12. Players (table_players)
-  async getPlayers(category?: string, teamName?: string, forceRefresh = false): Promise<PlayerItem[]> {
-    const cacheKey = `${category || 'all'}:::${teamName || 'all'}`;
+  async getPlayers(category?: string, teamName?: string, forceRefresh = false, hasStats = false): Promise<PlayerItem[]> {
+    const cacheKey = `${category || 'all'}:::${teamName || 'all'}:::${hasStats ? 'stats' : 'all'}`;
     const cached = playersCache.get(cacheKey);
     if (!forceRefresh && cached && Date.now() - cached.timestamp < 30000) {
       return cached.data;
@@ -2307,7 +2307,10 @@ export const Database = {
           query += ' AND team_name = ?';
           params.push(teamName);
         }
-        query += ' ORDER BY team_name ASC, jersey_number ASC';
+        if (hasStats) {
+          query += ' AND (goals > 0 OR yellow_cards > 0 OR red_cards > 0)';
+        }
+        query += ' ORDER BY goals DESC, team_name ASC, jersey_number ASC';
         const [rows]: any = await pool.query(query, params);
         if (Array.isArray(rows)) {
           const result = rows.map((r: any) => ({
@@ -2335,6 +2338,7 @@ export const Database = {
     let list = [...memStore.players];
     if (category) list = list.filter(p => p.category === category);
     if (teamName) list = list.filter(p => p.teamName === teamName);
+    if (hasStats) list = list.filter(p => (p.goals || 0) > 0 || (p.yellowCards || 0) > 0 || (p.redCards || 0) > 0);
     return list;
   },
 
